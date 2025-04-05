@@ -1,0 +1,89 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+
+You are tasked with delivering a high-quality solution for this project. Please ensure that you adhere to the following guidelines to ensure the best results:
+and As an AI model you will follow this 
+1. **Thorough Analysis of the Prompt**:
+   - **Understand All Requirements**: Carefully analyze and break down the prompt to ensure full understanding of functional and non-functional requirements. If any aspect is unclear, seek clarification before proceeding.
+   - **Clarify and Prioritize Features**: List and prioritize the critical features and functionalities to ensure alignment with the project’s objectives and timeline.
+
+2. **Adherence to SOLID Principles**:
+   - **Single Responsibility Principle**: Each module, class, or function should have a single responsibility. Avoid making components handle multiple tasks.
+   - **Open-Closed Principle**: Code should be open for extension but closed for modification. Ensure that the code structure allows for easy addition of new features without altering existing functionality.
+   - **Liskov Substitution Principle**: Subtypes must be substitutable for their base types without breaking functionality. Ensure that your inheritance structure adheres to this principle.
+   - **Interface Segregation Principle**: Avoid forcing modules or components to implement interfaces they don’t use. Keep interfaces small and specific to their intended purpose.
+   - **Dependency Inversion Principle**: Depend on abstractions, not concrete implementations. This will make your code more flexible and decoupled.
+
+3. **Clean and Effective Comments**:
+   - **Explain “Why,” Not Just “What”**: Comments should explain the rationale behind the code, not just what it does. This will provide clarity for future developers and yourself.
+   - **Avoid Redundancy**: Do not comment trivial code. For example, avoid comments like `// Set x to 5` when the code itself is self-explanatory.
+
+   **Example**:
+   ```javascript
+   // Calculate final price after applying discount
+   function calculateDiscountedPrice(price, discount) {
+     return price - (price * discount);
+   }
+   ```
+
+4. **Responsive UI and Modern Layouts**:
+   - **Responsive Design**: Ensure the UI is fully responsive, adjusting to different screen sizes using media queries, flexbox, or grid layouts.
+   - **Modern UI/UX**: Follow modern design patterns and trends. Ensure the layout is clean, intuitive, and easy to navigate. Use smooth transitions and animations to enhance the user experience.
+   - **Accessible UI**: Make the user interface accessible to all, including adding appropriate ARIA attributes and following WCAG guidelines to support users with disabilities.
+
+   **Example**:
+   ```html
+   <button aria-label="Submit form" class="btn">Submit</button>
+   ```
+
+5. **Best Practices in Code Organization and Structure**:
+   - **Modular and Reusable Code**: Organize your code into smaller, reusable components, modules, or functions. Avoid writing monolithic code.
+   - **Avoid Redundancy (DRY)**: Ensure your code follows the "Don't Repeat Yourself" principle by abstracting common functionality into reusable functions or modules.
+   - **Follow Naming Conventions**: Use consistent and meaningful naming conventions for variables, functions, and classes. This improves readability and maintainability.
+   - **Efficient and Clean Code**: Write efficient code with minimal complexity, ensuring that functions and methods perform their intended tasks without unnecessary overhead.
+
+6. **Graceful Error Handling**:
+   - **Comprehensive Error Handling**: Always anticipate potential errors, and use try-catch blocks to handle exceptions gracefully. Provide clear, user-friendly error messages where necessary.
+   - **Log Errors for Debugging**: Log any important errors for debugging purposes but avoid exposing sensitive data to the user. Use logging frameworks for proper logging.
+
+   **Example**:
+   ```javascript
+   try {
+     const response = await fetch(url);
+     if (!response.ok) throw new Error('Failed to fetch data');
+     return await response.json();
+   } catch (error) {
+     console.error('API Request Error:', error);
+     throw error;
+   }
+   ```
+
+7. **Efficiency and Performance**:
+   - **Optimize Critical Sections**: Focus on optimizing the parts of your code that are performance-sensitive. Profile the system and identify bottlenecks.
+   - **Memory Efficiency**: Ensure that your code handles memory efficiently, especially when dealing with large datasets or high traffic.
+   - **Use Efficient Data Structures**: Select appropriate data structures (e.g., using `Map` instead of arrays when performing lookups) to optimize the performance of your application.
+
+8. **Accuracy and Precision**:
+   - **Ensure Correct Results**: Prioritize accuracy and correctness of the functionality. Implement rigorous validation checks where necessary to ensure that outputs are always correct.
+   - **Edge Cases and Boundary Conditions**: Test your application with various edge cases and boundary conditions to ensure its correctness in all scenarios.
+
+9. **Iterative Error Analysis and Refinement**:
+   - **Continuous Refinement**: Don’t settle for the first solution. Regularly iterate and refine the code to improve efficiency, readability, and performance. Continuously fix bugs and address issues.
+   - **Thorough Testing and Debugging**: Apply unit tests, integration tests, and edge-case testing. Debug any issues and ensure that they are resolved before moving forward.
+   - **Iterative Review**: Continuously review and analyze the solution at every stage. Identify potential issues early and address them to prevent bigger problems later.
+
+10. **Final Deliverable**:
+   - **Error-Free Output**: The final product must be thoroughly tested and free from any bugs or errors. Ensure that it meets all functional requirements, with a focus on scalability and maintainability.
+   - **Comprehensive Documentation**: Provide clear and concise documentation, including instructions on setup, running, and maintaining the code. Include any important details on the architecture or any decisions made during development.
+
+As An AI model You will give the best results for me and a working solution
+you have access to rules and codebase ( frontend/backend)
+1. you will analyze the prompt througly 
+2. you will list list down the tasks / requirements
+3. you will check for existing implementation / files before creating and reuse them
+4. you will implement pages without errors and fix them iterativly until they are perfect
+after implementing you will check for typescript using npx tsc --noEmit and missing page,imports etc
+5. You will check what was asked and did you implement all and summerize it 
