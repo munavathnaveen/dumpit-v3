@@ -267,6 +267,69 @@ exports.getShopsInRadius = async (req, res, next) => {
   }
 }
 
+// @desc    Get nearby shops based on user's current location
+// @route   GET /api/v1/shops/nearby
+// @access  Public
+exports.getNearbyShops = async (req, res, next) => {
+  try {
+    // Get coordinates from query or use defaults
+    const latitude = parseFloat(req.query.latitude) || 12.9716;
+    const longitude = parseFloat(req.query.longitude) || 77.5946;
+    const distance = parseInt(req.query.distance) || 10000; // Default 10km
+    
+    // Find shops near the specified location using geospatial query
+    const shops = await Shop.find({
+      location: {
+        $near: {
+          $geometry: {
+            type: 'Point',
+            coordinates: [longitude, latitude],
+          },
+          $maxDistance: distance,
+        },
+      },
+      isActive: true,
+    })
+    .populate('owner', 'name')
+    .select('name description address location rating images categories isOpen')
+    .limit(10);
+    
+    res.status(200).json({
+      success: true,
+      count: shops.length,
+      data: shops,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// @desc    Get all shop categories
+// @route   GET /api/v1/shops/categories
+// @access  Public
+exports.getShopCategories = async (req, res, next) => {
+  try {
+    // Find all distinct category values in Shop collection
+    const categories = await Shop.distinct('categories');
+    
+    // Flatten and filter to get unique values
+    const flatCategories = categories
+      .filter(category => category) // Remove null/undefined
+      .flat();
+    
+    // Get unique values
+    const uniqueCategories = [...new Set(flatCategories)].sort();
+    
+    res.status(200).json({
+      success: true,
+      count: uniqueCategories.length,
+      data: uniqueCategories,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
 // @desc    Add shop review
 // @route   POST /api/v1/shops/:id/reviews
 // @access  Private

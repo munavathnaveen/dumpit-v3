@@ -40,6 +40,7 @@ interface ShopSettings {
   shippingFee: number;
   freeShippingThreshold: number;
   taxRate: number;
+  categories: string[];
 }
 
 const mockShopData: ShopSettings = {
@@ -60,6 +61,7 @@ const mockShopData: ShopSettings = {
   shippingFee: 100,
   freeShippingThreshold: 1500,
   taxRate: 5,
+  categories: ['Fashion', 'Clothing', 'Accessories']
 };
 
 const VendorShopSetupScreen: React.FC = () => {
@@ -342,6 +344,67 @@ const VendorShopSetupScreen: React.FC = () => {
                     : "We're reviewing your shop details for verification"}
                 </Text>
               </View>
+            </View>
+          </View>
+        </Card3D>
+        
+        {/* Shop Categories */}
+        <Card3D style={styles.card} elevation="medium">
+          <Text style={styles.sectionTitle}>Shop Categories</Text>
+          
+          <View style={styles.inputContainer}>
+            <Text style={styles.label}>Categories</Text>
+            <Text style={styles.helperText}>Select categories that best describe your shop. This helps customers find your products.</Text>
+            
+            <View style={styles.categoriesContainer}>
+              {shopData.categories.map((category, index) => (
+                <View key={index} style={styles.categoryTag}>
+                  <Text style={styles.categoryText}>{category}</Text>
+                  <TouchableOpacity
+                    onPress={() => {
+                      const updatedCategories = [...shopData.categories];
+                      updatedCategories.splice(index, 1);
+                      handleInputChange('categories', updatedCategories);
+                    }}
+                  >
+                    <Ionicons name="close-circle" size={16} color={theme.colors.white} />
+                  </TouchableOpacity>
+                </View>
+              ))}
+              
+              <TouchableOpacity 
+                style={styles.addCategoryButton}
+                onPress={() => {
+                  // In a real app, you'd show a modal or dropdown with available categories
+                  const [categoryInput, setCategoryInput] = useState('');
+                  
+                  // Instead of using the prompt option (which isn't available in RN Alert)
+                  // We should use a proper modal with TextInput in a real app
+                  // This is a simplified example
+                  Alert.alert(
+                    "Add Category",
+                    "Which category would you like to add?",
+                    [
+                      { text: "Cancel", style: "cancel" },
+                      {
+                        text: "Add",
+                        onPress: () => {
+                          // This would normally use the value from a TextInput
+                          // For demo purposes, we're just adding a fixed category
+                          const newCategory = "New Category";
+                          if (newCategory && !shopData.categories.includes(newCategory)) {
+                            handleInputChange('categories', [...shopData.categories, newCategory]);
+                          }
+                        }
+                      }
+                    ],
+                    { cancelable: true }
+                  );
+                }}
+              >
+                <Ionicons name="add" size={18} color={theme.colors.primary} />
+                <Text style={styles.addCategoryText}>Add Category</Text>
+              </TouchableOpacity>
             </View>
           </View>
         </Card3D>
@@ -721,6 +784,31 @@ const styles = StyleSheet.create({
   retryButtonText: {
     color: theme.colors.white,
     fontWeight: 'bold',
+  },
+  categoriesContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+  },
+  categoryTag: {
+    backgroundColor: theme.colors.primary,
+    borderRadius: theme.borderRadius.small,
+    padding: theme.spacing.xs,
+    margin: theme.spacing.xs,
+  },
+  categoryText: {
+    color: theme.colors.white,
+    fontWeight: '500',
+  },
+  addCategoryButton: {
+    backgroundColor: theme.colors.primary,
+    borderRadius: theme.borderRadius.medium,
+    padding: theme.spacing.md,
+    marginTop: theme.spacing.md,
+  },
+  addCategoryText: {
+    color: theme.colors.white,
+    fontWeight: '500',
+    marginLeft: theme.spacing.xs,
   },
 });
 

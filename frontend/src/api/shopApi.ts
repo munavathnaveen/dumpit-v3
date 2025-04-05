@@ -1,6 +1,6 @@
 import apiClient from './apiClient';
 
-type Shop = {
+export type Shop = {
   _id: string;
   name: string;
   description: string;
@@ -27,13 +27,13 @@ type Shop = {
   updatedAt: string;
 };
 
-type ShopsResponse = {
+export type ShopsResponse = {
   success: boolean;
   count: number;
   data: Shop[];
 };
 
-type SingleShopResponse = {
+export type SingleShopResponse = {
   success: boolean;
   data: Shop;
 };
@@ -59,8 +59,23 @@ export const getShopsByDistance = async (
   return response.data;
 };
 
-export const getNearbyShops = async (): Promise<ShopsResponse> => {
-  const response = await apiClient.get('/shops/nearby');
+export const getNearbyShops = async (
+  coords?: { latitude: number; longitude: number },
+  distance: number = 10000
+): Promise<ShopsResponse> => {
+  let url = '/shops/nearby';
+  
+  // If coordinates are provided, add them as query parameters
+  if (coords) {
+    url += `?latitude=${coords.latitude}&longitude=${coords.longitude}&distance=${distance}`;
+  }
+  
+  const response = await apiClient.get(url);
+  return response.data;
+};
+
+export const getShopCategories = async (): Promise<{success: boolean, count: number, data: string[]}> => {
+  const response = await apiClient.get('/shops/categories');
   return response.data;
 };
 

@@ -24,4 +24,6 @@ export type ProductFilters = {
   rating?: number;
   search?: string;
   sort?: 'price' | '-price' | 'rating' | '-rating' | 'newest';
+  query?: string;
+  inStock?: boolean;
 }; 

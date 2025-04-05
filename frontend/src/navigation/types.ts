@@ -1,5 +1,8 @@
 import { RouteProp } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
+import { MutableRefObject } from 'react';
+import { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
+import { NativeStackScreenProps } from '@react-navigation/native-stack';
 
 // Auth stack params
 export type AuthStackParamList = {
@@ -11,27 +14,36 @@ export type AuthStackParamList = {
 
 // Main stack params  
 export type MainStackParamList = {
-  TabNavigator: undefined;
   Home: undefined;
+  Login: undefined;
+  Register: undefined;
   Profile: undefined;
   Notifications: undefined;
-  Products: { searchQuery?: string };
-  Shops: { searchQuery?: string };
+  Products: { searchQuery?: string, category?: string };
   ProductDetails: { productId: string };
   ShopDetails: { shopId: string };
+  Cart: undefined;
+  Checkout: undefined;
+  Orders: undefined;
   OrderDetails: { orderId: string };
-  CheckoutScreen: { totalAmount?: number };
-  // Vendor screens
+  Settings: undefined;
+  ChangePassword: undefined;
+  EditProfile: undefined;
+  Shops: { searchQuery?: string };
+  AddEditShop: { shopId?: string };
+  BottomTabs: undefined;
+  VendorBottomTabs: undefined;
   VendorDashboard: undefined;
   VendorProducts: undefined;
-  VendorAddProduct: undefined;
-  VendorEditProduct: { productId: string };
   VendorOrders: undefined;
+  VendorProduct: { productId?: string };
+  VendorEditProduct: { productId: string };
   VendorOrderDetails: { orderId: string };
-  VendorPayments: undefined;
-  VendorAnalytics: undefined;
+  VendorShops: undefined;
+  VendorCustomers: undefined;
   VendorImportExport: undefined;
   VendorShopSetup: undefined;
+  // Add other main stack screens
 };
 
 // Tab navigator params

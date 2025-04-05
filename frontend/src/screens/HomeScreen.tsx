@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Image, ActivityIndicator, Dimensions, ImageBackground } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Image, ActivityIndicator, Dimensions, ImageBackground, Linking, Alert } from 'react-native';
 import { useSelector, useDispatch } from 'react-redux';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -95,9 +95,11 @@ const HomeScreen: React.FC = () => {
   // State for products and shops
   const [featuredProducts, setFeaturedProducts] = useState<Product[]>([]);
   const [nearbyShops, setNearbyShops] = useState<Shop[]>([]);
+  const [categories, setCategories] = useState<string[]>([]);
   const [loading, setLoading] = useState({
     products: true,
-    shops: true
+    shops: true,
+    categories: true
   });
   const [currentAdIndex, setCurrentAdIndex] = useState(0);
 
@@ -105,6 +107,7 @@ const HomeScreen: React.FC = () => {
     getLocation();
     fetchFeaturedProducts();
     fetchNearbyShops();
+    fetchCategories();
     
     // Auto rotate ads
     const adInterval = setInterval(() => {
@@ -130,13 +133,64 @@ const HomeScreen: React.FC = () => {
   const fetchNearbyShops = async () => {
     try {
       setLoading(prev => ({ ...prev, shops: true }));
-      const response = await shopApi.getNearbyShops();
+      
+      let response;
+      // If we already have location data, use it
+      if (locationData) {
+        response = await shopApi.getNearbyShops(locationData);
+      } else {
+        // Try to get current location
+        try {
+          const { status } = await Location.requestForegroundPermissionsAsync();
+          
+          if (status === 'granted') {
+            const location = await Location.getCurrentPositionAsync({
+              accuracy: Location.Accuracy.Balanced,
+            });
+            
+            const coords = {
+              latitude: location.coords.latitude,
+              longitude: location.coords.longitude,
+            };
+            
+            setLocationData(coords);
+            
+            // Use the location for nearby shops
+            response = await shopApi.getNearbyShops(coords);
+            
+            // Also update server with user location if logged in
+            if (user) {
+              await locationApi.updateUserLocation(coords);
+            }
+          } else {
+            // No permission, use the default endpoint
+            response = await shopApi.getNearbyShops();
+          }
+        } catch (locationError) {
+          console.error('Error getting location:', locationError);
+          // Fall back to regular endpoint
+          response = await shopApi.getNearbyShops();
+        }
+      }
+      
       const shopsData = response.data as unknown as Shop[];
       setNearbyShops(shopsData);
     } catch (error) {
       console.error('Failed to fetch nearby shops:', error);
     } finally {
       setLoading(prev => ({ ...prev, shops: false }));
+    }
+  };
+
+  const fetchCategories = async () => {
+    try {
+      setLoading(prev => ({ ...prev, categories: true }));
+      const response = await productApi.getProductCategories();
+      setCategories(response.data);
+    } catch (error) {
+      console.error('Failed to fetch categories:', error);
+    } finally {
+      setLoading(prev => ({ ...prev, categories: false }));
     }
   };
 
@@ -236,6 +290,10 @@ const HomeScreen: React.FC = () => {
 
   const navigateToShopDetails = (shopId: string) => {
     navigation.navigate('ShopDetails', { shopId });
+  };
+
+  const navigateToProductsByCategory = (category: string) => {
+    navigation.navigate('Products', { category });
   };
 
   const renderAdBanner = () => {
@@ -512,12 +570,12 @@ const HomeScreen: React.FC = () => {
       >
         {/* Welcome message */}
         <View style={styles.welcomeContainer}>
-          <Text style={styles.welcomeText}>
+        <Text style={styles.welcomeText}>
             Welcome
             <Text style={styles.welcomeHighlight}>
               {user?.name ? ` ${user.name}!` : ' to Dumpit!'}
             </Text>
-          </Text>
+        </Text>
           <Text style={styles.welcomeSubtext}>
             Find construction materials from trusted vendors
           </Text>
@@ -598,34 +656,40 @@ const HomeScreen: React.FC = () => {
         {/* Categories Section */}
         <View style={styles.categoriesContainer}>
           <Text style={styles.categoriesTitle}>Popular Categories</Text>
-          <View style={styles.categoriesGrid}>
-            {['Cement', 'Bricks', 'Sand', 'Steel', 'Paint', 'Fixtures'].map((category, index) => (
-              <TouchableOpacity 
-                key={index} 
-                style={styles.categoryCard}
-                onPress={() => navigation.navigate('Products', { category })}
-              >
-                <LinearGradient
-                  colors={['rgba(255,107,53,0.8)', 'rgba(14,47,88,0.9)']}
-                  style={styles.categoryCardGradient}
+          {loading.categories ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="small" color={theme.colors.primary} />
+            </View>
+          ) : (
+            <View style={styles.categoriesGrid}>
+              {categories.slice(0, 6).map((category, index) => (
+                <TouchableOpacity 
+                  key={index} 
+                  style={styles.categoryCard}
+                  onPress={() => navigateToProductsByCategory(category)}
                 >
-                  <MaterialIcons 
-                    name={
-                      index === 0 ? 'business' :
-                      index === 1 ? 'grid-on' :
-                      index === 2 ? 'grain' :
-                      index === 3 ? 'straighten' :
-                      index === 4 ? 'format-paint' :
-                      'build'
-                    } 
-                    size={28} 
-                    color="#FFFFFF" 
-                  />
-                  <Text style={styles.categoryCardText}>{category}</Text>
-                </LinearGradient>
-              </TouchableOpacity>
-            ))}
-          </View>
+                  <LinearGradient
+                    colors={['rgba(255,107,53,0.8)', 'rgba(14,47,88,0.9)']}
+                    style={styles.categoryCardGradient}
+                  >
+                    <MaterialIcons 
+                      name={
+                        category.toLowerCase().includes('cement') ? 'business' :
+                        category.toLowerCase().includes('brick') ? 'grid-on' :
+                        category.toLowerCase().includes('sand') ? 'grain' :
+                        category.toLowerCase().includes('steel') ? 'straighten' :
+                        category.toLowerCase().includes('paint') ? 'format-paint' :
+                        'build'
+                      } 
+                      size={28} 
+                      color="#FFFFFF" 
+                    />
+                    <Text style={styles.categoryCardText}>{category}</Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
         </View>
       </ScrollView>
     </View>

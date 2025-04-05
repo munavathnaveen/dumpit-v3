@@ -341,3 +341,21 @@ exports.getVendorProducts = async (req, res, next) => {
     next(err)
   }
 }
+
+// @desc    Get all product categories
+// @route   GET /api/v1/products/categories
+// @access  Public
+exports.getProductCategories = async (req, res, next) => {
+  try {
+    // Find all distinct category values in Product collection
+    const categories = await Product.distinct('category');
+    
+    res.status(200).json({
+      success: true,
+      count: categories.length,
+      data: categories.sort(),
+    });
+  } catch (err) {
+    next(err);
+  }
+}
