@@ -12,9 +12,12 @@ export const colors = {
   error: '#FF4136',           // Bright red for errors
   success: '#2ECC40',         // Green for success
   warning: '#FF9E00',         // Amber for warnings
+  info: '#3498DB',            // Blue for information alerts
   shadow: 'rgba(255, 107, 53, 0.15)', // Shadow with primary color tint
   cardBg: '#FFFFFF',          // Card background
   inputBg: '#F8F8F8',         // Input background
+  border: '#E1E1E1',          // Border color
+  bgLight: '#F0F0F0',         // Light background
   text: '#1A1A1A',            // Main text color (same as dark)
   textLight: '#706F6F',       // Secondary text color (same as gray)
   background: '#F8F8F8',      // Background color

@@ -2,12 +2,16 @@ import { configureStore } from '@reduxjs/toolkit';
 import { useDispatch } from 'react-redux';
 import authReducer from './authSlice';
 import userReducer from './userSlice';
+import productReducer from './productSlice';
+import cartReducer from './cartSlice';
 
 // Configure the Redux store
 const store = configureStore({
   reducer: {
     auth: authReducer,
     user: userReducer,
+    product: productReducer,
+    cart: cartReducer,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({

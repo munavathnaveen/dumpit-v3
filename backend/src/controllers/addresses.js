@@ -165,8 +165,8 @@ exports.deleteAddress = async (req, res, next) => {
       await user.save()
     }
 
-    // Delete address
-    await address.remove()
+    // Delete address using findByIdAndDelete instead of the deprecated remove() method
+    await Address.findByIdAndDelete(req.params.id)
 
     res.status(200).json({
       success: true,

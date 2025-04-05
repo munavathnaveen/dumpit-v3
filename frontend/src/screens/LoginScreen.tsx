@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useDispatch, useSelector } from 'react-redux';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { z } from 'zod';
 
 import Input from '../components/Input';
 import Button from '../components/Button';
@@ -14,6 +15,7 @@ import { loginSchema, LoginFormData } from '../utils/validationSchemas';
 import { login } from '../store/authSlice';
 import { RootState, AppDispatch } from '../store';
 import { constants } from '../utils/constants';
+import alert from '../utils/alert';
 
 const LoginScreen: React.FC = () => {
   const navigation = useNavigation<NativeStackNavigationProp<any>>();
@@ -58,7 +60,7 @@ const LoginScreen: React.FC = () => {
         setValidationErrors(errors);
       } else {
         // Handle other errors
-        Alert.alert('Error', error.message || 'Login failed');
+        alert('Error', error.message || 'Login failed');
       }
     }
   };

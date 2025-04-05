@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useDispatch, useSelector } from 'react-redux';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { z } from 'zod';
 
 import Input from '../components/Input';
 import Button from '../components/Button';
@@ -12,6 +13,8 @@ import { theme } from '../theme';
 import { forgotPasswordSchema, ForgotPasswordFormData } from '../utils/validationSchemas';
 import { forgotPassword } from '../store/authSlice';
 import { RootState, AppDispatch } from '../store';
+import * as authApi from '../api/authApi';
+import alert from '../utils/alert';
 
 const ForgotPasswordScreen: React.FC = () => {
   const navigation = useNavigation<NativeStackNavigationProp<any>>();
@@ -32,13 +35,16 @@ const ForgotPasswordScreen: React.FC = () => {
       
       // Show success
       setIsSuccess(true);
+
+      console.log('Password reset requested for:', email);
+      // TODO: Implement actual password reset API call
     } catch (error: any) {
       if (error.errors) {
         // Handle Zod validation errors
         setValidationError(error.errors[0].message);
       } else {
         // Handle other errors
-        Alert.alert('Error', error.message || 'Failed to send reset email');
+        alert('Error', error.message || 'Failed to send reset email');
       }
     }
   };

@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useDispatch, useSelector } from 'react-redux';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { z } from 'zod';
 
 import Input from '../components/Input';
 import Button from '../components/Button';
@@ -13,6 +14,7 @@ import { theme } from '../theme';
 import { registerSchema, RegisterFormData } from '../utils/validationSchemas';
 import { register } from '../store/authSlice';
 import { RootState, AppDispatch } from '../store';
+import alert from '../utils/alert';
 import { constants } from '../utils/constants';
 
 const RegisterScreen: React.FC = () => {
@@ -60,7 +62,7 @@ const RegisterScreen: React.FC = () => {
         setValidationErrors(errors);
       } else {
         // Handle other errors
-        Alert.alert('Error', error.message || 'Registration failed');
+        alert('Error', error.message || 'Registration failed');
       }
     }
   };

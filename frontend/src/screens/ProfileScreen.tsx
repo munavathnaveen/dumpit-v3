@@ -29,6 +29,7 @@ import { fetchAddresses, addAddress, updateAddress, removeAddress } from '../sto
 import * as userApi from '../api/userApi';
 import * as authApi from '../api/authApi';
 import { Address, AddressRequest } from '../api/userApi';
+import alert from '../utils/alert';
 
 const ProfileScreen = () => {
   const dispatch = useDispatch<AppDispatch>();
@@ -74,7 +75,7 @@ const ProfileScreen = () => {
     if (Platform.OS !== 'web') {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert('Permission Denied', 'We need camera roll permissions to upload an avatar.');
+        alert('Permission Denied', 'We need camera roll permissions to upload an avatar.');
         return;
       }
     }
@@ -86,10 +87,8 @@ const ProfileScreen = () => {
         aspect: [1, 1],
         quality: 0.8,
       });
-
       if (!result.canceled) {
         const uri = result.assets[0].uri;
-        
         // Create form data
         const formData = new FormData();
         const fileExtension = uri.split('.').pop() || 'jpg';
@@ -99,16 +98,16 @@ const ProfileScreen = () => {
           type: `image/${fileExtension}`,
           name: `avatar.${fileExtension}`,
         } as any);
-        
+    
         const response = await userApi.uploadAvatar(user._id, formData);
         if (response.success) {
-          Alert.alert('Success', 'Avatar updated successfully!');
+          alert('Success', 'Avatar updated successfully!');
           // Reload user data
           dispatch({ type: 'auth/loadUser/fulfilled', payload: { ...user, avatar_url: response.data.url } });
         }
       }
     } catch (error) {
-      Alert.alert('Upload Failed', 'Failed to upload avatar. Please try again.');
+      alert('Upload Failed', 'Failed to upload avatar. Please try again.');
       console.error('Avatar upload error:', error);
     }
   };
@@ -119,7 +118,7 @@ const ProfileScreen = () => {
     if (!user) return;
     console.log(name,phone);
     if (!name.trim() || !phone.trim()) {
-      Alert.alert('Missing Information', 'Please fill in all required fields.');
+      alert('Missing Information', 'Please fill in all required fields.');
       return;
     }
 
@@ -128,14 +127,14 @@ const ProfileScreen = () => {
     try {
       const response = await authApi.updateDetails({ name, phone });
       if (response.success) {
-        Alert.alert('Success', 'Profile updated successfully!');
+        alert('Success', 'Profile updated successfully!');
         setIsEditingProfile(false);
         // Update user in Redux store
         dispatch({ type: 'auth/loadUser/fulfilled', payload: response.data });
       }
     } catch (error) {
       console.error('Profile update error:', error);
-      Alert.alert('Update Failed', 'Failed to update profile. Please try again.');
+      alert('Update Failed', 'Failed to update profile. Please try again.');
     } finally {
       setIsSubmittingProfile(false);
     }
@@ -144,17 +143,17 @@ const ProfileScreen = () => {
   // Password update
   const handleUpdatePassword = async () => {
     if (!newPassword.trim() || !currentPassword.trim() || !confirmPassword.trim()) {
-      Alert.alert('Missing Information', 'Please fill in all password fields.');
+      alert('Missing Information', 'Please fill in all password fields.');
       return;
     }
 
     if (newPassword !== confirmPassword) {
-      Alert.alert('Password Mismatch', 'New passwords do not match.');
+      alert('Password Mismatch', 'New passwords do not match.');
       return;
     }
 
     if (newPassword.length < 6) {
-      Alert.alert('Weak Password', 'Password must be at least 6 characters.');
+      alert('Weak Password', 'Password must be at least 6 characters.');
       return;
     }
 
@@ -162,14 +161,14 @@ const ProfileScreen = () => {
 
     try {
       await authApi.updatePassword({ currentPassword, newPassword });
-      Alert.alert('Success', 'Password updated successfully!');
+      alert('Success', 'Password updated successfully!');
       setIsChangingPassword(false);
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
     } catch (error) {
       console.error('Password update error:', error);
-      Alert.alert('Update Failed', 'Failed to update password. Please check your current password and try again.');
+      alert('Update Failed', 'Failed to update password. Please check your current password and try again.');
     } finally {
       setIsSubmittingPassword(false);
     }
@@ -203,8 +202,8 @@ const ProfileScreen = () => {
   };
 
   const handleDeleteAddress = (addressId: string) => {
-    Alert.alert(
-      'Confirm Delete',
+    alert(
+      'Delete Address',
       'Are you sure you want to delete this address?',
       [
         { text: 'Cancel', style: 'cancel' },
@@ -220,8 +219,8 @@ const ProfileScreen = () => {
   };
 
   const handleSaveAddress = () => {
-    if (!addressName.trim() || !village.trim() || !street.trim() || !district.trim() || !state.trim() || !pincode.trim() || !addressPhone.trim()) {
-      Alert.alert('Missing Information', 'Please fill in all required address fields.');
+    if (!addressName || !village || !street || !district || !state || !pincode || !addressPhone) {
+      alert('Missing Information', 'Please fill in all required address fields.');
       return;
     }
 
@@ -248,7 +247,7 @@ const ProfileScreen = () => {
 
   // Logout
   const handleLogout = () => {
-    Alert.alert(
+    alert(
       'Confirm Logout',
       'Are you sure you want to logout?',
       [

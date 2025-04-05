@@ -38,7 +38,7 @@ const UserSchema = new mongoose.Schema(
     },
     avatar_url: {
       type: String,
-      default: 'https://res.cloudinary.com/demo/image/upload/v1580125763/user-default_qiyrhl.png',
+      default: 'https://i.ibb.co/1trwLj3m/vecteezy-3d-illustration-of-professional-character-with-laptop-47389238-1.png',
     },
     location: {
       type: {
