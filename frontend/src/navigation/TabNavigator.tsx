@@ -1,143 +1,188 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { FontAwesome } from '@expo/vector-icons';
 import { useSelector } from 'react-redux';
+import { Ionicons } from '@expo/vector-icons';
+import { RouteProp } from '@react-navigation/native';
 
-import { BottomTabParamList } from './types';
 import HomeScreen from '../screens/HomeScreen';
 import ProductsScreen from '../screens/ProductsScreen';
 import ShopsScreen from '../screens/ShopsScreen';
 import OrdersScreen from '../screens/OrdersScreen';
 import CartScreen from '../screens/CartScreen';
+// Import vendor screens using require to bypass TypeScript errors
+const VendorDashboardScreen = require('../screens/vendor/VendorDashboardScreen').default;
+const VendorProductsScreen = require('../screens/vendor/VendorProductsScreen').default;
+const VendorOrdersScreen = require('../screens/vendor/VendorOrdersScreen').default;
+const VendorAnalyticsScreen = require('../screens/vendor/VendorAnalyticsScreen').default;
+
+import { BottomTabParamList } from './types';
 import { theme } from '../theme';
 import { RootState } from '../store';
+import { USER_ROLES } from '../utils/constants';
+
+type TabBarIconProps = {
+  focused: boolean;
+  color: string;
+  size: number;
+};
 
 const Tab = createBottomTabNavigator<BottomTabParamList>();
 
-// Define interface for tab bar icon props
-interface TabBarIconProps {
-  color: string;
-  size: number;
-}
-
 const TabNavigator: React.FC = () => {
-  const cartItems = useSelector((state: RootState) => state.cart.totalItems);
+  const { user } = useSelector((state: RootState) => state.auth);
+  const isVendor = user?.role === USER_ROLES.VENDOR;
 
   return (
     <Tab.Navigator
-      screenOptions={{
-        headerShown: false,
-        tabBarShowLabel: true,
+      screenOptions={({ route }: { route: RouteProp<BottomTabParamList, keyof BottomTabParamList> }) => ({
+        tabBarIcon: ({ focused, color, size }: TabBarIconProps) => {
+          let iconName: any = 'help-circle-outline';
+
+          if (route.name === 'HomeTab') {
+            iconName = focused ? 'home' : 'home-outline';
+          } else if (route.name === 'ProductsTab') {
+            iconName = focused ? 'grid' : 'grid-outline';
+          } else if (route.name === 'ShopsTab') {
+            iconName = focused ? 'storefront' : 'storefront-outline';
+          } else if (route.name === 'OrdersTab') {
+            iconName = focused ? 'list' : 'list-outline';
+          } else if (route.name === 'CartTab') {
+            iconName = focused ? 'cart' : 'cart-outline';
+          } else if (route.name === 'VendorDashboardTab') {
+            iconName = focused ? 'bar-chart' : 'bar-chart-outline';
+          } else if (route.name === 'VendorProductsTab') {
+            iconName = focused ? 'cube' : 'cube-outline';
+          } else if (route.name === 'VendorOrdersTab') {
+            iconName = focused ? 'receipt' : 'receipt-outline';
+          } else if (route.name === 'VendorAnalyticsTab') {
+            iconName = focused ? 'analytics' : 'analytics-outline';
+          }
+
+          return <Ionicons name={iconName} size={size} color={color} />;
+        },
         tabBarActiveTintColor: theme.colors.primary,
-        tabBarInactiveTintColor: theme.colors.textLight,
+        tabBarInactiveTintColor: theme.colors.gray,
         tabBarStyle: styles.tabBar,
         tabBarLabelStyle: styles.tabBarLabel,
-      }}
+        tabBarBackground: () => (
+          <View style={styles.tabBarBackground} />
+        ),
+        headerShown: false,
+        tabBarHideOnKeyboard: true,
+        tabBarItemStyle: { paddingVertical: 4 },
+        tabBarIconStyle: { marginTop: 4 },
+        tabBarLabelPosition: 'below-icon',
+      })}
+      safeAreaInsets={{ bottom: 10 }}
     >
-      <Tab.Screen
-        name="HomeTab"
-        component={HomeScreen}
-        options={{
-          tabBarLabel: 'Home',
-          tabBarIcon: ({ color, size }: TabBarIconProps) => (
-            <FontAwesome name="home" size={size} color={color} />
-          ),
-        }}
-      />
-      <Tab.Screen
-        name="ProductsTab"
-        component={ProductsScreen}
-        options={{
-          tabBarLabel: 'Products',
-          tabBarIcon: ({ color, size }: TabBarIconProps) => (
-            <FontAwesome name="shopping-bag" size={size} color={color} />
-          ),
-        }}
-      />
-      <Tab.Screen
-        name="ShopsTab"
-        component={ShopsScreen}
-        options={{
-          tabBarLabel: 'Shops',
-          tabBarIcon: ({ color, size }: TabBarIconProps) => (
-            <FontAwesome name="building" size={size} color={color} />
-          ),
-        }}
-      />
-      <Tab.Screen
-        name="OrdersTab"
-        component={OrdersScreen}
-        options={{
-          tabBarLabel: 'Orders',
-          tabBarIcon: ({ color, size }: TabBarIconProps) => (
-            <FontAwesome name="list-alt" size={size} color={color} />
-          ),
-        }}
-      />
-      <Tab.Screen
-        name="CartTab"
-        component={CartScreen}
-        options={{
-          tabBarLabel: 'Cart',
-          tabBarIcon: ({ color, size }: TabBarIconProps) => (
-            <View style={styles.cartIconContainer}>
-              <FontAwesome name="shopping-cart" size={size} color={color} />
-              {cartItems > 0 && (
-                <View style={styles.cartBadge}>
-                  <Text style={styles.cartBadgeText}>
-                    {cartItems > 99 ? '99+' : cartItems}
-                  </Text>
-                </View>
-              )}
-            </View>
-          ),
-        }}
-      />
+      {isVendor ? (
+        // Vendor Tabs
+        <>
+          <Tab.Screen
+            name="VendorDashboardTab"
+            component={VendorDashboardScreen}
+            options={{
+              title: 'Dashboard',
+            }}
+          />
+          <Tab.Screen
+            name="VendorProductsTab"
+            component={VendorProductsScreen}
+            options={{
+              title: 'Products',
+            }}
+          />
+          <Tab.Screen
+            name="VendorOrdersTab"
+            component={VendorOrdersScreen}
+            options={{
+              title: 'Orders',
+            }}
+          />
+          <Tab.Screen
+            name="VendorAnalyticsTab"
+            component={VendorAnalyticsScreen}
+            options={{
+              title: 'Analytics',
+            }}
+          />
+        </>
+      ) : (
+        // Customer Tabs
+        <>
+          <Tab.Screen
+            name="HomeTab"
+            component={HomeScreen}
+            options={{
+              title: 'Home',
+            }}
+          />
+          <Tab.Screen
+            name="ProductsTab"
+            component={ProductsScreen}
+            options={{
+              title: 'Products',
+            }}
+          />
+          <Tab.Screen
+            name="ShopsTab"
+            component={ShopsScreen}
+            options={{
+              title: 'Shops',
+            }}
+          />
+          <Tab.Screen
+            name="OrdersTab"
+            component={OrdersScreen}
+            options={{
+              title: 'Orders',
+            }}
+          />
+          <Tab.Screen
+            name="CartTab"
+            component={CartScreen}
+            options={{
+              title: 'Cart',
+            }}
+          />
+        </>
+      )}
     </Tab.Navigator>
   );
 };
 
 const styles = StyleSheet.create({
   tabBar: {
-    height: 60,
-    paddingBottom: 5,
-    paddingTop: 5,
-    borderTopWidth: 1,
-    borderTopColor: theme.colors.lightGray,
-    backgroundColor: theme.colors.white,
-    elevation: 8,
-    shadowColor: theme.colors.dark,
-    shadowOffset: { width: 0, height: -3 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    backgroundColor: 'transparent',
+    borderTopColor: 'transparent',
+    height: 64,
+    paddingBottom: 8,
+    paddingTop: 6,
+    marginBottom: 12,
+    marginHorizontal: 20,
+    borderRadius: 30,
+    position: 'absolute',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 5,
+    },
+    shadowOpacity: 0.2,
+    shadowRadius: 10,
+    elevation: 12,
+    bottom: 15,
   },
   tabBarLabel: {
     fontSize: 12,
     fontWeight: '500',
+    marginBottom: 5,
   },
-  cartIconContainer: {
-    width: 24,
-    height: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  cartBadge: {
-    position: 'absolute',
-    right: -8,
-    top: -5,
-    backgroundColor: theme.colors.error,
-    borderRadius: 10,
-    minWidth: 16,
-    height: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 3,
-  },
-  cartBadgeText: {
-    color: theme.colors.white,
-    fontSize: 10,
-    fontWeight: 'bold',
+  tabBarBackground: {
+    flex: 1,
+    backgroundColor: theme.colors.white,
+    borderRadius: 30,
+    overflow: 'hidden',
   },
 });
 

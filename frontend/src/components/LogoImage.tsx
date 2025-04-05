@@ -3,7 +3,7 @@ import { View, Image, StyleSheet, StyleProp, ViewStyle } from 'react-native';
 import { theme } from '../theme';
 
 interface LogoImageProps {
-  size?: 'small' | 'medium' | 'large';
+  size?: 'small' | 'medium' | 'large' | 'tiny';
   style?: StyleProp<ViewStyle>;
 }
 
@@ -11,6 +11,8 @@ const LogoImage: React.FC<LogoImageProps> = ({ size = 'medium', style }) => {
   // Scale image size based on the size prop
   const getDimensions = () => {
     switch (size) {
+      case 'tiny' : 
+        return {width : 25, height: 25 }; 
       case 'small':
         return { width: 80, height: 80 };
       case 'medium':

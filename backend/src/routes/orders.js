@@ -6,6 +6,9 @@ const {
   updateOrderStatus,
   updatePayment,
   cancelOrder,
+  getVendorOrders,
+  getVendorOrder,
+  getVendorOrderStats
 } = require('../controllers/orders')
 
 const {protect, authorize} = require('../middleware/auth')
@@ -17,6 +20,11 @@ const router = express.Router()
 
 // Protect all routes
 router.use(protect)
+
+// Vendor specific routes
+router.get('/vendor', authorize(config.constants.userRoles.VENDOR), getVendorOrders)
+router.get('/vendor/stats', authorize(config.constants.userRoles.VENDOR), getVendorOrderStats)
+router.get('/vendor/:id', authorize(config.constants.userRoles.VENDOR), getVendorOrder)
 
 // Get all orders
 router.get('/', getOrders)

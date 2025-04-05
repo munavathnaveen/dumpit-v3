@@ -293,3 +293,199 @@ exports.downloadCSV = asyncHandler(async (req, res, next) => {
 
   res.download(filePath)
 })
+
+/**
+ * @desc    Get vendor dashboard analytics
+ * @route   GET /api/v1/analytics/vendor-dashboard
+ * @access  Private/Vendor
+ */
+exports.getVendorDashboard = async (req, res, next) => {
+  try {
+    const vendorId = req.user.id;
+    
+    // Get vendor's products
+    const products = await Product.find({ vendor: vendorId });
+    const productIds = products.map(product => product._id);
+    
+    // Get orders containing vendor's products
+    const orders = await Order.find({
+      'items.product': { $in: productIds }
+    }).populate('user', 'name');
+    
+    // Calculate total revenue
+    let totalRevenue = 0;
+    
+    // Process orders
+    orders.forEach(order => {
+      order.items.forEach(item => {
+        if (productIds.some(id => id.toString() === item.product.toString())) {
+          totalRevenue += item.price * item.quantity;
+        }
+      });
+    });
+    
+    // Get order counts by status
+    const pendingOrders = orders.filter(order => order.status === 'pending').length;
+    const processingOrders = orders.filter(order => order.status === 'processing').length;
+    const completedOrders = orders.filter(order => order.status === 'completed').length;
+    const cancelledOrders = orders.filter(order => order.status === 'cancelled').length;
+    
+    // Generate daily, weekly, and monthly revenue data
+    const revenueData = await generateRevenueData(orders, productIds);
+    
+    // Get top selling products
+    const topProducts = getTopSellingProducts(orders, products, productIds);
+    
+    // Format recent orders
+    const recentOrders = orders
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+      .slice(0, 5)
+      .map(order => ({
+        id: order._id,
+        customerName: order.user ? order.user.name : 'Unknown Customer',
+        date: order.createdAt,
+        total: order.items.reduce((sum, item) => {
+          if (productIds.some(id => id.toString() === item.product.toString())) {
+            return sum + (item.price * item.quantity);
+          }
+          return sum;
+        }, 0),
+        status: order.status
+      }));
+    
+    // Compile dashboard data
+    const dashboardData = {
+      totalRevenue,
+      totalOrders: orders.length,
+      totalProducts: products.length,
+      pendingOrders,
+      revenue: revenueData,
+      ordersByStatus: [
+        { status: 'pending', count: pendingOrders },
+        { status: 'processing', count: processingOrders },
+        { status: 'completed', count: completedOrders },
+        { status: 'cancelled', count: cancelledOrders }
+      ],
+      topProducts,
+      recentOrders
+    };
+    
+    res.status(200).json({
+      success: true,
+      data: dashboardData
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// Helper function to generate revenue data for charts
+const generateRevenueData = async (orders, productIds) => {
+  // Group orders by date
+  const ordersByDate = {};
+  const ordersByWeek = {};
+  const ordersByMonth = {};
+  
+  orders.forEach(order => {
+    const orderDate = new Date(order.createdAt);
+    const dateKey = orderDate.toISOString().split('T')[0];
+    const weekKey = getWeekNumber(orderDate);
+    const monthKey = `${orderDate.getFullYear()}-${String(orderDate.getMonth() + 1).padStart(2, '0')}`;
+    
+    // Calculate this order's revenue from vendor's products
+    const orderRevenue = order.items.reduce((sum, item) => {
+      if (productIds.some(id => id.toString() === item.product.toString())) {
+        return sum + (item.price * item.quantity);
+      }
+      return sum;
+    }, 0);
+    
+    // Add to daily revenue
+    if (!ordersByDate[dateKey]) {
+      ordersByDate[dateKey] = 0;
+    }
+    ordersByDate[dateKey] += orderRevenue;
+    
+    // Add to weekly revenue
+    if (!ordersByWeek[weekKey]) {
+      ordersByWeek[weekKey] = 0;
+    }
+    ordersByWeek[weekKey] += orderRevenue;
+    
+    // Add to monthly revenue
+    if (!ordersByMonth[monthKey]) {
+      ordersByMonth[monthKey] = 0;
+    }
+    ordersByMonth[monthKey] += orderRevenue;
+  });
+  
+  // Format data for charts
+  const daily = Object.keys(ordersByDate)
+    .sort()
+    .slice(-7) // Last 7 days
+    .map(date => ({
+      date: date,
+      amount: ordersByDate[date]
+    }));
+  
+  const weekly = Object.keys(ordersByWeek)
+    .sort()
+    .slice(-4) // Last 4 weeks
+    .map(week => ({
+      week: `Week ${week.split('-')[1]}`,
+      amount: ordersByWeek[week]
+    }));
+  
+  const monthly = Object.keys(ordersByMonth)
+    .sort()
+    .slice(-6) // Last 6 months
+    .map(month => {
+      const [year, monthNum] = month.split('-');
+      const date = new Date(parseInt(year), parseInt(monthNum) - 1, 1);
+      return {
+        month: date.toLocaleString('default', { month: 'short' }),
+        amount: ordersByMonth[month]
+      };
+    });
+  
+  return { daily, weekly, monthly };
+};
+
+// Helper function to get week number
+const getWeekNumber = (date) => {
+  const firstDayOfYear = new Date(date.getFullYear(), 0, 1);
+  const pastDaysOfYear = (date - firstDayOfYear) / 86400000;
+  return `${date.getFullYear()}-${Math.ceil((pastDaysOfYear + firstDayOfYear.getDay() + 1) / 7)}`;
+};
+
+// Helper function to get top selling products
+const getTopSellingProducts = (orders, products, productIds) => {
+  // Create a map to track sales and revenue by product
+  const productSales = {};
+  
+  // Initialize with all products
+  products.forEach(product => {
+    productSales[product._id.toString()] = {
+      id: product._id.toString(),
+      name: product.name,
+      sales: 0,
+      revenue: 0
+    };
+  });
+  
+  // Count sales from orders
+  orders.forEach(order => {
+    order.items.forEach(item => {
+      const productId = item.product.toString();
+      if (productIds.includes(productId) && productSales[productId]) {
+        productSales[productId].sales += item.quantity;
+        productSales[productId].revenue += item.price * item.quantity;
+      }
+    });
+  });
+  
+  // Convert to array and sort by sales
+  return Object.values(productSales)
+    .sort((a, b) => b.sales - a.sales)
+    .slice(0, 5); // Top 5 products
+};

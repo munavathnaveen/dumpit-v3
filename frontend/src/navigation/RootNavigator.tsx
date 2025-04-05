@@ -14,10 +14,31 @@ import { theme } from '../theme';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
+// Navigation persistence configuration
+const NAVIGATION_STATE_KEY = '@dumpit_nav_state';
+
 const RootNavigator: React.FC = () => {
   const { isAuthenticated, loading } = useSelector((state: RootState) => state.auth);
   const dispatch = useDispatch<AppDispatch>();
   const [isLoading, setIsLoading] = useState(true);
+  const [initialState, setInitialState] = useState<any>(undefined);
+
+  // Load the saved navigation state
+  useEffect(() => {
+    const restoreState = async () => {
+      try {
+        const savedStateString = await AsyncStorage.getItem(NAVIGATION_STATE_KEY);
+        if (savedStateString) {
+          const state = JSON.parse(savedStateString);
+          setInitialState(state);
+        }
+      } catch (e) {
+        console.warn('Failed to load navigation state', e);
+      }
+    };
+
+    restoreState();
+  }, []);
 
   useEffect(() => {
     // Check if user is authenticated on app start
@@ -46,7 +67,14 @@ const RootNavigator: React.FC = () => {
   }
 
   return (
-    <NavigationContainer>
+    <NavigationContainer
+      initialState={initialState}
+      onStateChange={(state: any) => {
+        if (state) {
+          AsyncStorage.setItem(NAVIGATION_STATE_KEY, JSON.stringify(state));
+        }
+      }}
+    >
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         {isAuthenticated ? (
           <Stack.Screen name="Main" component={MainNavigator} />

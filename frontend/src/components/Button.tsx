@@ -13,6 +13,7 @@ export interface ButtonProps {
   style?: StyleProp<ViewStyle>;
   textStyle?: StyleProp<TextStyle>;
   icon?: string;
+  outline?: boolean;
 }
 
 const Button: React.FC<ButtonProps> = ({
@@ -25,6 +26,7 @@ const Button: React.FC<ButtonProps> = ({
   style,
   textStyle,
   icon,
+  outline = false,
 }) => {
   // Use type as an alias for variant if provided
   const buttonVariant = type || variant;
@@ -78,10 +80,13 @@ const Button: React.FC<ButtonProps> = ({
       activeOpacity={0.8}
       onPress={onPress}
       disabled={disabled || loading}
-      style={getButtonStyles()}
+      style={[
+        ...getButtonStyles(),
+        outline && styles.buttonOutline,
+      ]}
     >
       {loading ? (
-        <ActivityIndicator size="small" color={buttonVariant === 'outline' ? theme.colors.primary : theme.colors.white} />
+        <ActivityIndicator size="small" color={outline ? theme.colors.primary : theme.colors.white} />
       ) : (
         <View style={styles.buttonContent}>
           {icon && (
@@ -148,6 +153,11 @@ const styles = StyleSheet.create({
   },
   disabledOutlineButtonText: {
     color: theme.colors.gray,
+  },
+  buttonOutline: {
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: theme.colors.primary,
   },
 });
 

@@ -115,12 +115,14 @@ const CartScreen: React.FC = () => {
       return;
     }
     
-    // Navigate to checkout screen or process
-    alert('Checkout', 'Proceeding to checkout...');
+    // Navigate to checkout screen with the total amount
+    navigation.navigate('CheckoutScreen', {
+      totalAmount: totalAmount + (totalAmount > 0 ? 50 : 0)
+    });
   };
 
   const handleShopNow = () => {
-    navigation.navigate('Shops');
+    navigation.navigate('TabNavigator', { screen: 'ShopsTab' });
   };
 
   const renderCartItem = ({ item }: { item: CartItem }) => (

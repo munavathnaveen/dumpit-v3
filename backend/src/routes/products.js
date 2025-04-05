@@ -8,6 +8,7 @@ const {
   uploadProductImages,
   addProductReview,
   searchProducts,
+  getVendorProducts,
 } = require('../controllers/products')
 
 const {protect, authorize} = require('../middleware/auth')
@@ -20,6 +21,9 @@ const router = express.Router({mergeParams: true})
 
 // Search route
 router.get('/search/:query', searchProducts)
+
+// Vendor products route
+router.get('/vendor', protect, authorize(config.constants.userRoles.VENDOR), getVendorProducts)
 
 // Product review route
 router.post('/:id/reviews', protect, validateRequest(productReviewSchema), addProductReview)

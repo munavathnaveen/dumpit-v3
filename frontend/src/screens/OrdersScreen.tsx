@@ -131,7 +131,7 @@ const OrdersScreen: React.FC = () => {
   );
 
   const handleShopNow = () => {
-    navigation.navigate('Shops');
+    navigation.navigate('TabNavigator', { screen: 'ShopsTab' });
   };
 
   if (loading && !refreshing) {

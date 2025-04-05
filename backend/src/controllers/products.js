@@ -319,3 +319,25 @@ exports.searchProducts = async (req, res, next) => {
     next(err)
   }
 }
+
+// @desc    Get products for logged in vendor
+// @route   GET /api/v1/products/vendor
+// @access  Private (Vendor only)
+exports.getVendorProducts = async (req, res, next) => {
+  try {
+    // Get products for the logged in vendor
+    const products = await Product.find({ vendor: req.user.id })
+      .populate([
+        {path: 'shop', select: 'name'},
+      ])
+      .sort('-createdAt')
+
+    res.status(200).json({
+      success: true,
+      count: products.length,
+      data: products,
+    })
+  } catch (err) {
+    next(err)
+  }
+}

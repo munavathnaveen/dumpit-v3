@@ -8,10 +8,11 @@ import {
   ViewStyle,
   TextStyle,
   KeyboardTypeOptions,
+  TextInputProps,
 } from 'react-native';
 import { theme } from '../theme';
 
-export interface InputProps {
+export interface InputProps extends TextInputProps {
   label?: string;
   value: string;
   onChangeText: (text: string) => void;
@@ -26,6 +27,8 @@ export interface InputProps {
   maxLength?: number;
   autoCapitalize?: 'none' | 'sentences' | 'words' | 'characters';
   required?: boolean;
+  multiline?: boolean;
+  numberOfLines?: number;
 }
 
 const Input: React.FC<InputProps> = ({
@@ -43,6 +46,8 @@ const Input: React.FC<InputProps> = ({
   maxLength,
   autoCapitalize = 'none',
   required = false,
+  multiline,
+  numberOfLines,
 }) => {
   return (
     <View style={[styles.container, style]}>
@@ -62,11 +67,14 @@ const Input: React.FC<InputProps> = ({
           error ? styles.inputError : {},
           disabled ? styles.inputDisabled : {},
           inputStyle,
+          multiline && styles.multilineInput,
         ]}
         placeholderTextColor={theme.colors.gray}
         editable={!disabled}
         maxLength={maxLength}
         autoCapitalize={autoCapitalize}
+        multiline={multiline}
+        numberOfLines={numberOfLines}
       />
       {error && <Text style={styles.errorText}>{error}</Text>}
     </View>
@@ -111,6 +119,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginTop: theme.spacing.xs,
   },
+  multilineInput: {
+    height: 100,
+    paddingTop: 12,
+    textAlignVertical: 'top',
+  }
 });
 
 export default Input; 

@@ -6,6 +6,7 @@ export type AuthStackParamList = {
   Login: undefined;
   Register: undefined;
   ForgotPassword: undefined;
+  ResetPassword: { token: string };
 };
 
 // Main stack params  
@@ -19,6 +20,18 @@ export type MainStackParamList = {
   ProductDetails: { productId: string };
   ShopDetails: { shopId: string };
   OrderDetails: { orderId: string };
+  CheckoutScreen: { totalAmount?: number };
+  // Vendor screens
+  VendorDashboard: undefined;
+  VendorProducts: undefined;
+  VendorAddProduct: undefined;
+  VendorEditProduct: { productId: string };
+  VendorOrders: undefined;
+  VendorOrderDetails: { orderId: string };
+  VendorPayments: undefined;
+  VendorAnalytics: undefined;
+  VendorImportExport: undefined;
+  VendorShopSetup: undefined;
 };
 
 // Tab navigator params
@@ -28,6 +41,11 @@ export type BottomTabParamList = {
   ShopsTab: undefined;
   OrdersTab: undefined;
   CartTab: undefined;
+  // Vendor tabs
+  VendorDashboardTab: undefined;
+  VendorProductsTab: undefined;
+  VendorOrdersTab: undefined;
+  VendorAnalyticsTab: undefined;
 };
 
 // Root navigator params

@@ -1,8 +1,9 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Feather } from '@expo/vector-icons';
 import { theme } from '../theme';
+import LogoImage from './LogoImage';
 
 interface HeaderProps {
   location?: string;
@@ -31,6 +32,7 @@ const Header: React.FC<HeaderProps> = ({
 
       {/* Center: Logo */}
       <View style={styles.logoContainer}>
+        <LogoImage size="tiny" style={styles.logoImage} />
         <Text style={styles.logoText}>Dumpit</Text>
       </View>
 
@@ -76,10 +78,15 @@ const styles = StyleSheet.create({
   },
   logoContainer: {
     flex: 1,
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+  },
+  logoImage: {
+    marginRight: theme.spacing.xs,
   },
   logoText: {
-    fontSize: 24,
+    fontSize: 18,
     fontWeight: 'bold',
     color: theme.colors.primary,
   },
