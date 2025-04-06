@@ -8,6 +8,7 @@ import {
   Alert,
   ScrollView,
   Platform,
+  Modal,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -16,9 +17,10 @@ import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 
 import Card3D from '../../components/Card3D';
+import ScreenHeader from '../../components/ScreenHeader';
 import { theme } from '../../theme';
 import { MainStackNavigationProp } from '../../navigation/types';
-import { exportData, importData } from '../../api/analyticsApi';
+import { exportData, importData, ImportResult } from '../../api/analyticsApi';
 
 type DataType = 'products' | 'orders' | 'revenue';
 type FormatType = 'csv' | 'excel';
@@ -26,10 +28,23 @@ type FormatType = 'csv' | 'excel';
 const VendorImportExportScreen: React.FC = () => {
   const navigation = useNavigation<MainStackNavigationProp<'VendorImportExport'>>();
   const [loading, setLoading] = useState<string | null>(null);
+  const [actionMessage, setActionMessage] = useState<string>('');
+  const [formatGuidance, setFormatGuidance] = useState<{
+    show: boolean;
+    title: string;
+    sample: string;
+    fields: string[];
+  }>({
+    show: false,
+    title: '',
+    sample: '',
+    fields: [],
+  });
 
   const handleExport = async (dataType: DataType, format: FormatType) => {
     try {
       setLoading(`export-${dataType}-${format}`);
+      setActionMessage(`Exporting ${dataType}...`);
       
       // Get the blob data from API
       const blobData = await exportData(dataType, format);
@@ -59,6 +74,7 @@ const VendorImportExportScreen: React.FC = () => {
                 mimeType: format === 'csv' ? 'text/csv' : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
                 dialogTitle: `${dataType.charAt(0).toUpperCase() + dataType.slice(1)} Export`,
               });
+              setActionMessage('Export completed successfully');
             } else {
               Alert.alert('Sharing not available', 'Sharing is not available on this device');
             }
@@ -68,23 +84,27 @@ const VendorImportExportScreen: React.FC = () => {
           Alert.alert('Export Error', 'Failed to process the exported file');
         } finally {
           setLoading(null);
+          setActionMessage('');
         }
       };
       
       reader.onerror = () => {
         setLoading(null);
+        setActionMessage('');
         Alert.alert('Export Error', 'Failed to read the exported file');
       };
     } catch (error) {
       console.error(`Error exporting ${dataType}:`, error);
-      Alert.alert('Export Error', `Failed to export ${dataType}`);
+      Alert.alert('Export Error', `Failed to export ${dataType}. Please try again.`);
       setLoading(null);
+      setActionMessage('');
     }
   };
 
   const handleImport = async (dataType: DataType) => {
     try {
       setLoading(`import-${dataType}`);
+      setActionMessage(`Picking file for ${dataType} import...`);
       
       // Pick a document
       const result = await DocumentPicker.getDocumentAsync({
@@ -94,14 +114,18 @@ const VendorImportExportScreen: React.FC = () => {
       
       if (result.canceled) {
         setLoading(null);
+        setActionMessage('');
         return;
       }
       
       const fileAsset = result.assets?.[0];
       if (!fileAsset) {
         setLoading(null);
+        setActionMessage('');
         return;
       }
+
+      setActionMessage(`Importing ${dataType}...`);
       
       // Create a file object for API upload
       const fileInfo = {
@@ -120,7 +144,7 @@ const VendorImportExportScreen: React.FC = () => {
       
       Alert.alert(
         'Import Successful',
-        `Successfully imported ${importResponse.count || 0} ${dataType}`,
+        `Successfully imported ${importResponse.processed || 0} ${dataType}`,
         [{ text: 'OK' }]
       );
       
@@ -128,11 +152,28 @@ const VendorImportExportScreen: React.FC = () => {
       if (dataType === 'products') {
         navigation.navigate('VendorProducts');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error(`Error importing ${dataType}:`, error);
-      Alert.alert('Import Error', `Failed to import ${dataType}`);
+      
+      // Check if this is our structured error result with format guidance
+      if (error && error.format) {
+        // Show format guidance modal
+        setFormatGuidance({
+          show: true,
+          title: `${dataType.charAt(0).toUpperCase() + dataType.slice(1)} Import Format`,
+          sample: error.format.sample,
+          fields: error.format.fields,
+        });
+      } else {
+        // Show generic error
+        Alert.alert(
+          'Import Error', 
+          error.message || `Failed to import ${dataType}. Please check your file format and try again.`
+        );
+      }
     } finally {
       setLoading(null);
+      setActionMessage('');
     }
   };
 
@@ -221,19 +262,75 @@ const VendorImportExportScreen: React.FC = () => {
     </Card3D>
   );
 
+  // Add a format guidance modal
+  const renderFormatGuidanceModal = () => (
+    <Modal
+      visible={formatGuidance.show}
+      transparent={true}
+      animationType="slide"
+      onRequestClose={() => setFormatGuidance({ ...formatGuidance, show: false })}
+    >
+      <View style={styles.modalContainer}>
+        <Card3D style={styles.modalContent} elevation="large">
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>{formatGuidance.title}</Text>
+            <TouchableOpacity 
+              onPress={() => setFormatGuidance({ ...formatGuidance, show: false })}
+              style={styles.closeButton}
+            >
+              <Ionicons name="close" size={24} color={theme.colors.gray} />
+            </TouchableOpacity>
+          </View>
+          
+          <ScrollView style={styles.modalScrollView}>
+            <Text style={styles.formatGuideTitle}>Required Fields:</Text>
+            {formatGuidance.fields.map((field, index) => (
+              <Text key={index} style={styles.formatField}>• {field}</Text>
+            ))}
+            
+            {formatGuidance.sample && (
+              <>
+                <Text style={[styles.formatGuideTitle, {marginTop: theme.spacing.md}]}>
+                  Sample Format:
+                </Text>
+                <View style={styles.sampleContainer}>
+                  <Text style={styles.sampleText}>{formatGuidance.sample}</Text>
+                </View>
+              </>
+            )}
+            
+            <Text style={[styles.formatInstruction, {marginTop: theme.spacing.md}]}>
+              Your CSV file should follow this exact format. You can also export your data first to see the correct format.
+            </Text>
+          </ScrollView>
+          
+          <TouchableOpacity 
+            style={styles.closeModalButton}
+            onPress={() => setFormatGuidance({ ...formatGuidance, show: false })}
+          >
+            <Text style={styles.closeModalButtonText}>Close</Text>
+          </TouchableOpacity>
+        </Card3D>
+      </View>
+    </Modal>
+  );
+
+  if (loading) {
+    return (
+      <View style={styles.container}>
+        <ScreenHeader title="Import/Export" showBackButton={true} />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={theme.colors.primary} />
+          <Text style={styles.loadingText}>{actionMessage || 'Processing...'}</Text>
+        </View>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-        >
-          <Ionicons name="arrow-back" size={24} color={theme.colors.dark} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Import & Export</Text>
-        <View style={styles.headerSpacer} />
-      </View>
-
+      <ScreenHeader title="Import/Export" showBackButton={true} />
+      
       <ScrollView contentContainerStyle={styles.content}>
         <Text style={styles.sectionTitle}>Export Data</Text>
         <Text style={styles.sectionDescription}>
@@ -280,6 +377,8 @@ const VendorImportExportScreen: React.FC = () => {
           </Text>
         </View>
       </ScrollView>
+      
+      {renderFormatGuidanceModal()}
     </View>
   );
 };
@@ -431,6 +530,91 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: theme.colors.dark,
     marginLeft: theme.spacing.sm,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: theme.spacing.md,
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: theme.colors.dark,
+  },
+  modalContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    padding: theme.spacing.md,
+  },
+  modalContent: {
+    width: '90%',
+    maxHeight: '80%',
+    backgroundColor: theme.colors.white,
+    borderRadius: theme.borderRadius.large,
+    padding: theme.spacing.md,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: theme.spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.lightGray,
+    paddingBottom: theme.spacing.sm,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: theme.colors.dark,
+  },
+  closeButton: {
+    padding: theme.spacing.xs,
+  },
+  modalScrollView: {
+    maxHeight: '70%',
+  },
+  formatGuideTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: theme.colors.dark,
+    marginBottom: theme.spacing.sm,
+  },
+  formatField: {
+    fontSize: 14,
+    color: theme.colors.dark,
+    marginBottom: theme.spacing.xs,
+    marginLeft: theme.spacing.sm,
+  },
+  sampleContainer: {
+    backgroundColor: theme.colors.lightGray,
+    padding: theme.spacing.sm,
+    borderRadius: theme.borderRadius.small,
+    marginVertical: theme.spacing.xs,
+  },
+  sampleText: {
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+    fontSize: 12,
+    color: theme.colors.dark,
+  },
+  formatInstruction: {
+    fontSize: 14,
+    color: theme.colors.gray,
+    fontStyle: 'italic',
+  },
+  closeModalButton: {
+    backgroundColor: theme.colors.primary,
+    borderRadius: theme.borderRadius.medium,
+    paddingVertical: theme.spacing.sm,
+    paddingHorizontal: theme.spacing.md,
+    alignItems: 'center',
+    marginTop: theme.spacing.md,
+  },
+  closeModalButtonText: {
+    color: theme.colors.white,
+    fontWeight: '600',
   },
 });
 

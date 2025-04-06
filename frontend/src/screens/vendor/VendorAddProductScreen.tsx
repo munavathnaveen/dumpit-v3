@@ -19,6 +19,7 @@ import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view
 import { theme } from '../../theme';
 import { MainStackNavigationProp } from '../../navigation/types';
 import { createProduct, uploadProductImage, ProductFormData } from '../../api/productApi';
+import ScreenHeader from '../../components/ScreenHeader';
 
 // Categories for products
 const CATEGORIES = [
@@ -204,178 +205,183 @@ const VendorAddProductScreen: React.FC = () => {
     }
   };
 
+  if (loading) {
+    return (
+      <View style={styles.container}>
+        <ScreenHeader title="Add Product" showBackButton={true} />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={theme.colors.primary} />
+          <Text style={styles.loadingText}>Creating your product...</Text>
+        </View>
+      </View>
+    );
+  }
+
   return (
-    <KeyboardAwareScrollView 
-      style={styles.container}
-      contentContainerStyle={styles.contentContainer}
-    >
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-        >
-          <Ionicons name="arrow-back" size={24} color={theme.colors.dark} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Add New Product</Text>
-        <View style={styles.spacer} />
-      </View>
-
-      <View style={styles.formContainer}>
-        {/* Product Name */}
-        <View style={styles.formGroup}>
-          <Text style={styles.label}>Product Name *</Text>
-          <TextInput
-            style={[styles.input, errors.name && styles.inputError]}
-            placeholder="Enter product name"
-            value={formData.name}
-            onChangeText={(text) => handleInputChange('name', text)}
-          />
-          {errors.name && <Text style={styles.errorText}>{errors.name}</Text>}
-        </View>
-
-        {/* Product Description */}
-        <View style={styles.formGroup}>
-          <Text style={styles.label}>Description *</Text>
-          <TextInput
-            style={[styles.input, styles.textArea, errors.description && styles.inputError]}
-            placeholder="Enter product description"
-            value={formData.description}
-            onChangeText={(text) => handleInputChange('description', text)}
-            multiline
-            numberOfLines={4}
-            textAlignVertical="top"
-          />
-          {errors.description && <Text style={styles.errorText}>{errors.description}</Text>}
-        </View>
-
-        {/* Price and Discount Price */}
-        <View style={styles.rowContainer}>
-          <View style={[styles.formGroup, { flex: 1, marginRight: theme.spacing.sm }]}>
-            <Text style={styles.label}>Price (₹) *</Text>
+    <View style={styles.container}>
+      <ScreenHeader title="Add Product" showBackButton={true} />
+      
+      <KeyboardAwareScrollView 
+        style={styles.container}
+        contentContainerStyle={styles.contentContainer}
+      >
+        <View style={styles.formContainer}>
+          {/* Product Name */}
+          <View style={styles.formGroup}>
+            <Text style={styles.label}>Product Name *</Text>
             <TextInput
-              style={[styles.input, errors.price && styles.inputError]}
-              placeholder="0.00"
-              value={formData.price ? formData.price.toString() : ''}
-              onChangeText={(text) => {
-                const numValue = text ? parseFloat(text) : 0;
-                handleInputChange('price', numValue);
-              }}
-              keyboardType="numeric"
+              style={[styles.input, errors.name && styles.inputError]}
+              placeholder="Enter product name"
+              value={formData.name}
+              onChangeText={(text) => handleInputChange('name', text)}
             />
-            {errors.price && <Text style={styles.errorText}>{errors.price}</Text>}
+            {errors.name && <Text style={styles.errorText}>{errors.name}</Text>}
           </View>
 
-          <View style={[styles.formGroup, { flex: 1 }]}>
-            <Text style={styles.label}>Discount Price (₹)</Text>
+          {/* Product Description */}
+          <View style={styles.formGroup}>
+            <Text style={styles.label}>Description *</Text>
             <TextInput
-              style={[styles.input, errors.discountPrice && styles.inputError]}
-              placeholder="0.00"
-              value={formData.discountPrice ? formData.discountPrice.toString() : ''}
-              onChangeText={(text) => {
-                const numValue = text ? parseFloat(text) : undefined;
-                handleInputChange('discountPrice', numValue);
-              }}
-              keyboardType="numeric"
+              style={[styles.input, styles.textArea, errors.description && styles.inputError]}
+              placeholder="Enter product description"
+              value={formData.description}
+              onChangeText={(text) => handleInputChange('description', text)}
+              multiline
+              numberOfLines={4}
+              textAlignVertical="top"
             />
-            {errors.discountPrice && <Text style={styles.errorText}>{errors.discountPrice}</Text>}
+            {errors.description && <Text style={styles.errorText}>{errors.description}</Text>}
           </View>
-        </View>
 
-        {/* Category and Stock */}
-        <View style={styles.rowContainer}>
-          <View style={[styles.formGroup, { flex: 1, marginRight: theme.spacing.sm }]}>
-            <Text style={styles.label}>Category *</Text>
-            <TouchableOpacity
-              style={[styles.input, styles.pickerButton, errors.category && styles.inputError]}
-              onPress={() => {
-                Alert.alert(
-                  'Select Category',
-                  'Choose a category for your product',
-                  CATEGORIES.map((category) => ({
-                    text: category,
-                    onPress: () => handleInputChange('category', category),
-                  }))
-                );
-              }}
-            >
-              <Text 
-                style={[
-                  formData.category ? styles.pickerButtonText : styles.pickerPlaceholder
-                ]}
+          {/* Price and Discount Price */}
+          <View style={styles.rowContainer}>
+            <View style={[styles.formGroup, { flex: 1, marginRight: theme.spacing.sm }]}>
+              <Text style={styles.label}>Price (₹) *</Text>
+              <TextInput
+                style={[styles.input, errors.price && styles.inputError]}
+                placeholder="0.00"
+                value={formData.price ? formData.price.toString() : ''}
+                onChangeText={(text) => {
+                  const numValue = text ? parseFloat(text) : 0;
+                  handleInputChange('price', numValue);
+                }}
+                keyboardType="numeric"
+              />
+              {errors.price && <Text style={styles.errorText}>{errors.price}</Text>}
+            </View>
+
+            <View style={[styles.formGroup, { flex: 1 }]}>
+              <Text style={styles.label}>Discount Price (₹)</Text>
+              <TextInput
+                style={[styles.input, errors.discountPrice && styles.inputError]}
+                placeholder="0.00"
+                value={formData.discountPrice ? formData.discountPrice.toString() : ''}
+                onChangeText={(text) => {
+                  const numValue = text ? parseFloat(text) : undefined;
+                  handleInputChange('discountPrice', numValue);
+                }}
+                keyboardType="numeric"
+              />
+              {errors.discountPrice && <Text style={styles.errorText}>{errors.discountPrice}</Text>}
+            </View>
+          </View>
+
+          {/* Category and Stock */}
+          <View style={styles.rowContainer}>
+            <View style={[styles.formGroup, { flex: 1, marginRight: theme.spacing.sm }]}>
+              <Text style={styles.label}>Category *</Text>
+              <TouchableOpacity
+                style={[styles.input, styles.pickerButton, errors.category && styles.inputError]}
+                onPress={() => {
+                  Alert.alert(
+                    'Select Category',
+                    'Choose a category for your product',
+                    CATEGORIES.map((category) => ({
+                      text: category,
+                      onPress: () => handleInputChange('category', category),
+                    }))
+                  );
+                }}
               >
-                {formData.category || 'Select Category'}
-              </Text>
-              <Ionicons name="chevron-down" size={20} color={theme.colors.gray} />
-            </TouchableOpacity>
-            {errors.category && <Text style={styles.errorText}>{errors.category}</Text>}
-          </View>
-
-          <View style={[styles.formGroup, { flex: 1 }]}>
-            <Text style={styles.label}>Stock *</Text>
-            <TextInput
-              style={[styles.input, errors.stock && styles.inputError]}
-              placeholder="0"
-              value={formData.stock ? formData.stock.toString() : ''}
-              onChangeText={(text) => {
-                const numValue = text ? parseInt(text, 10) : 0;
-                handleInputChange('stock', numValue);
-              }}
-              keyboardType="numeric"
-            />
-            {errors.stock && <Text style={styles.errorText}>{errors.stock}</Text>}
-          </View>
-        </View>
-
-        {/* Product Images */}
-        <View style={styles.formGroup}>
-          <Text style={styles.label}>Product Images *</Text>
-          <View style={styles.imagesContainer}>
-            {/* Image Previews */}
-            {formData.images.map((image, index) => (
-              <View key={index} style={styles.imagePreviewContainer}>
-                <Image source={{ uri: image }} style={styles.imagePreview} />
-                <TouchableOpacity
-                  style={styles.removeImageButton}
-                  onPress={() => handleRemoveImage(index)}
+                <Text 
+                  style={[
+                    formData.category ? styles.pickerButtonText : styles.pickerPlaceholder
+                  ]}
                 >
-                  <Ionicons name="close-circle" size={24} color={theme.colors.error} />
-                </TouchableOpacity>
-              </View>
-            ))}
+                  {formData.category || 'Select Category'}
+                </Text>
+                <Ionicons name="chevron-down" size={20} color={theme.colors.gray} />
+              </TouchableOpacity>
+              {errors.category && <Text style={styles.errorText}>{errors.category}</Text>}
+            </View>
 
-            {/* Add Image Button */}
-            <TouchableOpacity
-              style={styles.addImageButton}
-              onPress={handleImagePick}
-              disabled={uploading}
-            >
-              {uploading ? (
-                <ActivityIndicator size="small" color={theme.colors.primary} />
-              ) : (
-                <>
-                  <Ionicons name="add" size={24} color={theme.colors.primary} />
-                  <Text style={styles.addImageText}>Add Image</Text>
-                </>
-              )}
-            </TouchableOpacity>
+            <View style={[styles.formGroup, { flex: 1 }]}>
+              <Text style={styles.label}>Stock *</Text>
+              <TextInput
+                style={[styles.input, errors.stock && styles.inputError]}
+                placeholder="0"
+                value={formData.stock ? formData.stock.toString() : ''}
+                onChangeText={(text) => {
+                  const numValue = text ? parseInt(text, 10) : 0;
+                  handleInputChange('stock', numValue);
+                }}
+                keyboardType="numeric"
+              />
+              {errors.stock && <Text style={styles.errorText}>{errors.stock}</Text>}
+            </View>
           </View>
-          {errors.images && <Text style={styles.errorText}>{errors.images}</Text>}
-        </View>
 
-        {/* Submit Button */}
-        <TouchableOpacity
-          style={styles.submitButton}
-          onPress={handleAddProduct}
-          disabled={loading}
-        >
-          {loading ? (
-            <ActivityIndicator size="small" color={theme.colors.white} />
-          ) : (
-            <Text style={styles.submitButtonText}>Add Product</Text>
-          )}
-        </TouchableOpacity>
-      </View>
-    </KeyboardAwareScrollView>
+          {/* Product Images */}
+          <View style={styles.formGroup}>
+            <Text style={styles.label}>Product Images *</Text>
+            <View style={styles.imagesContainer}>
+              {/* Image Previews */}
+              {formData.images.map((image, index) => (
+                <View key={index} style={styles.imagePreviewContainer}>
+                  <Image source={{ uri: image }} style={styles.imagePreview} />
+                  <TouchableOpacity
+                    style={styles.removeImageButton}
+                    onPress={() => handleRemoveImage(index)}
+                  >
+                    <Ionicons name="close-circle" size={24} color={theme.colors.error} />
+                  </TouchableOpacity>
+                </View>
+              ))}
+
+              {/* Add Image Button */}
+              <TouchableOpacity
+                style={styles.addImageButton}
+                onPress={handleImagePick}
+                disabled={uploading}
+              >
+                {uploading ? (
+                  <ActivityIndicator size="small" color={theme.colors.primary} />
+                ) : (
+                  <>
+                    <Ionicons name="add" size={24} color={theme.colors.primary} />
+                    <Text style={styles.addImageText}>Add Image</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </View>
+            {errors.images && <Text style={styles.errorText}>{errors.images}</Text>}
+          </View>
+
+          {/* Submit Button */}
+          <TouchableOpacity
+            style={styles.submitButton}
+            onPress={handleAddProduct}
+            disabled={loading}
+          >
+            {loading ? (
+              <ActivityIndicator size="small" color={theme.colors.white} />
+            ) : (
+              <Text style={styles.submitButtonText}>Add Product</Text>
+            )}
+          </TouchableOpacity>
+        </View>
+      </KeyboardAwareScrollView>
+    </View>
   );
 };
 
@@ -386,26 +392,6 @@ const styles = StyleSheet.create({
   },
   contentContainer: {
     paddingBottom: theme.spacing.xl,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: theme.spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.lightGray,
-    backgroundColor: theme.colors.white,
-  },
-  backButton: {
-    padding: theme.spacing.sm,
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: theme.colors.dark,
-  },
-  spacer: {
-    width: 40, // Same width as back button for centering
   },
   formContainer: {
     padding: theme.spacing.md,
@@ -512,6 +498,17 @@ const styles = StyleSheet.create({
     color: theme.colors.white,
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: theme.spacing.md,
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: theme.colors.dark,
   },
 });
 

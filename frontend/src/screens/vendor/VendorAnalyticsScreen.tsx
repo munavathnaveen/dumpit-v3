@@ -14,21 +14,20 @@ import { useFocusEffect } from '@react-navigation/core';
 import { Ionicons } from '@expo/vector-icons';
 
 import Card3D from '../../components/Card3D';
-import SegmentedControl from '../../components/SegmentedControl';
+import ScreenHeader from '../../components/ScreenHeader';
 import { theme } from '../../theme';
 import { MainStackNavigationProp } from '../../navigation/types';
 import { fetchAnalytics, Analytics } from '../../api/analyticsApi';
 import { getVendorOrderStats } from '../../api/orderApi';
 
 // Time periods for data filtering
-const TIME_PERIODS = ['Weekly', 'Monthly', 'Yearly'];
+// const TIME_PERIODS = ['Weekly', 'Monthly', 'Yearly'];
 
 const VendorAnalyticsScreen: React.FC = () => {
   const navigation = useNavigation<MainStackNavigationProp<'VendorAnalytics'>>();
   
   const [analytics, setAnalytics] = useState<Analytics | null>(null);
   const [orderStats, setOrderStats] = useState<any>(null);
-  const [selectedPeriod, setSelectedPeriod] = useState(0); // 0 is 'Weekly'
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -66,10 +65,6 @@ const VendorAnalyticsScreen: React.FC = () => {
     loadData();
   };
 
-  const handlePeriodChange = (index: number) => {
-    setSelectedPeriod(index);
-  };
-
   const renderStats = (title: string, value: string | number, icon: string, color: string) => (
     <Card3D style={styles.statCard} elevation="small">
       <View style={[styles.iconContainer, { backgroundColor: color }]}>
@@ -82,35 +77,14 @@ const VendorAnalyticsScreen: React.FC = () => {
     </Card3D>
   );
 
-  // Chart bars component (simplified)
-  const renderBarChart = () => {
-    if (!analytics || !analytics.revenue) return null;
+  // Simplify chart to only show monthly data
+  const renderMonthlyRevenueChart = () => {
+    if (!analytics || !analytics.revenue || !analytics.revenue.monthly) return null;
 
-    // Get data based on selected period
-    let data: { label: string; value: number }[] = [];
-    switch (selectedPeriod) {
-      case 0: // Weekly
-        data = analytics.revenue.weekly.map(item => ({
-          label: item.week,
-          value: item.amount
-        }));
-        break;
-      case 1: // Monthly
-        data = analytics.revenue.monthly.map(item => ({
-          label: item.month,
-          value: item.amount
-        }));
-        break;
-      case 2: // Yearly
-        // Assuming yearly data is not available, we'll simulate it
-        data = [
-          { label: '2021', value: 120000 },
-          { label: '2022', value: 180000 },
-          { label: '2023', value: 210000 },
-          { label: '2024', value: analytics.totalRevenue || 0 },
-        ];
-        break;
-    }
+    const data = analytics.revenue.monthly.map(item => ({
+      label: item.month,
+      value: item.amount
+    }));
 
     // Find the maximum value for scaling
     const maxValue = Math.max(...data.map(item => item.value));
@@ -164,146 +138,103 @@ const VendorAnalyticsScreen: React.FC = () => {
     );
   };
 
-  // Top products list
-  const renderTopProducts = () => {
-    if (!analytics || !analytics.topProducts || analytics.topProducts.length === 0) return null;
-
-    return (
-      <View style={styles.topProductsContainer}>
-        {analytics.topProducts.map((product, index) => (
-          <TouchableOpacity 
-            key={index}
-            style={styles.productRow}
-            onPress={() => navigation.navigate('VendorEditProduct', { productId: product.id })}
-          >
-            <Text style={styles.productRank}>#{index + 1}</Text>
-            <View style={styles.productInfo}>
-              <Text style={styles.productName} numberOfLines={1}>{product.name}</Text>
-              <Text style={styles.productSales}>{product.sales} sold · ₹{product.revenue.toLocaleString()}</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={20} color={theme.colors.gray} />
-          </TouchableOpacity>
-        ))}
-      </View>
-    );
-  };
-
   if (loading && !refreshing) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={theme.colors.primary} />
+      <View style={styles.container}>
+        <ScreenHeader title="Analytics" showBackButton={true} />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={theme.colors.primary} />
+        </View>
       </View>
     );
   }
 
   return (
-    <ScrollView 
-      style={styles.container}
-      contentContainerStyle={styles.contentContainer}
-      refreshControl={
-        <RefreshControl
-          refreshing={refreshing}
-          onRefresh={handleRefresh}
-          colors={[theme.colors.primary]}
-        />
-      }
-    >
-      <View style={styles.header}>
-        <Text style={styles.title}>Analytics</Text>
-      </View>
-
-      {error ? (
-        <View style={styles.errorContainer}>
-          <Text style={styles.errorText}>{error}</Text>
-          <TouchableOpacity 
-            style={styles.retryButton}
-            onPress={loadData}
-          >
-            <Text style={styles.retryButtonText}>Retry</Text>
-          </TouchableOpacity>
-        </View>
-      ) : (
-        <>
-          {/* Key Metrics */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Key Metrics</Text>
-            <View style={styles.statsGrid}>
-              {renderStats(
-                'Total Revenue',
-                `₹${analytics?.totalRevenue?.toLocaleString() || '0'}`,
-                'cash-outline',
-                theme.colors.success
-              )}
-              {renderStats(
-                'Total Orders',
-                analytics?.totalOrders?.toString() || '0',
-                'receipt-outline',
-                theme.colors.primary
-              )}
-              {renderStats(
-                'Products',
-                analytics?.totalProducts?.toString() || '0',
-                'cube-outline',
-                theme.colors.info
-              )}
-              {renderStats(
-                'Pending Orders',
-                analytics?.pendingOrders?.toString() || '0',
-                'time-outline',
-                theme.colors.warning
-              )}
+    <View style={styles.container}>
+      <ScreenHeader title="Analytics" showBackButton={true} />
+      
+      <ScrollView 
+        style={styles.scrollView}
+        contentContainerStyle={styles.contentContainer}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            colors={[theme.colors.primary]}
+          />
+        }
+      >
+        {error ? (
+          <View style={styles.errorContainer}>
+            <Text style={styles.errorText}>{error}</Text>
+            <TouchableOpacity 
+              style={styles.retryButton}
+              onPress={loadData}
+            >
+              <Text style={styles.retryButtonText}>Retry</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <>
+            {/* Key Metrics */}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Key Metrics</Text>
+              <View style={styles.statsGrid}>
+                {renderStats(
+                  'Total Revenue',
+                  `₹${analytics?.totalRevenue?.toLocaleString() || '0'}`,
+                  'cash-outline',
+                  theme.colors.success
+                )}
+                {renderStats(
+                  'Total Orders',
+                  analytics?.totalOrders?.toString() || '0',
+                  'receipt-outline',
+                  theme.colors.primary
+                )}
+                {renderStats(
+                  'Products',
+                  analytics?.totalProducts?.toString() || '0',
+                  'cube-outline',
+                  theme.colors.info
+                )}
+                {renderStats(
+                  'Pending Orders',
+                  analytics?.pendingOrders?.toString() || '0',
+                  'time-outline',
+                  theme.colors.warning
+                )}
+              </View>
             </View>
-          </View>
 
-          {/* Revenue Chart */}
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Revenue</Text>
-              <SegmentedControl
-                values={TIME_PERIODS}
-                selectedIndex={selectedPeriod}
-                onChange={handlePeriodChange}
-                style={styles.periodSelector}
-              />
+            {/* Monthly Revenue Chart */}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Monthly Revenue</Text>
+              <Card3D style={styles.chartCard} elevation="medium">
+                {renderMonthlyRevenueChart()}
+              </Card3D>
             </View>
-            <Card3D style={styles.chartCard} elevation="medium">
-              {renderBarChart()}
-            </Card3D>
-          </View>
 
-          {/* Order Status Breakdown */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Order Status Breakdown</Text>
-            <Card3D style={styles.chartCard} elevation="medium">
-              {renderOrderStatusChart()}
-            </Card3D>
-          </View>
+            {/* Order Status Breakdown */}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Order Status Breakdown</Text>
+              <Card3D style={styles.chartCard} elevation="medium">
+                {renderOrderStatusChart()}
+              </Card3D>
+            </View>
 
-          {/* Top Products */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Top Selling Products</Text>
-            <Card3D style={styles.chartCard} elevation="medium">
-              {renderTopProducts()}
-              <TouchableOpacity 
-                style={styles.viewAllButton}
-                onPress={() => navigation.navigate('VendorProducts')}
-              >
-                <Text style={styles.viewAllText}>View All Products</Text>
-              </TouchableOpacity>
-            </Card3D>
-          </View>
-
-          {/* Export Data Button */}
-          <TouchableOpacity 
-            style={styles.exportButton}
-            onPress={() => navigation.navigate('VendorImportExport')}
-          >
-            <Ionicons name="download-outline" size={20} color={theme.colors.white} />
-            <Text style={styles.exportButtonText}>Export Analytics Data</Text>
-          </TouchableOpacity>
-        </>
-      )}
-    </ScrollView>
+            {/* Export Data Button */}
+            <TouchableOpacity 
+              style={styles.exportButton}
+              onPress={() => navigation.navigate('VendorImportExport')}
+            >
+              <Ionicons name="download-outline" size={20} color={theme.colors.white} />
+              <Text style={styles.exportButtonText}>Export Analytics Data</Text>
+            </TouchableOpacity>
+          </>
+        )}
+      </ScrollView>
+    </View>
   );
 };
 
@@ -329,8 +260,12 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: theme.colors.background,
   },
+  scrollView: {
+    flex: 1,
+  },
   contentContainer: {
     paddingBottom: theme.spacing.xl,
+    paddingHorizontal: theme.spacing.md,
   },
   loadingContainer: {
     flex: 1,
@@ -358,26 +293,9 @@ const styles = StyleSheet.create({
     color: theme.colors.white,
     fontWeight: 'bold',
   },
-  header: {
-    padding: theme.spacing.md,
-    backgroundColor: theme.colors.white,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.lightGray,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: theme.colors.dark,
-  },
   section: {
     marginHorizontal: theme.spacing.md,
     marginTop: theme.spacing.lg,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: theme.spacing.sm,
   },
   sectionTitle: {
     fontSize: 18,
@@ -421,9 +339,6 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold',
     color: theme.colors.dark,
-  },
-  periodSelector: {
-    width: 200,
   },
   chartCard: {
     backgroundColor: theme.colors.white,
@@ -502,44 +417,6 @@ const styles = StyleSheet.create({
     color: theme.colors.dark,
     width: 30,
     textAlign: 'right',
-  },
-  topProductsContainer: {
-    marginVertical: theme.spacing.sm,
-  },
-  productRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: theme.spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.lightGray,
-  },
-  productRank: {
-    width: 30,
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: theme.colors.primary,
-  },
-  productInfo: {
-    flex: 1,
-  },
-  productName: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: theme.colors.dark,
-  },
-  productSales: {
-    fontSize: 12,
-    color: theme.colors.gray,
-  },
-  viewAllButton: {
-    alignSelf: 'center',
-    marginTop: theme.spacing.md,
-    paddingVertical: theme.spacing.xs,
-    paddingHorizontal: theme.spacing.md,
-  },
-  viewAllText: {
-    color: theme.colors.primary,
-    fontWeight: '500',
   },
   exportButton: {
     flexDirection: 'row',

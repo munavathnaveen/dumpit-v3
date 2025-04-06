@@ -1,5 +1,5 @@
 const express = require('express')
-const {exportProducts, exportOrders, importProducts, downloadCSV, upload, getVendorDashboard} = require('../controllers/analytics')
+const {exportProducts, exportOrders, exportRevenue, importProducts, downloadCSV, upload, getVendorDashboard} = require('../controllers/analytics')
 
 const {protect, authorize} = require('../middleware/auth')
 const config = require('../config')
@@ -25,6 +25,13 @@ router.get(
   protect,
   authorize(config.constants.userRoles.VENDOR, config.constants.userRoles.ADMIN),
   exportOrders
+)
+
+router.get(
+  '/export/revenue',
+  protect,
+  authorize(config.constants.userRoles.VENDOR, config.constants.userRoles.ADMIN),
+  exportRevenue
 )
 
 // Import routes

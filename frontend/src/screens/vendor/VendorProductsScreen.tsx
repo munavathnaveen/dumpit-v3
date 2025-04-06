@@ -17,6 +17,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSelector } from 'react-redux';
 
 import Card3D from '../../components/Card3D';
+import ScreenHeader from '../../components/ScreenHeader';
 import { theme } from '../../theme';
 import { MainStackNavigationProp } from '../../navigation/types';
 import { RootState } from '../../store';
@@ -183,37 +184,34 @@ const VendorProductsScreen: React.FC = () => {
 
   if (loading && !refreshing) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={theme.colors.primary} />
+      <View style={styles.container}>
+        <ScreenHeader title="Products" showBackButton={true} />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={theme.colors.primary} />
+        </View>
       </View>
     );
   }
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>My Products</Text>
-        <TouchableOpacity
-          style={styles.addButton}
-          onPress={() => navigation.navigate('VendorAddProduct')}
-        >
-          <Ionicons name="add" size={24} color={theme.colors.white} />
-        </TouchableOpacity>
-      </View>
-      
+      <ScreenHeader title="Products" showBackButton={true} />
       <View style={styles.searchContainer}>
-        <Ionicons name="search" size={20} color={theme.colors.gray} style={styles.searchIcon} />
-        <TextInput
-          style={styles.searchInput}
-          placeholder="Search by name, category..."
-          value={searchQuery}
-          onChangeText={handleSearch}
-        />
-        {searchQuery ? (
-          <TouchableOpacity onPress={() => handleSearch('')}>
-            <Ionicons name="close-circle" size={20} color={theme.colors.gray} />
-          </TouchableOpacity>
-        ) : null}
+        <View style={styles.searchInputContainer}>
+          <Ionicons name="search" size={20} color={theme.colors.gray} style={styles.searchIcon} />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search products..."
+            value={searchQuery}
+            onChangeText={handleSearch}
+            placeholderTextColor={theme.colors.gray}
+          />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity onPress={() => handleSearch('')}>
+              <Ionicons name="close-circle" size={20} color={theme.colors.gray} />
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
       
       {error ? (
@@ -258,6 +256,13 @@ const VendorProductsScreen: React.FC = () => {
           }
         />
       )}
+
+      <TouchableOpacity 
+        style={styles.floatingButton}
+        onPress={() => navigation.navigate('VendorAddProduct')}
+      >
+        <Ionicons name="add" size={24} color={theme.colors.white} />
+      </TouchableOpacity>
     </View>
   );
 };
@@ -454,6 +459,27 @@ const styles = StyleSheet.create({
   actionButtonText: {
     marginLeft: theme.spacing.xs,
     fontWeight: '500',
+  },
+  searchInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: theme.colors.white,
+    borderRadius: theme.borderRadius.medium,
+    paddingHorizontal: theme.spacing.sm,
+    marginBottom: theme.spacing.md,
+    ...theme.shadow.small,
+  },
+  floatingButton: {
+    position: 'absolute',
+    bottom: theme.spacing.lg,
+    right: theme.spacing.lg,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: theme.colors.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+    ...theme.shadow.medium,
   },
 });
 

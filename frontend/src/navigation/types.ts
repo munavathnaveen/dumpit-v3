@@ -43,6 +43,8 @@ export type MainStackParamList = {
   VendorCustomers: undefined;
   VendorImportExport: undefined;
   VendorShopSetup: undefined;
+  VendorPayments: undefined;
+  VendorAnalytics: undefined;
   // Add other main stack screens
 };
 
@@ -57,7 +59,7 @@ export type BottomTabParamList = {
   VendorDashboardTab: undefined;
   VendorProductsTab: undefined;
   VendorOrdersTab: undefined;
-  VendorAnalyticsTab: undefined;
+  VendorPaymentsTab: undefined;
 };
 
 // Root navigator params

@@ -27,6 +27,22 @@ export type Shop = {
   updatedAt: string;
 };
 
+export type ShopSettings = {
+  name: string;
+  description: string;
+  logo?: string;
+  coverImage?: string;
+  address?: string;
+  contactNumber?: string;
+  email?: string;
+  categories?: string[];
+  isOpen?: boolean;
+  openingHours?: {
+    days: string;
+    hours: string;
+  }[];
+};
+
 export type ShopsResponse = {
   success: boolean;
   count: number;
@@ -83,4 +99,26 @@ export const searchShops = async (searchTerm: string): Promise<ShopsResponse> =>
   // Since there's no dedicated search endpoint, we'll use query parameters to filter
   const response = await apiClient.get(`/shops?name=${searchTerm}`);
   return response.data;
+};
+
+// Vendor-specific API functions
+
+export const getVendorShop = async (): Promise<SingleShopResponse> => {
+  const response = await apiClient.get('/shops/vendor');
+  return response.data;
+};
+
+export const createShop = async (shopData: ShopSettings): Promise<SingleShopResponse> => {
+  const response = await apiClient.post('/shops', shopData);
+  return response.data;
+};
+
+export const updateShop = async (shopId: string, shopData: Partial<ShopSettings>): Promise<SingleShopResponse> => {
+  const response = await apiClient.put(`/shops/${shopId}`, shopData);
+  return response.data;
+};
+
+export const getShopDetails = async (): Promise<SingleShopResponse> => {
+  // This is an alias for getVendorShop to match the function name used in VendorShopSetupScreen
+  return getVendorShop();
 }; 

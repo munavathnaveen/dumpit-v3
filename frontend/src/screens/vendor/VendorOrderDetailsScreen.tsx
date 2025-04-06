@@ -10,10 +10,12 @@ import {
   Image,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import { useRoute, RouteProp } from '@react-navigation/core';
+import { useRoute } from '@react-navigation/core';
+import { RouteProp } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 
 import Card3D from '../../components/Card3D';
+import ScreenHeader from '../../components/ScreenHeader';
 import { theme } from '../../theme';
 import { MainStackNavigationProp, MainStackParamList } from '../../navigation/types';
 import { getVendorOrder, updateOrderStatus } from '../../api/orderApi';
@@ -117,22 +119,28 @@ const VendorOrderDetailsScreen: React.FC = () => {
 
   if (loading) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={theme.colors.primary} />
+      <View style={styles.container}>
+        <ScreenHeader title="Order Details" showBackButton={true} />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={theme.colors.primary} />
+        </View>
       </View>
     );
   }
 
   if (error || !order) {
     return (
-      <View style={styles.errorContainer}>
-        <Text style={styles.errorText}>{error || 'Order not found'}</Text>
-        <TouchableOpacity 
-          style={styles.goBackButton}
-          onPress={() => navigation.goBack()}
-        >
-          <Text style={styles.goBackButtonText}>Go Back</Text>
-        </TouchableOpacity>
+      <View style={styles.container}>
+        <ScreenHeader title="Order Details" showBackButton={true} />
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorText}>{error || 'Order not found'}</Text>
+          <TouchableOpacity 
+            style={styles.retryButton}
+            onPress={() => navigation.goBack()}
+          >
+            <Text style={styles.retryButtonText}>Go Back</Text>
+          </TouchableOpacity>
+        </View>
       </View>
     );
   }
@@ -150,17 +158,8 @@ const VendorOrderDetailsScreen: React.FC = () => {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-        >
-          <Ionicons name="arrow-back" size={24} color={theme.colors.dark} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Order Details</Text>
-        <View style={styles.spacer} />
-      </View>
-
+      <ScreenHeader title="Order Details" showBackButton={true} />
+      
       <ScrollView contentContainerStyle={styles.contentContainer}>
         {/* Order Summary Card */}
         <Card3D style={styles.card} elevation="medium">
@@ -340,26 +339,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: theme.colors.background,
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: theme.spacing.md,
-    backgroundColor: theme.colors.white,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.lightGray,
-  },
-  backButton: {
-    padding: theme.spacing.xs,
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: theme.colors.dark,
-  },
-  spacer: {
-    width: 40,
-  },
   contentContainer: {
     padding: theme.spacing.md,
     paddingBottom: theme.spacing.xl,
@@ -381,13 +360,13 @@ const styles = StyleSheet.create({
     marginBottom: theme.spacing.md,
     textAlign: 'center',
   },
-  goBackButton: {
+  retryButton: {
     backgroundColor: theme.colors.primary,
     paddingVertical: theme.spacing.sm,
     paddingHorizontal: theme.spacing.lg,
     borderRadius: theme.borderRadius.medium,
   },
-  goBackButtonText: {
+  retryButtonText: {
     color: theme.colors.white,
     fontWeight: 'bold',
   },

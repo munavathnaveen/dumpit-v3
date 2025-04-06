@@ -233,25 +233,59 @@ exports.uploadProductImages = async (req, res, next) => {
       return next(new ErrorResponse('Please upload at least one file', 400))
     }
 
+    // Validate each file
+    for (const file of req.files) {
+      // Check file type if not already done by multer
+      const filetypes = /jpeg|jpg|png|gif/
+      const mimetype = filetypes.test(file.mimetype)
+      
+      if (!mimetype) {
+        return next(new ErrorResponse(`File type ${file.mimetype} is not supported. Please upload only image files.`, 400))
+      }
+      
+      // Check file size (5MB max)
+      if (file.size > 5 * 1024 * 1024) {
+        return next(new ErrorResponse(`File ${file.originalname} exceeds the 5MB size limit.`, 400))
+      }
+    }
+
     const imageUrls = []
+    const uploadErrors = []
 
     // Process each file
     for (const file of req.files) {
-      const result = await uploadToCloudinary(file, 'products')
-      imageUrls.push(result.url)
+      try {
+        const result = await uploadToCloudinary(file, 'products')
+        imageUrls.push(result.url)
+      } catch (error) {
+        // Log the error but continue with other uploads
+        console.error(`Error uploading ${file.originalname}:`, error)
+        uploadErrors.push({
+          file: file.originalname,
+          error: error.message || 'Failed to upload to cloud storage'
+        })
+      }
     }
 
-    // Add images to product
+    if (imageUrls.length === 0 && uploadErrors.length > 0) {
+      return next(new ErrorResponse('All image uploads failed. Please try again.', 500))
+    }
+
+    // Add successfully uploaded images to product
     product.images = [...product.images, ...imageUrls]
     await product.save()
 
     res.status(200).json({
       success: true,
       count: imageUrls.length,
-      data: product.images,
+      data: {
+        images: product.images,
+        uploadErrors: uploadErrors.length > 0 ? uploadErrors : undefined
+      }
     })
   } catch (err) {
-    next(err)
+    console.error('Product image upload error:', err)
+    next(new ErrorResponse('Error processing image upload: ' + (err.message || 'Unknown error'), 500))
   }
 }
 

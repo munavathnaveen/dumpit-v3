@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   RefreshControl,
+  Modal,
   Alert,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
@@ -14,6 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/core';
 
 import Card3D from '../../components/Card3D';
+import ScreenHeader from '../../components/ScreenHeader';
 import { theme } from '../../theme';
 import SegmentedControl from '../../components/SegmentedControl';
 import { MainStackNavigationProp } from '../../navigation/types';
@@ -94,6 +96,8 @@ const VendorPaymentsScreen: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [selectedPayment, setSelectedPayment] = useState<Payment | null>(null);
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
 
   // Calculate total earnings
   const completedPaymentsTotal = payments
@@ -152,11 +156,13 @@ const VendorPaymentsScreen: React.FC = () => {
   };
 
   const handlePaymentDetails = (payment: Payment) => {
-    // In a real app, navigate to payment details screen
-    Alert.alert(
-      'Payment Details',
-      `Payment ID: ${payment.id}\nAmount: ₹${payment.amount.toFixed(2)}\nStatus: ${payment.status}\nTransaction ID: ${payment.transactionId}\nOrder: ${payment.orderNumber}\nDate: ${new Date(payment.date).toLocaleString()}`
-    );
+    setSelectedPayment(payment);
+    setShowDetailsModal(true);
+  };
+
+  const closeDetailsModal = () => {
+    setShowDetailsModal(false);
+    setSelectedPayment(null);
   };
 
   const renderPaymentItem = ({ item }: { item: Payment }) => {
@@ -218,12 +224,21 @@ const VendorPaymentsScreen: React.FC = () => {
     );
   };
 
+  if (loading) {
+    return (
+      <View style={styles.container}>
+        <ScreenHeader title="Payments" showBackButton={true} />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={theme.colors.primary} />
+        </View>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Payments</Text>
-      </View>
-
+      <ScreenHeader title="Payments" showBackButton={true} />
+      
       {/* Summary Cards */}
       <View style={styles.summaryContainer}>
         <Card3D style={[styles.summaryCard, styles.earningsCard]} elevation="medium">
@@ -252,11 +267,7 @@ const VendorPaymentsScreen: React.FC = () => {
         />
       </View>
 
-      {loading && !refreshing ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={theme.colors.primary} />
-        </View>
-      ) : error ? (
+      {error ? (
         <View style={styles.errorContainer}>
           <Text style={styles.errorText}>{error}</Text>
           <TouchableOpacity style={styles.retryButton} onPress={loadPayments}>
@@ -300,6 +311,93 @@ const VendorPaymentsScreen: React.FC = () => {
         <Ionicons name="wallet-outline" size={20} color={theme.colors.white} />
         <Text style={styles.withdrawButtonText}>Withdraw Funds</Text>
       </TouchableOpacity>
+
+      {/* Payment Details Modal */}
+      <Modal
+        visible={showDetailsModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={closeDetailsModal}
+      >
+        <View style={styles.modalOverlay}>
+          <Card3D style={styles.modalContent} elevation="large">
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Payment Details</Text>
+              <TouchableOpacity onPress={closeDetailsModal}>
+                <Ionicons name="close" size={24} color={theme.colors.dark} />
+              </TouchableOpacity>
+            </View>
+
+            {selectedPayment && (
+              <View style={styles.paymentDetailsContainer}>
+                <View style={styles.detailsRow}>
+                  <Text style={styles.detailsLabel}>Payment ID:</Text>
+                  <Text style={styles.detailsValue}>{selectedPayment.id}</Text>
+                </View>
+                
+                <View style={styles.detailsRow}>
+                  <Text style={styles.detailsLabel}>Amount:</Text>
+                  <Text style={[styles.detailsValue, styles.amountValue]}>
+                    ₹{selectedPayment.amount.toFixed(2)}
+                  </Text>
+                </View>
+                
+                <View style={styles.detailsRow}>
+                  <Text style={styles.detailsLabel}>Status:</Text>
+                  <View style={[
+                    styles.statusBadge,
+                    { backgroundColor: getStatusColor(selectedPayment.status) }
+                  ]}>
+                    <Text style={styles.statusText}>
+                      {selectedPayment.status.charAt(0).toUpperCase() + selectedPayment.status.slice(1)}
+                    </Text>
+                  </View>
+                </View>
+                
+                <View style={styles.detailsRow}>
+                  <Text style={styles.detailsLabel}>Date:</Text>
+                  <Text style={styles.detailsValue}>
+                    {new Date(selectedPayment.date).toLocaleString('en-IN', {
+                      day: 'numeric',
+                      month: 'long',
+                      year: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}
+                  </Text>
+                </View>
+                
+                <View style={styles.detailsRow}>
+                  <Text style={styles.detailsLabel}>Order Number:</Text>
+                  <Text style={styles.detailsValue}>{selectedPayment.orderNumber}</Text>
+                </View>
+                
+                <View style={styles.detailsRow}>
+                  <Text style={styles.detailsLabel}>Payment Method:</Text>
+                  <Text style={styles.detailsValue}>{selectedPayment.paymentMethod}</Text>
+                </View>
+                
+                <View style={styles.detailsRow}>
+                  <Text style={styles.detailsLabel}>Transaction ID:</Text>
+                  <Text style={styles.detailsValue}>{selectedPayment.transactionId}</Text>
+                </View>
+                
+                <View style={styles.actionsContainer}>
+                  <TouchableOpacity 
+                    style={styles.actionButton}
+                    onPress={() => {
+                      closeDetailsModal();
+                      navigation.navigate('VendorOrderDetails', { orderId: selectedPayment.orderId });
+                    }}
+                  >
+                    <Text style={styles.actionButtonText}>View Related Order</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+          </Card3D>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -501,6 +599,77 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: theme.colors.white,
     marginLeft: theme.spacing.xs,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: theme.spacing.lg,
+  },
+  modalContent: {
+    backgroundColor: theme.colors.white,
+    borderRadius: theme.borderRadius.medium,
+    width: '100%',
+    maxHeight: '80%',
+    padding: theme.spacing.lg,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: theme.spacing.md,
+    paddingBottom: theme.spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.lightGray,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: theme.colors.dark,
+  },
+  paymentDetailsContainer: {
+    marginTop: theme.spacing.sm,
+  },
+  detailsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: theme.spacing.md,
+  },
+  detailsLabel: {
+    fontSize: 14,
+    color: theme.colors.gray,
+    fontWeight: '500',
+    flex: 1,
+  },
+  detailsValue: {
+    fontSize: 14,
+    color: theme.colors.dark,
+    fontWeight: '500',
+    flex: 2,
+    textAlign: 'right',
+  },
+  amountValue: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: theme.colors.primary,
+  },
+  actionsContainer: {
+    marginTop: theme.spacing.lg,
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.lightGray,
+    paddingTop: theme.spacing.md,
+  },
+  actionButton: {
+    backgroundColor: theme.colors.primary,
+    padding: theme.spacing.sm,
+    borderRadius: theme.borderRadius.medium,
+    alignItems: 'center',
+  },
+  actionButtonText: {
+    color: theme.colors.white,
+    fontWeight: 'bold',
   },
 });
 

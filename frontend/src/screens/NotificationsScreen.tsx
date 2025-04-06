@@ -14,6 +14,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons, Feather } from '@expo/vector-icons';
 
 import Card3D from '../components/Card3D';
+import ScreenHeader from '../components/ScreenHeader';
 import { theme } from '../theme';
 import { RootState, AppDispatch } from '../store';
 import {
@@ -22,6 +23,7 @@ import {
   updateNotificationSettings,
 } from '../store/userSlice';
 import { MainStackParamList } from '../navigation/types';
+import { USER_ROLES } from '../utils/constants';
 
 type NotificationScreenNavigationProp = NativeStackNavigationProp<MainStackParamList, 'Notifications'>;
 
@@ -31,6 +33,7 @@ const NotificationsScreen = () => {
   const { user } = useSelector((state: RootState) => state.auth);
   const { notifications, notificationSettings, loading } = useSelector((state: RootState) => state.user);
   
+  const isVendor = user?.role === USER_ROLES.VENDOR;
   const [emailNotifications, setEmailNotifications] = useState(notificationSettings?.email || false);
   const [pushNotifications, setPushNotifications] = useState(notificationSettings?.push || false);
 
@@ -90,25 +93,26 @@ const NotificationsScreen = () => {
 
   if (loading) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={theme.colors.primary} />
+      <View style={styles.container}>
+        <ScreenHeader title="Notifications" showBackButton={true} />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={theme.colors.primary} />
+        </View>
       </View>
     );
   }
 
+  // Filter notifications based on role
+  const filteredNotifications = isVendor 
+    ? notifications.filter(notification => 
+        notification.message.includes('order') || 
+        notification.message.includes('product') || 
+        notification.message.includes('payment'))
+    : notifications;
+
   return (
     <View style={styles.container}>
-      {/* Header with back button */}
-      <View style={styles.header}>
-        <TouchableOpacity 
-          style={styles.backButton} 
-          onPress={() => navigation.goBack()}
-        >
-          <Ionicons name="chevron-back" size={24} color={theme.colors.text} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Notifications</Text>
-        <View style={styles.placeholder} />
-      </View>
+      <ScreenHeader title="Notifications" showBackButton={true} />
 
       {/* Notification Settings */}
       <Card3D style={styles.settingsCard}>
@@ -135,7 +139,7 @@ const NotificationsScreen = () => {
 
       {/* Notifications List */}
       <FlatList
-        data={notifications}
+        data={filteredNotifications}
         keyExtractor={(item) => item._id}
         renderItem={({ item }) => (
           <TouchableOpacity

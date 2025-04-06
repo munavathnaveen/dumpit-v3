@@ -12,12 +12,15 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import { useFocusEffect } from '@react-navigation/core';
 import { Ionicons } from '@expo/vector-icons';
+import { useSelector } from 'react-redux';
 
 import { theme } from '../../theme';
 import Card3D from '../../components/Card3D';
 import SegmentedControl from '../../components/SegmentedControl';
 import { MainStackNavigationProp } from '../../navigation/types';
 import { getVendorOrders, updateOrderStatus } from '../../api/orderApi';
+import ScreenHeader from '../../components/ScreenHeader';
+import { RootState } from '../../store';
 
 type OrderStatus = 'pending' | 'processing' | 'shipped' | 'delivered' | 'cancelled';
 
@@ -267,17 +270,18 @@ const VendorOrdersScreen: React.FC = () => {
 
   if (loading && !refreshing) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={theme.colors.primary} />
+      <View style={styles.container}>
+        <ScreenHeader title="Orders" showBackButton={false} />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={theme.colors.primary} />
+        </View>
       </View>
     );
   }
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Orders</Text>
-      </View>
+      <ScreenHeader title="Orders" showBackButton={true} />
       
       <View style={styles.filterContainer}>
         <SegmentedControl

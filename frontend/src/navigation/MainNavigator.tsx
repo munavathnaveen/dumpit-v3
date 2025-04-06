@@ -60,10 +60,10 @@ const MainNavigator: React.FC = () => {
           <Stack.Screen name="VendorEditProduct" component={VendorEditProductScreen} />
           <Stack.Screen name="VendorOrders" component={VendorOrdersScreen} />
           <Stack.Screen name="VendorOrderDetails" component={VendorOrderDetailsScreen} />
-          <Stack.Screen name="VendorAnalytics" component={VendorAnalyticsScreen} />
           <Stack.Screen name="VendorPayments" component={VendorPaymentsScreen} />
           <Stack.Screen name="VendorShopSetup" component={VendorShopSetupScreen} />
           <Stack.Screen name="VendorImportExport" component={VendorImportExportScreen} />
+          <Stack.Screen name="VendorAnalytics" component={VendorAnalyticsScreen} />
         </>
       )}
     </Stack.Navigator>

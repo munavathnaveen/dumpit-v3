@@ -21,6 +21,8 @@ import { theme } from '../../theme';
 import { MainStackNavigationProp, MainStackParamList } from '../../navigation/types';
 import { getProduct, updateProduct, ProductFormData } from '../../api/productApi';
 import Card3D from '../../components/Card3D';
+import ScreenHeader from '../../components/ScreenHeader';
+import Button from '../../components/Button';
 
 type EditProductRouteProp = RouteProp<MainStackParamList, 'VendorEditProduct'>;
 
@@ -202,8 +204,11 @@ const VendorEditProductScreen: React.FC = () => {
 
   if (loading) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={theme.colors.primary} />
+      <View style={styles.container}>
+        <ScreenHeader title="Edit Product" showBackButton={true} />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={theme.colors.primary} />
+        </View>
       </View>
     );
   }
@@ -224,17 +229,8 @@ const VendorEditProductScreen: React.FC = () => {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-        >
-          <Ionicons name="arrow-back" size={24} color={theme.colors.dark} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Edit Product</Text>
-        <View style={styles.spacer} />
-      </View>
-
+      <ScreenHeader title="Edit Product" showBackButton={true} />
+      
       <KeyboardAwareScrollView 
         contentContainerStyle={styles.contentContainer}
         enableOnAndroid={true}

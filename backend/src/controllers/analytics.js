@@ -206,6 +206,149 @@ exports.exportOrders = asyncHandler(async (req, res, next) => {
 })
 
 /**
+ * @desc    Export revenue data as CSV
+ * @route   GET /api/v1/analytics/export/revenue
+ * @access  Private/Vendor or Admin
+ */
+exports.exportRevenue = asyncHandler(async (req, res, next) => {
+  const shopId = req.query.shop
+  const startDate = req.query.startDate ? new Date(req.query.startDate) : null
+  const endDate = req.query.endDate ? new Date(req.query.endDate) : null
+  const period = req.query.period || 'monthly' // Default to monthly (daily, weekly, monthly)
+
+  // Validate shop ownership if shop ID is provided
+  if (shopId && req.user.role !== 'admin') {
+    const shop = await Shop.findById(shopId)
+    if (!shop) {
+      return next(new ErrorResponse('Shop not found', 404))
+    }
+
+    if (shop.owner.toString() !== req.user.id) {
+      return next(new ErrorResponse('Not authorized to access this shop', 403))
+    }
+  }
+
+  // Build query to get all vendor's products
+  let vendorProducts = []
+  if (req.user.role === 'vendor') {
+    vendorProducts = await Product.find({ vendor: req.user.id })
+  } else if (shopId) {
+    vendorProducts = await Product.find({ shop: shopId })
+  } else {
+    return next(new ErrorResponse('Shop ID is required for revenue export', 400))
+  }
+
+  const productIds = vendorProducts.map(product => product._id)
+
+  // Build query for orders
+  let query = {
+    'items.product': { $in: productIds }
+  }
+
+  // Date range filter
+  if (startDate || endDate) {
+    query.createdAt = {}
+    if (startDate) {
+      query.createdAt.$gte = startDate
+    }
+    if (endDate) {
+      query.createdAt.$lte = endDate
+    }
+  }
+
+  // Get orders
+  const orders = await Order.find(query)
+    .populate('items.product', 'name price')
+    .lean()
+
+  // Generate revenue data
+  const revenueData = {}
+  
+  orders.forEach(order => {
+    // Skip orders that aren't completed if you only want to count completed orders
+    // if (order.status !== 'completed') return;
+    
+    const orderDate = new Date(order.createdAt)
+    let dateKey
+
+    // Format the date key based on the period
+    if (period === 'daily') {
+      dateKey = orderDate.toISOString().split('T')[0] // YYYY-MM-DD
+    } else if (period === 'weekly') {
+      dateKey = getWeekNumber(orderDate)
+    } else { // monthly
+      dateKey = `${orderDate.getFullYear()}-${String(orderDate.getMonth() + 1).padStart(2, '0')}` // YYYY-MM
+    }
+    
+    if (!revenueData[dateKey]) {
+      revenueData[dateKey] = {
+        date: dateKey,
+        revenue: 0,
+        orders: 0,
+        items: 0
+      }
+    }
+    
+    // Calculate revenue from this order (only from vendor's products)
+    let orderRevenue = 0
+    let itemCount = 0
+    
+    order.items.forEach(item => {
+      if (productIds.some(id => id.toString() === item.product._id.toString())) {
+        orderRevenue += item.price * item.quantity
+        itemCount += item.quantity
+      }
+    })
+    
+    revenueData[dateKey].revenue += orderRevenue
+    revenueData[dateKey].orders += 1
+    revenueData[dateKey].items += itemCount
+  })
+  
+  // Convert to array and format for CSV
+  const csvData = Object.values(revenueData).map(item => {
+    let formattedDate = item.date
+    
+    // Format the date for display
+    if (period === 'monthly') {
+      const [year, month] = item.date.split('-')
+      const date = new Date(parseInt(year), parseInt(month) - 1, 1)
+      formattedDate = date.toLocaleString('default', { month: 'long', year: 'numeric' })
+    } else if (period === 'weekly') {
+      const [year, week] = item.date.split('-')
+      formattedDate = `Week ${week}, ${year}`
+    }
+    
+    return {
+      ...item,
+      formattedDate
+    }
+  }).sort((a, b) => {
+    // Sort by date
+    return a.date.localeCompare(b.date)
+  })
+  
+  // Define CSV fields
+  const fields = [
+    { label: 'Period', value: 'formattedDate' },
+    { label: 'Revenue', value: 'revenue' },
+    { label: 'Orders', value: 'orders' },
+    { label: 'Items Sold', value: 'items' }
+  ]
+  
+  // Export data to CSV
+  const filePath = await exportToCSV(csvData, fields, `revenue-${period}`)
+  
+  res.status(200).json({
+    success: true,
+    data: {
+      message: 'Revenue data exported successfully',
+      filePath: path.basename(filePath),
+    },
+  })
+})
+
+/**
  * @desc    Import products from CSV
  * @route   POST /api/v1/analytics/import/products
  * @access  Private/Vendor
@@ -216,66 +359,190 @@ exports.importProducts = asyncHandler(async (req, res, next) => {
   }
 
   const shopId = req.body.shop
+  
+  // If request is for sample format, provide it
+  if (req.query.format === 'sample') {
+    const sampleFormat = {
+      fields: [
+        'name', 'description', 'price', 'stock', 'category', 
+        'isActive', 'images', 'specifications'
+      ],
+      sample: 'name,description,price,stock,category,isActive,images,specifications\n' +
+              '"Product Name","Product description goes here",299.99,100,"Electronics",true,"https://example.com/image1.jpg,https://example.com/image2.jpg","{"color":"black","weight":"200g"}"\n' +
+              '"Another Product","Another description",99.99,50,"Clothing",true,"https://example.com/image3.jpg","{"size":"M","material":"cotton"}"'
+    };
+    
+    return res.status(200).json({
+      success: true,
+      data: {
+        format: sampleFormat
+      }
+    });
+  }
 
   // Validate shop ownership
-  const shop = await Shop.findById(shopId)
-  if (!shop) {
-    return next(new ErrorResponse('Shop not found', 404))
+  let shop;
+  if (shopId === 'current') {
+    // Find the vendor's shop
+    const shops = await Shop.find({ owner: req.user.id });
+    if (shops.length === 0) {
+      return next(new ErrorResponse('No shop found for this vendor', 404));
+    }
+    shop = shops[0]; // Use the first shop if multiple exist
+  } else {
+    shop = await Shop.findById(shopId);
+    if (!shop) {
+      return next(new ErrorResponse('Shop not found', 404));
+    }
+
+    if (shop.owner.toString() !== req.user.id && req.user.role !== 'admin') {
+      return next(new ErrorResponse('Not authorized to add products to this shop', 403));
+    }
   }
 
-  if (shop.owner.toString() !== req.user.id && req.user.role !== 'admin') {
-    return next(new ErrorResponse('Not authorized to add products to this shop', 403))
+  try {
+    // Process the CSV file
+    const result = await importFromCSV(req.file.path, async (row) => {
+      // Basic validation
+      if (!row.name || !row.price) {
+        throw new Error('Product name and price are required');
+      }
+
+      // Create or update product
+      let product;
+      if (row._id) {
+        // Try to find existing product
+        product = await Product.findById(row._id);
+      }
+
+      if (product) {
+        // Update existing product
+        product.name = row.name;
+        product.description = row.description || product.description;
+        product.price = parseFloat(row.price);
+        product.stock = parseInt(row.stock || product.stock);
+        product.category = row.category || product.category;
+        
+        // Handle boolean values
+        if (row.isActive !== undefined) {
+          product.isActive = row.isActive.toString().toLowerCase() === 'true';
+        }
+        
+        // Handle arrays and objects (if they're provided as JSON strings)
+        if (row.images) {
+          try {
+            // Check if it's already a comma-separated list
+            if (row.images.includes(',')) {
+              product.images = row.images.split(',').map(url => url.trim());
+            } else if (row.images.startsWith('[')) {
+              // It's a JSON array
+              product.images = JSON.parse(row.images);
+            } else {
+              // Single value
+              product.images = [row.images];
+            }
+          } catch (e) {
+            product.images = [row.images]; // Fallback to treating as a single image
+          }
+        }
+        
+        if (row.specifications) {
+          try {
+            product.specifications = JSON.parse(row.specifications);
+          } catch (e) {
+            // If not valid JSON, store as is
+            product.specifications = row.specifications;
+          }
+        }
+        
+        // Save the updated product
+        await product.save();
+        return { action: 'updated', product };
+      } else {
+        // Create new product
+        product = new Product({
+          name: row.name,
+          description: row.description || '',
+          price: parseFloat(row.price),
+          stock: parseInt(row.stock || 0),
+          category: row.category || 'Uncategorized',
+          isActive: row.isActive ? row.isActive.toString().toLowerCase() === 'true' : true,
+          shop: shop._id,
+          vendor: req.user.id,
+        });
+        
+        // Handle arrays and objects (if they're provided as JSON strings)
+        if (row.images) {
+          try {
+            // Check if it's already a comma-separated list
+            if (row.images.includes(',')) {
+              product.images = row.images.split(',').map(url => url.trim());
+            } else if (row.images.startsWith('[')) {
+              // It's a JSON array
+              product.images = JSON.parse(row.images);
+            } else {
+              // Single value
+              product.images = [row.images];
+            }
+          } catch (e) {
+            product.images = [row.images]; // Fallback to treating as a single image
+          }
+        }
+        
+        if (row.specifications) {
+          try {
+            product.specifications = JSON.parse(row.specifications);
+          } catch (e) {
+            // If not valid JSON, store as is
+            product.specifications = row.specifications;
+          }
+        }
+        
+        // Save the new product
+        await product.save();
+        return { action: 'created', product };
+      }
+    });
+
+    res.status(200).json({
+      success: true,
+      data: {
+        message: 'Products imported successfully',
+        processed: result.processed,
+        created: result.details.filter(d => d.action === 'created').length,
+        updated: result.details.filter(d => d.action === 'updated').length,
+      },
+    });
+  } catch (error) {
+    // If it's a format error, provide the correct format
+    if (error.message.includes('format') || error.message.includes('required')) {
+      const sampleFormat = {
+        fields: [
+          'name', 'description', 'price', 'stock', 'category', 
+          'isActive', 'images', 'specifications'
+        ],
+        sample: 'name,description,price,stock,category,isActive,images,specifications\n' +
+                '"Product Name","Product description goes here",299.99,100,"Electronics",true,"https://example.com/image1.jpg,https://example.com/image2.jpg","{"color":"black","weight":"200g"}"\n' +
+                '"Another Product","Another description",99.99,50,"Clothing",true,"https://example.com/image3.jpg","{"size":"M","material":"cotton"}"'
+      };
+      
+      return res.status(400).json({
+        success: false,
+        message: error.message || 'Invalid CSV format',
+        data: {
+          format: sampleFormat
+        }
+      });
+    }
+    
+    return next(new ErrorResponse(error.message || 'Error processing CSV file', 400));
+  } finally {
+    // Clean up the uploaded file
+    fs.unlink(req.file.path, (err) => {
+      if (err) console.error('Error deleting temp file:', err);
+    });
   }
-
-  // Process the CSV file
-  const result = await importFromCSV(req.file.path, async (row) => {
-    // Basic validation
-    if (!row.name || !row.price) {
-      throw new Error('Product name and price are required')
-    }
-
-    // Create or update product
-    let product
-    if (row._id) {
-      // Try to find existing product
-      product = await Product.findById(row._id)
-    }
-
-    if (product) {
-      // Update existing product
-      product.name = row.name
-      product.description = row.description || product.description
-      product.price = parseFloat(row.price)
-      product.stock = parseInt(row.stock || product.stock)
-      product.category = row.category || product.category
-      product.isActive = row.isActive === 'true'
-      await product.save()
-    } else {
-      // Create new product
-      await Product.create({
-        name: row.name,
-        description: row.description || '',
-        price: parseFloat(row.price),
-        stock: parseInt(row.stock || 0),
-        category: row.category || 'Other',
-        shop: shopId,
-        isActive: row.isActive === 'true' || true,
-      })
-    }
-  })
-
-  // Delete the uploaded file
-  fs.unlinkSync(req.file.path)
-
-  res.status(200).json({
-    success: true,
-    data: {
-      message: 'Products imported successfully',
-      processed: result.processed,
-      errors: result.errors,
-    },
-  })
-})
+});
 
 /**
  * @desc    Download CSV export file

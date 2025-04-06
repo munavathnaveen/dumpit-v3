@@ -14,7 +14,7 @@ import CartScreen from '../screens/CartScreen';
 const VendorDashboardScreen = require('../screens/vendor/VendorDashboardScreen').default;
 const VendorProductsScreen = require('../screens/vendor/VendorProductsScreen').default;
 const VendorOrdersScreen = require('../screens/vendor/VendorOrdersScreen').default;
-const VendorAnalyticsScreen = require('../screens/vendor/VendorAnalyticsScreen').default;
+const VendorPaymentsScreen = require('../screens/vendor/VendorPaymentsScreen').default;
 
 import { BottomTabParamList } from './types';
 import { theme } from '../theme';
@@ -55,8 +55,8 @@ const TabNavigator: React.FC = () => {
             iconName = focused ? 'cube' : 'cube-outline';
           } else if (route.name === 'VendorOrdersTab') {
             iconName = focused ? 'receipt' : 'receipt-outline';
-          } else if (route.name === 'VendorAnalyticsTab') {
-            iconName = focused ? 'analytics' : 'analytics-outline';
+          } else if (route.name === 'VendorPaymentsTab') {
+            iconName = focused ? 'wallet' : 'wallet-outline';
           }
 
           return <Ionicons name={iconName} size={size} color={color} />;
@@ -101,10 +101,10 @@ const TabNavigator: React.FC = () => {
             }}
           />
           <Tab.Screen
-            name="VendorAnalyticsTab"
-            component={VendorAnalyticsScreen}
+            name="VendorPaymentsTab"
+            component={VendorPaymentsScreen}
             options={{
-              title: 'Analytics',
+              title: 'Payments',
             }}
           />
         </>
