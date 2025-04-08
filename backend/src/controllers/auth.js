@@ -30,12 +30,15 @@ exports.register = async (req, res, next) => {
       }
       
       // Create shop associated with the vendor
-      await Shop.create({
+      const shop = await Shop.create({
         name: shopName,
         description: shopDescription,
         owner: user._id,
         address: shopAddress,
       });
+      const updatedUser = await User.findByIdAndUpdate(user._id, { shop_id: shop._id }, { new: true });
+      console.log(updatedUser);
+
     }
 
     // Send welcome email

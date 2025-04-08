@@ -131,13 +131,13 @@ exports.createProduct = async (req, res, next) => {
 
     // Add vendor and shop to req.body
     req.body.vendor = req.user.id
-    req.body.shop = req.params.shopId
-
+    req.body.shop = req.user.shop_id
+    console.log(req.user);
     // Check if shop exists
-    const shop = await Shop.findById(req.params.shopId)
+    const shop = await Shop.findById(req.user.shop_id)
 
     if (!shop) {
-      return next(new ErrorResponse(`Shop not found with id of ${req.params.shopId}`, 404))
+      return next(new ErrorResponse(`Shop not found with id of ${req.params.shop_id}`, 404))
     }
 
     // Make sure user is shop owner

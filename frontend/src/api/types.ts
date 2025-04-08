@@ -6,6 +6,7 @@ export interface User {
   phone: string;
   role: string;
   avatar_url?: string;
+  shop_id?: string;
   location?: {
     type: string;
     coordinates: number[];

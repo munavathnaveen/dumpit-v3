@@ -86,10 +86,7 @@ exports.getShops = async (req, res, next) => {
 // @access  Public
 exports.getShop = async (req, res, next) => {
   try {
-    const shop = await Shop.findById(req.params.id).populate([
-      {path: 'owner', select: 'name email phone'},
-      {path: 'products', select: 'name price images'},
-    ])
+    const shop = await Shop.findById(req.user.shop_id)
 
     if (!shop) {
       return next(new ErrorResponse(`Shop not found with id of ${req.params.id}`, 404))
@@ -129,7 +126,7 @@ exports.createShop = async (req, res, next) => {
 
     // Update user with shop_id reference
     await User.findByIdAndUpdate(req.user.id, { shop_id: shop._id })
-
+    console.log(User.findById(req.user.id));
     res.status(201).json({
       success: true,
       data: shop,
