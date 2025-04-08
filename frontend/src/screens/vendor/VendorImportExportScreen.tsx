@@ -29,6 +29,7 @@ const VendorImportExportScreen: React.FC = () => {
   const navigation = useNavigation<MainStackNavigationProp<'VendorImportExport'>>();
   const [loading, setLoading] = useState<string | null>(null);
   const [actionMessage, setActionMessage] = useState<string>('');
+  const [showInstructions, setShowInstructions] = useState(false);
   const [formatGuidance, setFormatGuidance] = useState<{
     show: boolean;
     title: string;
@@ -315,6 +316,50 @@ const VendorImportExportScreen: React.FC = () => {
     </Modal>
   );
 
+  const renderInstructionsModal = () => (
+    <Modal
+      visible={showInstructions}
+      transparent={true}
+      animationType="slide"
+      onRequestClose={() => setShowInstructions(false)}
+    >
+      <View style={styles.modalOverlay}>
+        <Card3D style={styles.modalContent} elevation="medium">
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Import/Export Instructions</Text>
+            <TouchableOpacity onPress={() => setShowInstructions(false)}>
+              <Ionicons name="close" size={24} color={theme.colors.text} />
+            </TouchableOpacity>
+          </View>
+          
+          <ScrollView style={styles.instructionsContainer}>
+            <Text style={styles.instructionsTitle}>Import Guidelines:</Text>
+            <Text style={styles.instructionsText}>
+              • Products: CSV/Excel file with columns: name, description, price, category, stock, images (comma-separated URLs)
+            </Text>
+            <Text style={styles.instructionsText}>
+              • Orders: CSV/Excel file with columns: orderId, customerName, items (JSON array), total, status
+            </Text>
+            <Text style={styles.instructionsText}>
+              • Revenue: CSV/Excel file with columns: date, amount, orderId, paymentMethod
+            </Text>
+            
+            <Text style={styles.instructionsTitle}>Export Guidelines:</Text>
+            <Text style={styles.instructionsText}>
+              • Choose between CSV or Excel format
+            </Text>
+            <Text style={styles.instructionsText}>
+              • Data will be exported in the same format as required for import
+            </Text>
+            <Text style={styles.instructionsText}>
+              • Use the exported file as a template for future imports
+            </Text>
+          </ScrollView>
+        </Card3D>
+      </View>
+    </Modal>
+  );
+
   if (loading) {
     return (
       <View style={styles.container}>
@@ -330,8 +375,15 @@ const VendorImportExportScreen: React.FC = () => {
   return (
     <View style={styles.container}>
       <ScreenHeader title="Import/Export" showBackButton={true} />
+      <TouchableOpacity 
+        style={styles.infoButton}
+        onPress={() => setShowInstructions(true)}
+      >
+        <Ionicons name="information-circle-outline" size={24} color={theme.colors.primary} />
+      </TouchableOpacity>
       
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView style={styles.scrollView} contentContainerStyle={styles.contentContainer}>
+        {renderInstructionsModal()}
         <Text style={styles.sectionTitle}>Export Data</Text>
         <Text style={styles.sectionDescription}>
           Export your store data in CSV or Excel format
@@ -615,6 +667,39 @@ const styles = StyleSheet.create({
   closeModalButtonText: {
     color: theme.colors.white,
     fontWeight: '600',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  instructionsContainer: {
+    maxHeight: '80%',
+  },
+  instructionsTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: theme.colors.primary,
+    marginTop: theme.spacing.md,
+    marginBottom: theme.spacing.sm,
+  },
+  instructionsText: {
+    fontSize: 14,
+    color: theme.colors.text,
+    marginBottom: theme.spacing.sm,
+  },
+  scrollView: {
+    padding: theme.spacing.md,
+  },
+  contentContainer: {
+    paddingBottom: theme.spacing.xl * 2,
+  },
+  infoButton: {
+    position: 'absolute',
+    right: theme.spacing.md,
+    top: theme.spacing.md,
+    zIndex: 1,
   },
 });
 

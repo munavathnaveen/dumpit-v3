@@ -19,6 +19,7 @@ import { VerifyCouponResponse, verifyCoupon } from '../api/coupons';
 import { Order, createOrder, processPayment } from '../api/orders';
 import { clearCart } from '../store/cartSlice';
 import { formatCurrency } from '../utils/format';
+import alert from '../utils/alert';
 
 interface CartProduct {
   _id: string;
@@ -78,14 +79,14 @@ const CheckoutScreen: React.FC = () => {
       setLoading(false);
     } catch (error) {
       setLoading(false);
-      Alert.alert('Error', 'Failed to load addresses');
+      alert('Error', 'Failed to load addresses');
       console.error(error);
     }
   };
 
   const handleApplyCoupon = async () => {
     if (!couponCode.trim()) {
-      Alert.alert('Error', 'Please enter a coupon code');
+      alert('Error', 'Please enter a coupon code');
       return;
     }
     
@@ -96,17 +97,17 @@ const CheckoutScreen: React.FC = () => {
       if (response.success && response.data) {
         setCouponApplied(true);
         setCouponDiscount(response.data.discountAmount);
-        Alert.alert('Success', `Coupon applied! You saved ${formatCurrency(response.data.discountAmount)}`);
+        alert('Success', `Coupon applied! You saved ${formatCurrency(response.data.discountAmount)}`);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       } else {
-        Alert.alert('Error', response.message || 'Invalid coupon');
+        alert('Error', response.message || 'Invalid coupon');
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       }
       
       setLoading(false);
     } catch (error) {
       setLoading(false);
-      Alert.alert('Error', 'Failed to apply coupon');
+      alert('Error', 'Failed to apply coupon');
       console.error(error);
     }
   };
@@ -119,12 +120,12 @@ const CheckoutScreen: React.FC = () => {
 
   const handlePlaceOrder = async () => {
     if (!selectedAddress) {
-      Alert.alert('Error', 'Please select a delivery address');
+      alert('Error', 'Please select a delivery address');
       return;
     }
     
     if (items.length === 0) {
-      Alert.alert('Error', 'Your cart is empty');
+      alert('Error', 'Your cart is empty');
       return;
     }
     
@@ -151,18 +152,18 @@ const CheckoutScreen: React.FC = () => {
           // For COD or other methods
           dispatch(clearCart());
           navigation.navigate('OrderDetails', { orderId: orderDetails._id });
-          Alert.alert('Success', 'Your order has been placed successfully!');
+          alert('Success', 'Your order has been placed successfully!');
         }
       } else {
         // Handle the error case - assume response might have a message property
         const errorMessage = 'Failed to place order';
-        Alert.alert('Error', errorMessage);
+        alert('Error', errorMessage);
       }
       
       setLoading(false);
     } catch (error) {
       setLoading(false);
-      Alert.alert('Error', 'Failed to place order');
+      alert('Error', 'Failed to place order');
       console.error(error);
     }
   };
@@ -182,12 +183,12 @@ const CheckoutScreen: React.FC = () => {
       if (paymentResponse.success) {
         dispatch(clearCart());
         navigation.navigate('OrderDetails', { orderId: orderDetails._id });
-        Alert.alert('Success', 'Your payment was successful and order has been placed!');
+        alert('Success', 'Your payment was successful and order has been placed!');
       } else {
-        Alert.alert('Payment Failed', paymentResponse.message || 'Please try again later');
+        alert('Payment Failed', paymentResponse.message || 'Please try again later');
       }
     } catch (error) {
-      Alert.alert('Payment Error', 'Failed to process payment');
+      alert('Payment Error', 'Failed to process payment');
       console.error(error);
     }
   };

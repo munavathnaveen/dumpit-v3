@@ -10,6 +10,7 @@ import ProductsScreen from '../screens/ProductsScreen';
 import ShopsScreen from '../screens/ShopsScreen';
 import OrdersScreen from '../screens/OrdersScreen';
 import CartScreen from '../screens/CartScreen';
+import ProfileScreen from '../screens/ProfileScreen';
 // Import vendor screens using require to bypass TypeScript errors
 const VendorDashboardScreen = require('../screens/vendor/VendorDashboardScreen').default;
 const VendorProductsScreen = require('../screens/vendor/VendorProductsScreen').default;
@@ -49,6 +50,8 @@ const TabNavigator: React.FC = () => {
             iconName = focused ? 'list' : 'list-outline';
           } else if (route.name === 'CartTab') {
             iconName = focused ? 'cart' : 'cart-outline';
+          } else if (route.name === 'ProfileTab') {
+            iconName = focused ? 'person' : 'person-outline';
           } else if (route.name === 'VendorDashboardTab') {
             iconName = focused ? 'bar-chart' : 'bar-chart-outline';
           } else if (route.name === 'VendorProductsTab') {
@@ -144,6 +147,13 @@ const TabNavigator: React.FC = () => {
             component={CartScreen}
             options={{
               title: 'Cart',
+            }}
+          />
+          <Tab.Screen
+            name="ProfileTab"
+            component={ProfileScreen}
+            options={{
+              title: 'Profile',
             }}
           />
         </>

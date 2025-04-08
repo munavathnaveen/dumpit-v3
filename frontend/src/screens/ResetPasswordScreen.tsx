@@ -11,6 +11,7 @@ import LogoImage from '../components/LogoImage';
 import { resetPasswordSchema } from '../utils/validationSchemas';
 import { resetPassword } from '../api/authApi';
 import { AuthStackParamList } from '../navigation/types';
+import alert from '../utils/alert';
 
 type ResetPasswordScreenNavigationProp = NativeStackNavigationProp<AuthStackParamList, 'ResetPassword'>;
 
@@ -63,42 +64,32 @@ const ResetPasswordScreen: React.FC = () => {
     return null;
   };
 
-  const handleSubmit = async () => {
+  const handleResetPassword = async () => {
     if (!token) {
-      Alert.alert('Error', 'Reset token is missing. Please use the link from your email.');
+      alert('Error', 'Reset token is missing. Please use the link from your email.');
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      setErrors({ confirmPassword: 'Passwords do not match' });
       return;
     }
 
     try {
-      // Validate form
-      resetPasswordSchema.parse({ password, confirmPassword });
-      
       setLoading(true);
-      // Reset password
-      const response = await resetPassword(token, { password });
-      
-      // Show success
+      setErrors({});
+      await resetPassword({ token, password });
       setIsSuccess(true);
       setTimeout(() => {
         navigation.navigate('Login');
       }, 3000);
     } catch (error: any) {
-      if (error.errors) {
-        // Handle validation errors
-        const formattedErrors: { [key: string]: string } = {};
-        error.errors.forEach((err: any) => {
-          if (err.path) {
-            formattedErrors[err.path[0]] = err.message;
-          }
-        });
-        setErrors(formattedErrors);
-      } else if (error.response) {
-        // Handle API errors
-        Alert.alert('Error', error.response.data.error || 'Failed to reset password');
+      if (error.response?.data?.error) {
+        alert('Error', error.response.data.error || 'Failed to reset password');
       } else {
-        // Handle other errors
-        Alert.alert('Error', 'An unexpected error occurred');
+        alert('Error', 'An unexpected error occurred');
       }
+      setErrors({ confirmPassword: error.response?.data?.error || 'Failed to reset password' });
     } finally {
       setLoading(false);
     }
@@ -150,7 +141,7 @@ const ResetPasswordScreen: React.FC = () => {
               
               <Button
                 title="Reset Password"
-                onPress={handleSubmit}
+                onPress={handleResetPassword}
                 loading={loading}
                 style={styles.button}
               />

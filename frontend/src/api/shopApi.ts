@@ -11,7 +11,14 @@ export type Shop = {
     type: string;
     coordinates: [number, number];
   };
-  address: string;
+  address: {
+    village: string;
+    street: string;
+    district: string;
+    state: string;
+    pincode: string;
+    phone: string;
+  };
   contactNumber: string;
   email: string;
   categories: string[];

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { 
   View, 
   Text, 
@@ -24,6 +24,7 @@ import Card3D from '../components/Card3D';
 import SearchBar from '../components/SearchBar';
 import ScreenHeader from '../components/ScreenHeader';
 import { useRoute, useNavigation } from '../navigation/hooks';
+import alert from '../utils/alert';
 
 // Define a flexible address type that can handle both string and object formats
 type ShopAddress = string | {
@@ -77,9 +78,6 @@ const ShopsScreen: React.FC = () => {
   useEffect(() => {
     loadShops();
     fetchShopCategories();
-    if (showNearby) {
-      getUserLocation();
-    }
   }, []);
 
   useEffect(() => {
@@ -92,7 +90,7 @@ const ShopsScreen: React.FC = () => {
     if (shops.length > 0) {
       filterShops();
     }
-  }, [searchQuery, shops, selectedCategory, onlyOpen, minRating, sortBy]);
+  }, [searchQuery, selectedCategory, onlyOpen, minRating, sortBy, showNearby]);
 
   const fetchShopCategories = async () => {
     try {
@@ -129,7 +127,7 @@ const ShopsScreen: React.FC = () => {
     }
   };
 
-  const filterShops = () => {
+  const filterShops = useCallback(() => {
     let filtered = [...shops];
     
     // Apply text search filter
@@ -174,44 +172,29 @@ const ShopsScreen: React.FC = () => {
     }
     
     setFilteredShops(filtered);
-  };
+  }, [shops, searchQuery, selectedCategory, onlyOpen, minRating, sortBy]);
 
   const getUserLocation = async () => {
     try {
-      // Request permission to access the device's location
       const { status } = await Location.requestForegroundPermissionsAsync();
-      
       if (status !== 'granted') {
         setLocationPermissionDenied(true);
-        Alert.alert(
+        alert(
           'Permission Denied',
           'Please enable location services to find nearby shops.',
           [{ text: 'OK' }]
         );
         return;
       }
-      
-      // Get current position
-      const location = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.Balanced,
-      });
-      
+
+      const location = await Location.getCurrentPositionAsync({});
       setUserLocation({
         latitude: location.coords.latitude,
         longitude: location.coords.longitude,
       });
-      
-      // If we're showing nearby shops, reload with the location
-      if (showNearby) {
-        loadShops();
-      }
     } catch (error) {
       console.error('Error getting location:', error);
-      Alert.alert(
-        'Location Error',
-        'Unable to get your current location. Please try again later.',
-        [{ text: 'OK' }]
-      );
+      setLocationPermissionDenied(true);
     }
   };
 
@@ -220,21 +203,8 @@ const ShopsScreen: React.FC = () => {
       setLoading(true);
       
       let response: ShopsResponse;
-      if (showNearby) {
-        if (userLocation) {
-          // Use the user's location for nearby shops
-          response = await getNearbyShops(userLocation);
-        } else {
-          // If no location, try to get it first or use default nearby endpoint
-          if (!locationPermissionDenied) {
-            await getUserLocation();
-            response = userLocation 
-              ? await getNearbyShops(userLocation)
-              : await getNearbyShops();
-          } else {
-            response = await getNearbyShops();
-          }
-        }
+      if (showNearby && userLocation) {
+        response = await getNearbyShops(userLocation);
       } else {
         // Build query string based on filters
         const queryParams: Record<string, string> = {};
@@ -297,6 +267,8 @@ const ShopsScreen: React.FC = () => {
     setMinRating(0);
     setSortBy('');
     setShowNearby(false);
+    setUserLocation(null);
+    setLocationPermissionDenied(false);
     loadShops();
   };
 
@@ -607,8 +579,9 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.background,
   },
   contentContainer: {
+    flex: 1,
     padding: theme.spacing.md,
-    paddingBottom: 120,
+    paddingBottom: 100,
   },
   searchFilterContainer: {
     flexDirection: 'row',

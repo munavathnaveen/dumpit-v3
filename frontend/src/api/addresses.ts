@@ -1,5 +1,4 @@
-import axios from 'axios';
-import { API_URL } from '../utils/constants';
+import apiClient from './apiClient';
 
 // Address interface
 export interface Address {
@@ -18,7 +17,7 @@ export interface Address {
 // Get all addresses for the authenticated user
 export const getAddresses = async (): Promise<{ success: boolean; data: Address[]; count: number }> => {
   try {
-    const response = await axios.get(`${API_URL}/addresses`);
+    const response = await apiClient.get('/addresses');
     return response.data;
   } catch (error: any) {
     throw error.response?.data || { message: 'Failed to fetch addresses' };
@@ -28,7 +27,7 @@ export const getAddresses = async (): Promise<{ success: boolean; data: Address[
 // Add a new address for the authenticated user
 export const addAddress = async (addressData: Omit<Address, '_id'>): Promise<{ success: boolean; data: Address }> => {
   try {
-    const response = await axios.post(`${API_URL}/addresses`, addressData);
+    const response = await apiClient.post('/addresses', addressData);
     return response.data;
   } catch (error: any) {
     throw error.response?.data || { message: 'Failed to add address' };
@@ -38,7 +37,7 @@ export const addAddress = async (addressData: Omit<Address, '_id'>): Promise<{ s
 // Update an existing address
 export const updateAddress = async (id: string, addressData: Partial<Omit<Address, '_id'>>): Promise<{ success: boolean; data: Address }> => {
   try {
-    const response = await axios.put(`${API_URL}/addresses/${id}`, addressData);
+    const response = await apiClient.put(`/addresses/${id}`, addressData);
     return response.data;
   } catch (error: any) {
     throw error.response?.data || { message: 'Failed to update address' };
@@ -48,7 +47,7 @@ export const updateAddress = async (id: string, addressData: Partial<Omit<Addres
 // Delete an address
 export const deleteAddress = async (id: string): Promise<{ success: boolean; data: null }> => {
   try {
-    const response = await axios.delete(`${API_URL}/addresses/${id}`);
+    const response = await apiClient.delete(`/addresses/${id}`);
     return response.data;
   } catch (error: any) {
     throw error.response?.data || { message: 'Failed to delete address' };
@@ -58,7 +57,7 @@ export const deleteAddress = async (id: string): Promise<{ success: boolean; dat
 // Set address as default
 export const setDefaultAddress = async (id: string): Promise<{ success: boolean; data: Address }> => {
   try {
-    const response = await axios.patch(`${API_URL}/addresses/${id}/default`);
+    const response = await apiClient.patch(`/addresses/${id}/default`);
     return response.data;
   } catch (error: any) {
     throw error.response?.data || { message: 'Failed to set default address' };

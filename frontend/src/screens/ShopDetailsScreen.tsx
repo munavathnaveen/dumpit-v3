@@ -29,7 +29,14 @@ type Shop = {
   description: string;
   logo: string;
   coverImage: string;
-  address: string;
+  address: {
+    village: string;
+    street: string;
+    district: string;
+    state: string;
+    pincode: string;
+    phone: string;
+  };
   contactNumber: string;
   email: string;
   categories: string[];
@@ -201,7 +208,13 @@ const ShopDetailsScreen: React.FC = () => {
           <Text style={styles.sectionTitle}>Contact</Text>
           <View style={styles.contactItem}>
             <FontAwesome name="map-marker" size={16} color={theme.colors.textLight} />
-            {/* <Text style={styles.contactText}>{shop.address}</Text> */}
+            <Text style={styles.contactText}>
+              {shop.address.street}, {shop.address.village}
+              {'\n'}
+              {shop.address.district}, {shop.address.state} - {shop.address.pincode}
+              {'\n'}
+              Phone: {shop.address.phone}
+            </Text>
           </View>
           <View style={styles.contactItem}>
             <FontAwesome name="phone" size={16} color={theme.colors.textLight} />

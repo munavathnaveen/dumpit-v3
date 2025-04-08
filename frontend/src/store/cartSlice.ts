@@ -1,19 +1,20 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import * as cartApi from '../api/cartApi';
 
-type CartProduct = {
+export interface CartProduct {
   _id: string;
   name: string;
   price: number;
   images: string[];
   description: string;
-};
+  stock?: number;
+}
 
-type CartItem = {
+export interface CartItem {
   _id: string;
   product: CartProduct;
   quantity: number;
-};
+}
 
 interface CartState {
   items: CartItem[];
@@ -34,11 +35,15 @@ const initialState: CartState = {
 // Calculate cart totals
 const calculateCartTotals = (items: CartItem[]) => {
   const totalItems = items.reduce((sum, item) => sum + item.quantity, 0);
-  const totalAmount = items.reduce((sum, item) => sum + (item.product?.price * item.quantity), 0);
+  const totalAmount = items.reduce((sum, item) => {
+    if (!item.product) return sum;
+    return sum + (item.product.price * item.quantity);
+  }, 0);
   return { totalItems, totalAmount };
 };
 
-export const getCart = createAsyncThunk(
+// Async thunks
+export const getCart = createAsyncThunk<CartItem[], void>(
   'cart/getCart',
   async (_, { rejectWithValue }) => {
     try {
@@ -50,11 +55,11 @@ export const getCart = createAsyncThunk(
   }
 );
 
-export const addToCart = createAsyncThunk(
+export const addToCart = createAsyncThunk<CartItem, { productId: string; quantity: number }>(
   'cart/addToCart',
-  async ({productId, quantity}: {productId: string, quantity: number}, { rejectWithValue }) => {
+  async ({ productId, quantity }, { rejectWithValue }) => {
     try {
-      const response = await cartApi.addToCart({productId, quantity});
+      const response = await cartApi.addToCart({ productId, quantity });
       return response.data;
     } catch (error: any) {
       return rejectWithValue(error.response?.data?.error || 'Failed to add item to cart');
@@ -62,9 +67,9 @@ export const addToCart = createAsyncThunk(
   }
 );
 
-export const updateCartItem = createAsyncThunk(
+export const updateCartItem = createAsyncThunk<CartItem, { itemId: string; quantity: number }>(
   'cart/updateCartItem',
-  async ({ itemId, quantity }: { itemId: string; quantity: number }, { rejectWithValue }) => {
+  async ({ itemId, quantity }, { rejectWithValue }) => {
     try {
       const response = await cartApi.updateCartItem(itemId, quantity);
       return response.data;
@@ -74,9 +79,9 @@ export const updateCartItem = createAsyncThunk(
   }
 );
 
-export const removeFromCart = createAsyncThunk(
+export const removeFromCart = createAsyncThunk<string, string>(
   'cart/removeFromCart',
-  async (itemId: string, { rejectWithValue }) => {
+  async (itemId, { rejectWithValue }) => {
     try {
       await cartApi.removeFromCart(itemId);
       return itemId;
@@ -86,7 +91,7 @@ export const removeFromCart = createAsyncThunk(
   }
 );
 
-export const clearCart = createAsyncThunk(
+export const clearCart = createAsyncThunk<boolean, void>(
   'cart/clearCart',
   async (_, { rejectWithValue }) => {
     try {
@@ -101,7 +106,14 @@ export const clearCart = createAsyncThunk(
 const cartSlice = createSlice({
   name: 'cart',
   initialState,
-  reducers: {},
+  reducers: {
+    clearCartState: (state) => {
+      state.items = [];
+      state.totalItems = 0;
+      state.totalAmount = 0;
+      state.error = null;
+    },
+  },
   extraReducers: (builder) => {
     builder
       // Get Cart
@@ -120,7 +132,7 @@ const cartSlice = createSlice({
         state.loading = false;
         state.error = action.payload as string;
       })
-      
+
       // Add to Cart
       .addCase(addToCart.pending, (state) => {
         state.loading = true;
@@ -150,7 +162,7 @@ const cartSlice = createSlice({
         state.loading = false;
         state.error = action.payload as string;
       })
-      
+
       // Update Cart Item
       .addCase(updateCartItem.pending, (state) => {
         state.loading = true;
@@ -172,7 +184,7 @@ const cartSlice = createSlice({
         state.loading = false;
         state.error = action.payload as string;
       })
-      
+
       // Remove from Cart
       .addCase(removeFromCart.pending, (state) => {
         state.loading = true;
@@ -190,7 +202,7 @@ const cartSlice = createSlice({
         state.loading = false;
         state.error = action.payload as string;
       })
-      
+
       // Clear Cart
       .addCase(clearCart.pending, (state) => {
         state.loading = true;
@@ -209,4 +221,5 @@ const cartSlice = createSlice({
   },
 });
 
+export const { clearCartState } = cartSlice.actions;
 export default cartSlice.reducer; 

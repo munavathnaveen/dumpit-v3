@@ -16,7 +16,7 @@ import {
 import { useSelector, useDispatch } from 'react-redux';
 import { useNavigation } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
-import { MaterialIcons, FontAwesome } from '@expo/vector-icons';
+import { MaterialIcons, FontAwesome, FontAwesome5 } from '@expo/vector-icons';
 import { Ionicons } from '@expo/vector-icons';
 
 import Card3D from '../components/Card3D';
@@ -424,7 +424,10 @@ const ProfileScreen = () => {
         {!isVendor && (
           <Card3D style={styles.addressesCard}>
             <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>My Addresses</Text>
+              <View style={styles.sectionHeaderLeft}>
+                <MaterialIcons name="location-on" size={24} color={theme.colors.primary} />
+                <Text style={styles.sectionTitle}>My Addresses</Text>
+              </View>
               <TouchableOpacity
                 style={styles.addButton}
                 onPress={() => {
@@ -433,19 +436,34 @@ const ProfileScreen = () => {
                 }}
               >
                 <FontAwesome name="plus" size={16} color={theme.colors.white} />
+                <Text style={styles.addButtonText}>Add New</Text>
               </TouchableOpacity>
             </View>
 
             {loading ? (
               <ActivityIndicator size="large" color={theme.colors.primary} />
             ) : addresses.length === 0 ? (
-              <Text style={styles.noAddressesText}>No addresses found.</Text>
+              <View style={styles.emptyAddressContainer}>
+                <FontAwesome5 name="map-marker-alt" size={50} color={theme.colors.gray} />
+                <Text style={styles.noAddressesText}>No addresses found</Text>
+                <TouchableOpacity
+                  style={styles.addAddressButton}
+                  onPress={() => {
+                    resetAddressForm();
+                    setIsAddingAddress(true);
+                  }}
+                >
+                  <Text style={styles.addAddressButtonText}>Add New Address</Text>
+                </TouchableOpacity>
+              </View>
             ) : (
-              addresses.map(address => (
-                <View key={address._id} style={styles.addressItem}>
-                  {handleAddressCard(address)}
-                </View>
-              ))
+              <View style={styles.addressList}>
+                {addresses.map(address => (
+                  <View key={address._id} style={styles.addressItem}>
+                    {handleAddressCard(address)}
+                  </View>
+                ))}
+              </View>
             )}
           </Card3D>
         )}
@@ -558,7 +576,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.colors.background,
-    padding: theme.spacing.md,
   },
   loadingContainer: {
     flex: 1,
@@ -570,6 +587,7 @@ const styles = StyleSheet.create({
   },
   contentContainer: {
     padding: theme.spacing.md,
+    paddingBottom: 100,
   },
   profileCard: {
     alignItems: 'center',
@@ -653,18 +671,52 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: theme.spacing.md,
   },
+  sectionHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
   sectionTitle: {
     fontSize: 18,
     fontWeight: 'bold',
     color: theme.colors.text,
   },
   addButton: {
-    padding: theme.spacing.xs,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: theme.colors.primary,
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: theme.spacing.xs,
+    borderRadius: theme.borderRadius.small,
+  },
+  addButtonText: {
+    color: theme.colors.white,
+    marginLeft: theme.spacing.xs,
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
+  emptyAddressContainer: {
+    alignItems: 'center',
+    paddingVertical: theme.spacing.xl,
   },
   noAddressesText: {
     color: theme.colors.textLight,
-    textAlign: 'center',
-    marginVertical: theme.spacing.lg,
+    marginTop: theme.spacing.md,
+    marginBottom: theme.spacing.lg,
+    fontSize: 16,
+  },
+  addAddressButton: {
+    backgroundColor: theme.colors.primary,
+    paddingHorizontal: theme.spacing.lg,
+    paddingVertical: theme.spacing.sm,
+    borderRadius: theme.borderRadius.medium,
+  },
+  addAddressButtonText: {
+    color: theme.colors.white,
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  addressList: {
+    gap: theme.spacing.md,
   },
   addressCard: {
     backgroundColor: theme.colors.background,

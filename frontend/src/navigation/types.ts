@@ -55,6 +55,7 @@ export type BottomTabParamList = {
   ShopsTab: undefined;
   OrdersTab: undefined;
   CartTab: undefined;
+  ProfileTab: undefined;
   // Vendor tabs
   VendorDashboardTab: undefined;
   VendorProductsTab: undefined;

@@ -20,6 +20,7 @@ import { theme } from '../../theme';
 import { MainStackNavigationProp } from '../../navigation/types';
 import { createProduct, uploadProductImage, ProductFormData } from '../../api/productApi';
 import ScreenHeader from '../../components/ScreenHeader';
+import alert from '../../utils/alert';
 
 // Categories for products
 const CATEGORIES = [
@@ -78,7 +79,7 @@ const VendorAddProductScreen: React.FC = () => {
     }
 
     if (formData.stock !== undefined && formData.stock < 0) {
-      Alert.alert('Error', 'Stock quantity cannot be negative');
+      alert('Error', 'Stock quantity cannot be negative');
       return false;
     }
 
@@ -110,7 +111,7 @@ const VendorAddProductScreen: React.FC = () => {
       const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
       
       if (!permissionResult.granted) {
-        Alert.alert('Permission Required', 'Please allow access to your photo library to add product images.');
+        alert('Permission Required', 'Please allow access to your photo library to add product images.');
         return;
       }
       
@@ -153,18 +154,18 @@ const VendorAddProductScreen: React.FC = () => {
               setErrors(newErrors);
             }
           } else {
-            Alert.alert('Upload Failed', 'Failed to upload image. Please try again.');
+            alert('Upload Failed', 'Failed to upload image. Please try again.');
           }
         } catch (error) {
           console.error('Image upload error:', error);
-          Alert.alert('Upload Error', 'An error occurred while uploading the image.');
+          alert('Upload Error', 'An error occurred while uploading the image.');
         } finally {
           setUploading(false);
         }
       }
     } catch (error) {
       console.error('Image picker error:', error);
-      Alert.alert('Error', 'Failed to open image picker');
+      alert('Error', 'Failed to open image picker');
       setUploading(false);
     }
   };
@@ -180,14 +181,14 @@ const VendorAddProductScreen: React.FC = () => {
 
   const handleAddProduct = async () => {
     if (!validateForm()) {
-      Alert.alert('Validation Error', 'Please fix the errors in the form.');
+      alert('Validation Error', 'Please fix the errors in the form.');
       return;
     }
 
     setLoading(true);
     try {
       await createProduct(formData);
-      Alert.alert(
+      alert(
         'Success',
         'Product added successfully!',
         [
@@ -199,7 +200,7 @@ const VendorAddProductScreen: React.FC = () => {
       );
     } catch (error) {
       console.error('Failed to add product:', error);
-      Alert.alert('Error', 'Failed to add product. Please try again.');
+      alert('Error', 'Failed to add product. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -293,7 +294,7 @@ const VendorAddProductScreen: React.FC = () => {
               <TouchableOpacity
                 style={[styles.input, styles.pickerButton, errors.category && styles.inputError]}
                 onPress={() => {
-                  Alert.alert(
+                  alert(
                     'Select Category',
                     'Choose a category for your product',
                     CATEGORIES.map((category) => ({

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { 
   View, 
   Text, 
@@ -62,7 +62,7 @@ const ProductsScreen: React.FC = () => {
     if (products.length > 0) {
       filterProducts();
     }
-  }, [searchQuery, products, selectedCategory, priceRange, sortBy, inStock]);
+  }, [searchQuery, selectedCategory, priceRange, sortBy, inStock]);
 
   const fetchCategories = async () => {
     try {
@@ -76,7 +76,7 @@ const ProductsScreen: React.FC = () => {
     }
   };
 
-  const filterProducts = () => {
+  const filterProducts = useCallback(() => {
     let filtered = [...products];
     
     // Apply text search filter
@@ -122,7 +122,7 @@ const ProductsScreen: React.FC = () => {
     }
     
     setFilteredProducts(filtered);
-  };
+  }, [products, searchQuery, selectedCategory, priceRange, sortBy, inStock]);
 
   const loadProducts = async () => {
     try {
