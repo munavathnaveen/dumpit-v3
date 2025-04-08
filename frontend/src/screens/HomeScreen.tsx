@@ -705,7 +705,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollViewContent: {
-    paddingBottom: 100, // Extra padding for bottom tab bar
+    paddingBottom: 120, // Increased padding to account for tab bar
   },
   searchContainer: {
     marginHorizontal: theme.spacing.lg,

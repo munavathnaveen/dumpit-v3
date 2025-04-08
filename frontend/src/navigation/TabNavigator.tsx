@@ -184,6 +184,10 @@ const styles = StyleSheet.create({
     borderRadius: 30,
     overflow: 'hidden',
   },
+  screenContainer: {
+    flex: 1,
+    paddingBottom: 100,
+  },
 });
 
 export default TabNavigator; 

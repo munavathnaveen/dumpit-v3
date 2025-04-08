@@ -99,26 +99,6 @@ const VendorDashboardScreen: React.FC = () => {
               <Text style={styles.greeting}>Hello, {user?.name || 'Vendor'}!</Text>
               <Text style={styles.subTitle}>Here's your business at a glance</Text>
             </View>
-            <View style={styles.headerButtons}>
-              <TouchableOpacity 
-                style={styles.headerButton}
-                onPress={() => navigation.navigate('Profile')}
-              >
-                <Ionicons name="person-circle-outline" size={28} color={theme.colors.primary} />
-              </TouchableOpacity>
-              <TouchableOpacity 
-                style={styles.headerButton}
-                onPress={() => {
-                  dispatch(logout());
-                  navigation.reset({
-                    index: 0,
-                    routes: [{ name: 'TabNavigator' }],
-                  });
-                }}
-              >
-                <Ionicons name="log-out-outline" size={28} color={theme.colors.error} />
-              </TouchableOpacity>
-            </View>
           </View>
         </View>
 
@@ -301,14 +281,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: theme.spacing.sm,
-  },
-  headerButtons: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  headerButton: {
-    padding: theme.spacing.xs,
-    marginLeft: theme.spacing.sm,
   },
   greeting: {
     fontSize: 24,

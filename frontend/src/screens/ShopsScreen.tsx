@@ -607,8 +607,8 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.background,
   },
   contentContainer: {
-    flex: 1,
     padding: theme.spacing.md,
+    paddingBottom: 120,
   },
   searchFilterContainer: {
     flexDirection: 'row',

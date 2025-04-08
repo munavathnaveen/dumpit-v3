@@ -155,8 +155,8 @@ const ProductsScreen: React.FC = () => {
     setSearchQuery(text);
   };
 
-  const handleAddToCart = (productId: string) => {
-    dispatch(addToCart(productId));
+  const handleAddToCart = (productId: string, quantity: number) => {
+    dispatch(addToCart({ productId, quantity }));
   };
 
   const handleFilterPress = () => {
@@ -204,7 +204,7 @@ const ProductsScreen: React.FC = () => {
           <Text style={styles.productPrice}>₹{item.price.toFixed(2)}</Text>
           <TouchableOpacity 
             style={styles.addButton}
-            onPress={() => handleAddToCart(item._id)}
+            onPress={() => handleAddToCart(item._id, 1)}
           >
             <FontAwesome name="plus" size={16} color={theme.colors.white} />
           </TouchableOpacity>
@@ -447,8 +447,8 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.background,
   },
   contentContainer: {
-    flex: 1,
     padding: theme.spacing.md,
+    paddingBottom: 120,
   },
   searchFilterContainer: {
     flexDirection: 'row',

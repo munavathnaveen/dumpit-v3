@@ -22,15 +22,12 @@ export function useTabNavigation<T extends keyof BottomTabParamList>() {
 
 // Type safe useRoute hook
 export function useRoute<T extends keyof MainStackParamList>() {
-  // Since we can't import useRoute directly, we'll create an object that mimics its structure
   const navigation = useNavigation<T>();
-  
-  // This creates a route object with the expected properties
+  const currentRoute = navigation.getState().routes[navigation.getState().index];
   return {
-    key: '',
-    name: navigation.getId() as any,
-    params: navigation.getState().routes.find((route: RouteType) => 
-      route.name === navigation.getId())?.params as MainStackParamList[T],
+    key: currentRoute.key,
+    name: currentRoute.name,
+    params: currentRoute.params as MainStackParamList[T]
   };
 }
 

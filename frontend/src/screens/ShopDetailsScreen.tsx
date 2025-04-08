@@ -83,8 +83,8 @@ const ShopDetailsScreen: React.FC = () => {
     }
   };
   
-  const handleAddToCart = (productId: string) => {
-    dispatch(addToCart(productId));
+    const handleAddToCart = (productId: string) => {
+    dispatch(addToCart({ productId, quantity: 1 }));
   };
   
   const handleProductPress = (productId: string) => {
@@ -201,7 +201,7 @@ const ShopDetailsScreen: React.FC = () => {
           <Text style={styles.sectionTitle}>Contact</Text>
           <View style={styles.contactItem}>
             <FontAwesome name="map-marker" size={16} color={theme.colors.textLight} />
-            <Text style={styles.contactText}>{shop.address}</Text>
+            {/* <Text style={styles.contactText}>{shop.address}</Text> */}
           </View>
           <View style={styles.contactItem}>
             <FontAwesome name="phone" size={16} color={theme.colors.textLight} />
@@ -215,7 +215,7 @@ const ShopDetailsScreen: React.FC = () => {
           <View style={styles.divider} />
           
           <Text style={styles.sectionTitle}>Opening Hours</Text>
-          {shop.openingHours.map((hour, index) => (
+          {shop.openingHours?.map((hour, index) => (
             <View key={index} style={styles.hourItem}>
               <Text style={styles.dayText}>{hour.days}</Text>
               <Text style={styles.hourText}>{hour.hours}</Text>
@@ -225,7 +225,7 @@ const ShopDetailsScreen: React.FC = () => {
           <View style={styles.divider} />
           
           <View style={styles.categoriesContainer}>
-            {shop.categories.map((category, index) => (
+            {shop.categories?.map((category, index) => (
               <View key={index} style={styles.categoryChip}>
                 <Text style={styles.categoryText}>{category}</Text>
               </View>

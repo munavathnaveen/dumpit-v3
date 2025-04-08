@@ -36,7 +36,7 @@ const ProductDetailsScreen: React.FC = () => {
   }, [dispatch, productId]);
   
   const handleAddToCart = () => {
-    dispatch(addToCart(productId));
+    dispatch(addToCart({ productId, quantity }));
   };
   
   const handleQuantityChange = (value: number) => {

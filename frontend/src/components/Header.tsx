@@ -4,30 +4,55 @@ import { useNavigation } from '@react-navigation/native';
 import { Feather } from '@expo/vector-icons';
 import { theme } from '../theme';
 import LogoImage from './LogoImage';
+import { useDispatch } from 'react-redux';
+import { logout } from '../store/authSlice';
+import { AppDispatch } from '../store';
 
 interface HeaderProps {
   location?: string;
   onNotificationPress?: () => void;
-  onProfilePress?: () => void;
-  onLogoutPress?: () => void;
+  showBackButton?: boolean;
 }
 
 const Header: React.FC<HeaderProps> = ({
   location = 'Your Location',
   onNotificationPress,
-  onProfilePress,
-  onLogoutPress,
+  showBackButton = false,
 }) => {
   const navigation = useNavigation();
+  const dispatch = useDispatch<AppDispatch>();
+
+  const handleProfilePress = () => {
+    navigation.navigate('Profile');
+  };
+
+  const handleLogoutPress = () => {
+    dispatch(logout());
+    navigation.reset({
+      index: 0,
+      routes: [{ name: 'TabNavigator' }],
+    });
+  };
 
   return (
     <View style={styles.container}>
-      {/* Left: Location */}
-      <View style={styles.locationContainer}>
-        <Feather name="map-pin" size={18} color={theme.colors.primary} style={styles.locationIcon} />
-        <Text style={styles.locationText} numberOfLines={1}>
-          {location}
-        </Text>
+      {/* Left: Back button or Location */}
+      <View style={styles.leftContainer}>
+        {showBackButton ? (
+          <TouchableOpacity 
+            style={styles.backButton}
+            onPress={() => navigation.goBack()}
+          >
+            <Feather name="arrow-left" size={24} color={theme.colors.primary} />
+          </TouchableOpacity>
+        ) : (
+          <View style={styles.locationContainer}>
+            <Feather name="map-pin" size={18} color={theme.colors.primary} style={styles.locationIcon} />
+            <Text style={styles.locationText} numberOfLines={1}>
+              {location}
+            </Text>
+          </View>
+        )}
       </View>
 
       {/* Center: Logo */}
@@ -41,10 +66,10 @@ const Header: React.FC<HeaderProps> = ({
         <TouchableOpacity style={styles.iconButton} onPress={onNotificationPress}>
           <Feather name="bell" size={20} color={theme.colors.dark} />
         </TouchableOpacity>
-        <TouchableOpacity style={styles.iconButton} onPress={onProfilePress}>
+        <TouchableOpacity style={styles.iconButton} onPress={handleProfilePress}>
           <Feather name="user" size={20} color={theme.colors.dark} />
         </TouchableOpacity>
-        <TouchableOpacity style={styles.iconButton} onPress={onLogoutPress}>
+        <TouchableOpacity style={styles.iconButton} onPress={handleLogoutPress}>
           <Feather name="log-out" size={20} color={theme.colors.dark} />
         </TouchableOpacity>
       </View>
@@ -60,13 +85,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: theme.spacing.md,
     paddingVertical: theme.spacing.sm,
     backgroundColor: theme.colors.white,
-    ...theme.shadow.small,
-    height: 60,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.lightGray,
+  },
+  leftContainer: {
+    flex: 1,
+  },
+  backButton: {
+    padding: theme.spacing.xs,
   },
   locationContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    flex: 1,
   },
   locationIcon: {
     marginRight: theme.spacing.xs,
@@ -74,13 +104,11 @@ const styles = StyleSheet.create({
   locationText: {
     fontSize: 14,
     color: theme.colors.dark,
-    flex: 1,
+    maxWidth: 150,
   },
   logoContainer: {
-    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
   },
   logoImage: {
     marginRight: theme.spacing.xs,
@@ -91,10 +119,10 @@ const styles = StyleSheet.create({
     color: theme.colors.primary,
   },
   rightContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'flex-end',
     flex: 1,
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    alignItems: 'center',
   },
   iconButton: {
     padding: theme.spacing.xs,

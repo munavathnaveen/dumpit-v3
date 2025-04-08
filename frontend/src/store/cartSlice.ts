@@ -34,7 +34,7 @@ const initialState: CartState = {
 // Calculate cart totals
 const calculateCartTotals = (items: CartItem[]) => {
   const totalItems = items.reduce((sum, item) => sum + item.quantity, 0);
-  const totalAmount = items.reduce((sum, item) => sum + (item.product.price * item.quantity), 0);
+  const totalAmount = items.reduce((sum, item) => sum + (item.product?.price * item.quantity), 0);
   return { totalItems, totalAmount };
 };
 
@@ -52,9 +52,9 @@ export const getCart = createAsyncThunk(
 
 export const addToCart = createAsyncThunk(
   'cart/addToCart',
-  async (productId: string, { rejectWithValue }) => {
+  async ({productId, quantity}: {productId: string, quantity: number}, { rejectWithValue }) => {
     try {
-      const response = await cartApi.addToCart(productId);
+      const response = await cartApi.addToCart({productId, quantity});
       return response.data;
     } catch (error: any) {
       return rejectWithValue(error.response?.data?.error || 'Failed to add item to cart');
@@ -112,7 +112,7 @@ const cartSlice = createSlice({
       .addCase(getCart.fulfilled, (state, action) => {
         state.loading = false;
         state.items = action.payload;
-        const { totalItems, totalAmount } = calculateCartTotals(action.payload);
+        const { totalItems, totalAmount } = calculateCartTotals(state.items);
         state.totalItems = totalItems;
         state.totalAmount = totalAmount;
       })
