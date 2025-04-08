@@ -98,7 +98,7 @@ const CartScreen: React.FC = () => {
             onPress: async () => {
               const response = await removeFromCart(itemId);
               if (response.success) {
-                setCartItems(prevItems => prevItems.filter(item => item._id !== itemId));
+                setCartItems(prevItems => prevItems.filter(item => item.product._id !== itemId));
               }
             },
           },
@@ -138,7 +138,7 @@ const CartScreen: React.FC = () => {
         <View style={styles.quantityContainer}>
           <TouchableOpacity
             style={styles.quantityButton}
-            onPress={() => handleQuantityChange(item._id, item.quantity - 1)}
+            onPress={() => handleQuantityChange(item.product._id, item.quantity - 1)}
           >
             <FontAwesome name="minus" size={12} color={theme.colors.text} />
           </TouchableOpacity>
@@ -147,7 +147,7 @@ const CartScreen: React.FC = () => {
           
           <TouchableOpacity
             style={styles.quantityButton}
-            onPress={() => handleQuantityChange(item._id, item.quantity + 1)}
+            onPress={() => handleQuantityChange(item.product._id, item.quantity + 1)}
           >
             <FontAwesome name="plus" size={12} color={theme.colors.text} />
           </TouchableOpacity>
@@ -156,7 +156,7 @@ const CartScreen: React.FC = () => {
       
       <TouchableOpacity
         style={styles.removeButton}
-        onPress={() => handleRemoveItem(item._id)}
+        onPress={() => handleRemoveItem(item.product._id)}
       >
         <FontAwesome name="trash" size={18} color={theme.colors.error} />
       </TouchableOpacity>
