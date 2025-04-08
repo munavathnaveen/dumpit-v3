@@ -4,9 +4,9 @@ import { useNavigation } from '@react-navigation/native';
 import { Feather } from '@expo/vector-icons';
 import { theme } from '../theme';
 import LogoImage from './LogoImage';
-import { useDispatch } from 'react-redux';
+import { useDispatch, useSelector } from 'react-redux';
 import { logout } from '../store/authSlice';
-import { AppDispatch } from '../store';
+import { AppDispatch, RootState } from '../store';
 
 interface HeaderProps {
   location?: string;
@@ -25,6 +25,10 @@ const Header: React.FC<HeaderProps> = ({
 }) => {
   const navigation = useNavigation();
   const dispatch = useDispatch<AppDispatch>();
+  const { notifications } = useSelector((state: RootState) => state.user);
+  
+  // Count unread notifications
+  const unreadCount = notifications.filter(notification => !notification.read).length;
 
   const handleProfilePress = () => {
     if (onProfilePress) {
@@ -85,6 +89,13 @@ const Header: React.FC<HeaderProps> = ({
       <View style={styles.rightContainer}>
         <TouchableOpacity style={styles.iconButton} onPress={handleNotificationPress}>
           <Feather name="bell" size={20} color={theme.colors.dark} />
+          {unreadCount > 0 && (
+            <View style={styles.notificationBadge}>
+              <Text style={styles.notificationBadgeText}>
+                {unreadCount > 9 ? '9+' : unreadCount}
+              </Text>
+            </View>
+          )}
         </TouchableOpacity>
         <TouchableOpacity style={styles.iconButton} onPress={handleProfilePress}>
           <Feather name="user" size={20} color={theme.colors.dark} />
@@ -147,6 +158,24 @@ const styles = StyleSheet.create({
   iconButton: {
     padding: theme.spacing.xs,
     marginLeft: theme.spacing.sm,
+    position: 'relative',
+  },
+  notificationBadge: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    backgroundColor: theme.colors.error,
+    borderRadius: 10,
+    minWidth: 18,
+    height: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 2,
+  },
+  notificationBadgeText: {
+    color: theme.colors.white,
+    fontSize: 10,
+    fontWeight: 'bold',
   },
 });
 

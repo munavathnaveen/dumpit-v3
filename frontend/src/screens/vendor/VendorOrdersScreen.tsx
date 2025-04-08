@@ -187,6 +187,10 @@ const VendorOrdersScreen: React.FC = () => {
     );
   };
 
+  const handleNotificationPress = () => {
+    navigation.navigate('Notifications');
+  };
+
   const renderOrderItem = ({ item }: { item: Order }) => {
     const orderDate = new Date(item.createdAt).toLocaleDateString();
     const statusColor = getStatusColor(item.status);
@@ -281,7 +285,11 @@ const VendorOrdersScreen: React.FC = () => {
 
   return (
     <View style={styles.container}>
-      <ScreenHeader title="Orders" showBackButton={true} />
+      <ScreenHeader 
+        title="Orders" 
+        showBackButton={true}
+        onNotificationPress={handleNotificationPress} 
+      />
       
       <View style={styles.filterContainer}>
         <SegmentedControl

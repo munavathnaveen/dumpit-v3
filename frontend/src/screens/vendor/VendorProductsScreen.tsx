@@ -134,6 +134,10 @@ const VendorProductsScreen: React.FC = () => {
     );
   };
 
+  const handleNotificationPress = () => {
+    navigation.navigate('Notifications');
+  };
+
   const renderProductItem = ({ item }: { item: Product }) => (
     <Card3D style={styles.productCard} elevation="small">
       <View style={styles.productContent}>
@@ -195,7 +199,11 @@ const VendorProductsScreen: React.FC = () => {
 
   return (
     <View style={styles.container}>
-      <ScreenHeader title="Products" showBackButton={true} />
+      <ScreenHeader 
+        title="My Products" 
+        showBackButton={true}
+        onNotificationPress={handleNotificationPress} 
+      />
       <View style={styles.searchContainer}>
         <View style={styles.searchInputContainer}>
           <Ionicons name="search" size={20} color={theme.colors.gray} style={styles.searchIcon} />

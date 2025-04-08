@@ -39,6 +39,10 @@ const VendorDashboardScreen: React.FC = () => {
     loadAnalytics();
   }, []);
 
+  const handleNotificationPress = () => {
+    navigation.navigate('Notifications');
+  };
+
   const renderDashboardItem = (
     title: string, 
     value: string | number, 
@@ -64,7 +68,11 @@ const VendorDashboardScreen: React.FC = () => {
   if (loading) {
     return (
       <View style={styles.container}>
-        <ScreenHeader title="Dashboard" showBackButton={false} />
+        <ScreenHeader 
+          title="Dashboard" 
+          showBackButton={false} 
+          onNotificationPress={handleNotificationPress}
+        />
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={theme.colors.primary} />
         </View>
@@ -75,7 +83,11 @@ const VendorDashboardScreen: React.FC = () => {
   if (error) {
     return (
       <View style={styles.container}>
-        <ScreenHeader title="Dashboard" showBackButton={false} />
+        <ScreenHeader 
+          title="Dashboard" 
+          showBackButton={false} 
+          onNotificationPress={handleNotificationPress}
+        />
         <View style={styles.errorContainer}>
           <Text style={styles.errorText}>{error}</Text>
           <TouchableOpacity 
@@ -91,7 +103,11 @@ const VendorDashboardScreen: React.FC = () => {
 
   return (
     <View style={styles.container}>
-      <ScreenHeader title="Dashboard" showBackButton={false} />
+      <ScreenHeader 
+        title="Dashboard" 
+        showBackButton={false} 
+        onNotificationPress={handleNotificationPress}
+      />
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.contentContainer}>
         <View style={styles.header}>
           <View style={styles.headerTop}>

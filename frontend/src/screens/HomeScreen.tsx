@@ -293,7 +293,7 @@ const HomeScreen: React.FC = () => {
   };
 
   const navigateToProductsByCategory = (category: string) => {
-    navigation.navigate('Products', { category });
+    navigation.navigate('ProductsTab', { category });
   };
 
   const renderAdBanner = () => {
@@ -591,7 +591,7 @@ const HomeScreen: React.FC = () => {
               <Ionicons name="star" size={24} color={theme.colors.primary} />
               <Text style={styles.sectionTitle}>Featured Products</Text>
             </View>
-            <TouchableOpacity onPress={() => navigation.navigate('Products')}>
+            <TouchableOpacity onPress={() => navigation.navigate('ProductsTab')}>
               <Text style={styles.seeAllText}>See All</Text>
             </TouchableOpacity>
           </View>
@@ -624,7 +624,7 @@ const HomeScreen: React.FC = () => {
               <Ionicons name="storefront" size={24} color={theme.colors.primary} />
               <Text style={styles.sectionTitle}>Nearby Shops</Text>
             </View>
-            <TouchableOpacity onPress={() => navigation.navigate('Shops')}>
+            <TouchableOpacity onPress={() => navigation.navigate('ShopsTab')}>
               <Text style={styles.seeAllText}>See All</Text>
             </TouchableOpacity>
           </View>
