@@ -29,7 +29,7 @@ const registerSchema = Joi.object({
   role: Joi.string()
     .valid(config.constants.userRoles.VENDOR, config.constants.userRoles.CUSTOMER)
     .default(config.constants.userRoles.CUSTOMER),
-
+  
   // Shop details (required only for vendors)
   shopName: Joi.when('role', {
     is: config.constants.userRoles.VENDOR,
