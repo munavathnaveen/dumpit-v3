@@ -7,7 +7,6 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   RefreshControl,
-  Alert,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useFocusEffect } from '@react-navigation/core';
@@ -21,6 +20,7 @@ import { MainStackNavigationProp } from '../../navigation/types';
 import { getVendorOrders, updateOrderStatus } from '../../api/orderApi';
 import ScreenHeader from '../../components/ScreenHeader';
 import { RootState } from '../../store';
+import alert from '../../utils/alert';
 
 type OrderStatus = 'pending' | 'processing' | 'shipped' | 'delivered' | 'cancelled';
 
@@ -144,7 +144,7 @@ const VendorOrdersScreen: React.FC = () => {
       case 'delivered':
       case 'cancelled':
         // No further status changes allowed
-        Alert.alert('Status Locked', 'This order is in a final state and cannot be updated.');
+        alert('Status Locked', 'This order is in a final state and cannot be updated.');
         return;
     }
 
@@ -163,10 +163,10 @@ const VendorOrdersScreen: React.FC = () => {
           setOrders(updatedOrders);
           filterOrders(updatedOrders, selectedFilter);
           
-          Alert.alert('Success', `Order ${status === 'cancelled' ? 'cancelled' : 'updated'} successfully`);
+          alert('Success', `Order ${status === 'cancelled' ? 'cancelled' : 'updated'} successfully`);
         } catch (error) {
           console.error('Failed to update order status:', error);
-          Alert.alert('Error', 'Failed to update order status');
+          alert('Error', 'Failed to update order status');
         } finally {
           setLoading(false);
         }
@@ -180,7 +180,7 @@ const VendorOrdersScreen: React.FC = () => {
       style: 'cancel',
     } as any);
 
-    Alert.alert(
+    alert(
       'Update Order Status',
       'What would you like to do with this order?',
       alertButtons as any
@@ -189,6 +189,41 @@ const VendorOrdersScreen: React.FC = () => {
 
   const handleNotificationPress = () => {
     navigation.navigate('Notifications');
+  };
+
+  const handleOrderActions = (orderId: string, orderStatus: string) => {
+    alert(
+      'Order Actions',
+      'What would you like to do with this order?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'View Details',
+          onPress: () => navigation.navigate('VendorOrderDetails', { orderId }),
+        },
+        ...(orderStatus !== 'delivered' && orderStatus !== 'cancelled'
+          ? [
+              {
+                text: 'Mark as Processing',
+                onPress: () => handleOrderStatusUpdate(orderId, 'processing'),
+              },
+              {
+                text: 'Mark as Shipped',
+                onPress: () => handleOrderStatusUpdate(orderId, 'shipped'),
+              },
+              {
+                text: 'Mark as Delivered',
+                onPress: () => handleOrderStatusUpdate(orderId, 'delivered'),
+              },
+              {
+                text: 'Cancel Order',
+                style: 'destructive' as 'destructive',
+                onPress: () => handleOrderStatusUpdate(orderId, 'cancelled'),
+              },
+            ]
+          : []),
+      ]
+    );
   };
 
   const renderOrderItem = ({ item }: { item: Order }) => {
@@ -256,7 +291,7 @@ const VendorOrdersScreen: React.FC = () => {
                 styles.actionButton,
                 (item.status === 'delivered' || item.status === 'cancelled') && styles.disabledButton
               ]}
-              onPress={() => handleOrderStatusUpdate(item._id, item.status)}
+              onPress={() => handleOrderActions(item._id, item.status)}
               disabled={item.status === 'delivered' || item.status === 'cancelled'}
             >
               <Text style={[

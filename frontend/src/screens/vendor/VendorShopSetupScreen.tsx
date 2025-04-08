@@ -9,7 +9,6 @@ import {
   Image,
   Switch,
   ActivityIndicator,
-  Alert,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -20,13 +19,23 @@ import ScreenHeader from '../../components/ScreenHeader';
 import { theme } from '../../theme';
 import { MainStackNavigationProp } from '../../navigation/types';
 import { getShopDetails, updateShop, ShopSettings } from '../../api/shopApi';
+import alert from '../../utils/alert';
+import { RootState } from '../../store';
+import { useSelector } from 'react-redux';
 
 interface ShopFormState {
   name: string;
   description: string;
   logo: string | null;
   bannerImage: string | null;
-  address: string;
+  address: {
+    village: string;
+    street: string;
+    district: string;
+    state: string;
+    pincode: string;
+    phone: string;
+  } | string;
   contactPhone: string;
   contactEmail: string;
   city: string;
@@ -64,12 +73,13 @@ const VendorShopSetupScreen: React.FC = () => {
     taxRate: '0',
   });
   const [error, setError] = useState<string | null>(null);
-
+  const userId = useSelector((state: RootState) => state.auth.user?._id);
+  console.log('userId', userId);
   useEffect(() => {
     const loadShopDetails = async () => {
       try {
         setLoading(true);
-        const response = await getShopDetails();
+        const response = await getShopDetails(userId || '');  
         const shop = response.data;
         
         setShopId(shop._id);
@@ -78,7 +88,9 @@ const VendorShopSetupScreen: React.FC = () => {
           description: shop.description || '',
           logo: shop.logo || null,
           bannerImage: shop.coverImage || null,
-          address: shop.address || '',
+          address: typeof shop.address === 'object' 
+            ? `${shop.address.street}, ${shop.address.village}, ${shop.address.district}, ${shop.address.state}, ${shop.address.pincode}`
+            : shop.address || '',
           contactPhone: shop.contactNumber || '',
           contactEmail: shop.email || '',
           city: '', // These fields may not exist in your current API, 
@@ -112,7 +124,7 @@ const VendorShopSetupScreen: React.FC = () => {
       const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
       
       if (!permissionResult.granted) {
-        Alert.alert('Permission Required', 'We need permission to access your photos');
+        alert('Permission Required', 'We need permission to access your photos');
         return;
       }
       
@@ -128,13 +140,13 @@ const VendorShopSetupScreen: React.FC = () => {
       }
     } catch (error) {
       console.error('Error picking image:', error);
-      Alert.alert('Error', 'Failed to pick image');
+      alert('Error', 'Failed to pick image');
     }
   };
 
   const handleSave = async () => {
     if (!form.name.trim()) {
-      Alert.alert('Error', 'Shop name is required');
+      alert('Error', 'Shop name is required');
       return;
     }
 
@@ -153,21 +165,32 @@ const VendorShopSetupScreen: React.FC = () => {
       const shopData: Partial<ShopSettings> = {
         name: form.name,
         description: form.description,
-        // Include other fields here
+        logo: form.logo || undefined,
+        coverImage: form.bannerImage || undefined,
+        contactNumber: form.contactPhone,
+        email: form.contactEmail,
+        address: typeof form.address === 'string' 
+          ? form.address 
+          : form.address 
+            ? JSON.stringify(form.address) 
+            : undefined,
+        // Include numeric fields
+        ...numericFields
       };
       
       // You'll need to implement image upload handling separately
       
       if (shopId) {
         await updateShop(shopId, shopData);
-        Alert.alert('Success', 'Shop updated successfully');
+        alert('Success', 'Shop updated successfully');
+        setSaving(false);
       } else {
         // Handle case where no shop exists yet
-        Alert.alert('Error', 'No shop ID found. Please contact support.');
+        alert('Error', 'No shop ID found. Please contact support.');
       }
     } catch (error) {
       console.error('Error saving shop details:', error);
-      Alert.alert('Error', 'Failed to save shop details');
+      alert('Error', 'Failed to save shop details');
     } finally {
       setSaving(false);
     }
@@ -288,9 +311,9 @@ const VendorShopSetupScreen: React.FC = () => {
             <Text style={styles.label}>Address</Text>
             <TextInput
               style={[styles.input, styles.textArea]}
-              value={form.address}
+              value={typeof form.address === 'string' ? form.address : JSON.stringify(form.address)}
               onChangeText={(text) => handleInputChange('address', text)}
-              placeholder="Your shop address"
+              placeholder="Shop address"
               multiline
               numberOfLines={3}
             />

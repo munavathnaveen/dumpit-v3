@@ -110,8 +110,8 @@ export const searchShops = async (searchTerm: string): Promise<ShopsResponse> =>
 
 // Vendor-specific API functions
 
-export const getVendorShop = async (): Promise<SingleShopResponse> => {
-  const response = await apiClient.get('/shops/vendor');
+export const getVendorShop = async (userId: string): Promise<SingleShopResponse> => {
+  const response = await apiClient.get(`/shops/${userId}`);
   return response.data;
 };
 
@@ -125,7 +125,7 @@ export const updateShop = async (shopId: string, shopData: Partial<ShopSettings>
   return response.data;
 };
 
-export const getShopDetails = async (): Promise<SingleShopResponse> => {
+export const getShopDetails = async (userId: string): Promise<SingleShopResponse> => {
   // This is an alias for getVendorShop to match the function name used in VendorShopSetupScreen
-  return getVendorShop();
+    return getVendorShop(userId);
 }; 

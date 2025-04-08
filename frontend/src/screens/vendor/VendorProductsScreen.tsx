@@ -8,7 +8,6 @@ import {
   Image,
   ActivityIndicator,
   TextInput,
-  Alert,
   RefreshControl
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
@@ -22,6 +21,7 @@ import { theme } from '../../theme';
 import { MainStackNavigationProp } from '../../navigation/types';
 import { RootState } from '../../store';
 import { getVendorProducts, deleteProduct } from '../../api/productApi';
+import alert from '../../utils/alert';
 
 interface Product {
   _id: string;
@@ -108,7 +108,7 @@ const VendorProductsScreen: React.FC = () => {
   };
 
   const handleDeleteProduct = (productId: string, productName: string) => {
-    Alert.alert(
+    alert(
       'Delete Product',
       `Are you sure you want to delete "${productName}"?`,
       [
@@ -121,12 +121,24 @@ const VendorProductsScreen: React.FC = () => {
           style: 'destructive',
           onPress: async () => {
             try {
-              await deleteProduct(productId);
-              // Refresh products list
-              loadProducts();
+              setLoading(true);
+              const response = await deleteProduct(productId);
+              
+              if (response.success) {
+                // Remove the product from the local state immediately for a faster UI update
+                const updatedProducts = products.filter(p => p._id !== productId);
+                setProducts(updatedProducts);
+                setFilteredProducts(updatedProducts);
+                
+                alert('Success', 'Product deleted successfully');
+              } else {
+                alert('Error', 'Failed to delete product. Please try again.');
+              }
             } catch (error) {
               console.error('Failed to delete product:', error);
-              Alert.alert('Error', 'Failed to delete product');
+              alert('Error', 'Failed to delete product. Please check your connection and try again.');
+            } finally {
+              setLoading(false);
             }
           },
         },

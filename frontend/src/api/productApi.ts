@@ -15,6 +15,9 @@ type Product = {
   isAvailable: boolean;
   tags: string[];
   specs: Record<string, string>;
+  type?: string;
+  units?: string;
+  discount?: number;
   createdAt: string;
   updatedAt: string;
 };
@@ -22,11 +25,15 @@ type Product = {
 export interface ProductFormData {
   name: string;
   description: string;
-  price: number;
+  price?: number;
   discountPrice?: number;
+  type?: string;
   category: string;
+  rate?: number;
+  units?: string;
   stock?: number;
   stockQuantity?: number;
+  discount?: number;  
   images: string[];
   tags?: string[];
   specs?: Record<string, string>;
@@ -89,7 +96,7 @@ export const getVendorProducts = async (): Promise<Product[]> => {
 };
 
 export const createProduct = async (productData: ProductFormData): Promise<SingleProductResponse> => {
-  const response = await apiClient.post('/products', productData);
+    const response = await apiClient.post('/products', productData);
   return response.data;
 };
 

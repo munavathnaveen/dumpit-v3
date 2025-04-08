@@ -6,7 +6,6 @@ import {
   TextInput,
   TouchableOpacity,
   Image,
-  Alert,
   ActivityIndicator,
   ScrollView,
   Platform,
@@ -23,6 +22,7 @@ import { getProduct, updateProduct, ProductFormData } from '../../api/productApi
 import Card3D from '../../components/Card3D';
 import ScreenHeader from '../../components/ScreenHeader';
 import Button from '../../components/Button';
+import alert from '../../utils/alert';
 
 type EditProductRouteProp = RouteProp<MainStackParamList, 'VendorEditProduct'>;
 
@@ -50,6 +50,9 @@ const VendorEditProductScreen: React.FC = () => {
     price: 0,
     category: '',
     stockQuantity: 0,
+    type: '',
+    units: '',
+    discount: 0,
     images: [],
     isActive: true,
   });
@@ -74,6 +77,9 @@ const VendorEditProductScreen: React.FC = () => {
           price: product.price,
           category: product.category,
           stockQuantity: product.stock || 0,
+          type: product.type || '',
+          units: product.units || '',
+          discount: product.discount || 0,
           images: [],
           isActive: product.isAvailable,
         });
@@ -97,29 +103,42 @@ const VendorEditProductScreen: React.FC = () => {
 
   const validateForm = (): boolean => {
     if (!formData.name.trim()) {
-      Alert.alert('Error', 'Please enter a product name');
+      alert('Error', 'Please enter a product name');
       return false;
     }
     if (!formData.description.trim()) {
-      Alert.alert('Error', 'Please enter a product description');
+      alert('Error', 'Please enter a product description');
       return false;
     }
-    if (formData.price <= 0) {
-      Alert.alert('Error', 'Please enter a valid price');
+      if (!formData.type || formData.type.trim() === '') {
+      alert('Error', 'Please enter a product type');
       return false;
     }
     if (!formData.category) {
-      Alert.alert('Error', 'Please select a category');
+      alert('Error', 'Please select a category');
+      return false;
+    }
+    if (!formData.price || formData.price <= 0) {
+      alert('Error', 'Please enter a valid price');
+      return false;
+    }
+    if (!formData.units || formData.units.trim() === '') {
+      alert('Error', 'Please enter product units');
       return false;
     }
     if (formData.stockQuantity !== undefined && formData.stockQuantity < 0) {
-      Alert.alert('Error', 'Stock quantity cannot be negative');
+      alert('Error', 'Stock quantity cannot be negative');
       return false;
     }
-    if (existingImages.length === 0 && newImages.length === 0) {
-      Alert.alert('Error', 'Please add at least one product image');
+    if (formData.discount !== undefined && (formData.discount < 0 || formData.discount > 100)) {
+      alert('Error', 'Discount must be between 0% and 100%');
       return false;
     }
+    // Images are now optional
+    // if (existingImages.length === 0 && newImages.length === 0) {
+    //   alert('Error', 'Please add at least one product image');
+    //   return false;
+    // }
     return true;
   };
 
@@ -135,7 +154,7 @@ const VendorEditProductScreen: React.FC = () => {
     if (Platform.OS !== 'web') {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert('Permission Denied', 'Sorry, we need camera roll permissions to upload images.');
+        alert('Permission Denied', 'Sorry, we need camera roll permissions to upload images.');
         return;
       }
     }
@@ -183,20 +202,32 @@ const VendorEditProductScreen: React.FC = () => {
       ];
 
       const updatedProductData: ProductFormData = {
-        ...formData,
+        name: formData.name,
+        description: formData.description,
+        type: formData.type,
+        category: formData.category,
+        rate: formData.price,
+        units: formData.units,
+        stock: formData.stockQuantity,
+        discount: formData.discount,
+        isActive: formData.isActive,
         images: allImages,
       };
 
-      await updateProduct(productId, updatedProductData);
+      const response = await updateProduct(productId, updatedProductData);
       
-      Alert.alert(
-        'Success',
-        'Product updated successfully',
-        [{ text: 'OK', onPress: () => navigation.goBack() }]
-      );
+      if (response.success) {
+        alert(
+          'Success',
+          'Product updated successfully',
+          [{ text: 'OK', onPress: () => navigation.goBack() }]
+        );
+      } else {
+        alert('Error', 'Failed to update product. Please try again.');
+      }
     } catch (err) {
       console.error('Failed to update product:', err);
-      Alert.alert('Error', 'Failed to update product. Please try again.');
+      alert('Error', 'Failed to update product. Please try again.');
     } finally {
       setSubmitting(false);
     }
@@ -264,19 +295,41 @@ const VendorEditProductScreen: React.FC = () => {
             />
           </View>
 
+          {/* Product Type */}
+          <View style={styles.formField}>
+            <Text style={styles.label}>Product Type*</Text>
+            <TextInput
+              style={styles.input}
+              value={formData.type}
+              onChangeText={(text) => handleInputChange('type', text)}
+              placeholder="Enter product type (e.g., Physical, Digital)"
+              placeholderTextColor={theme.colors.lightGray}
+            />
+          </View>
+
+
           {/* Price */}
           <View style={styles.formField}>
             <Text style={styles.label}>Price (₹)*</Text>
             <TextInput
               style={styles.input}
-              value={formData.price.toString()}
-              onChangeText={(text) => {
-                const price = parseFloat(text) || 0;
-                handleInputChange('price', price);
-              }}
+              value={formData.price ? formData.price.toString() : '0'}
+              onChangeText={(text) => handleInputChange('price', parseFloat(text) || 0)}
               placeholder="0.00"
               placeholderTextColor={theme.colors.lightGray}
               keyboardType="numeric"
+            />
+          </View>
+
+          {/* Units */}
+          <View style={styles.formField}>
+            <Text style={styles.label}>Units*</Text>
+            <TextInput
+              style={styles.input}
+              value={formData.units}
+              onChangeText={(text) => handleInputChange('units', text)}
+              placeholder="Enter units (e.g., kg, piece, dozen)"
+              placeholderTextColor={theme.colors.lightGray}
             />
           </View>
 
@@ -316,10 +369,20 @@ const VendorEditProductScreen: React.FC = () => {
             <TextInput
               style={styles.input}
               value={formData.stockQuantity?.toString() || '0'}
-              onChangeText={(text) => {
-                const quantity = parseInt(text) || 0;
-                handleInputChange('stockQuantity', quantity);
-              }}
+              onChangeText={(text) => handleInputChange('stockQuantity', parseInt(text) || 0)}
+              placeholder="0"
+              placeholderTextColor={theme.colors.lightGray}
+              keyboardType="numeric"
+            />
+          </View>
+
+          {/* Discount */}
+          <View style={styles.formField}>
+            <Text style={styles.label}>Discount (%)</Text>
+            <TextInput
+              style={styles.input}
+              value={formData.discount?.toString() || '0'}
+              onChangeText={(text) => handleInputChange('discount', parseFloat(text) || 0)}
               placeholder="0"
               placeholderTextColor={theme.colors.lightGray}
               keyboardType="numeric"
@@ -663,6 +726,9 @@ const styles = StyleSheet.create({
   goBackButtonText: {
     color: theme.colors.white,
     fontWeight: 'bold',
+  },
+  formGroup: {
+    marginBottom: theme.spacing.md,
   },
 });
 

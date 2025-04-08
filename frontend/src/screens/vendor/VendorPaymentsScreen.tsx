@@ -8,7 +8,7 @@ import {
   ActivityIndicator,
   RefreshControl,
   Modal,
-  Alert,
+  TextInput,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -19,6 +19,7 @@ import ScreenHeader from '../../components/ScreenHeader';
 import { theme } from '../../theme';
 import SegmentedControl from '../../components/SegmentedControl';
 import { MainStackNavigationProp } from '../../navigation/types';
+import alert from '../../utils/alert';
 
 // Mock data for payments
 // In a real application, this would come from an API
@@ -165,10 +166,60 @@ const VendorPaymentsScreen: React.FC = () => {
     setSelectedPayment(null);
   };
 
+  // Mock functions for payment actions
+  const handleSendReminder = (paymentId: string) => {
+    console.log(`Sending reminder for payment ${paymentId}`);
+    // Implementation would connect to backend
+    alert('Reminder Sent', 'Payment reminder has been sent to the customer.');
+  };
+
+  const handleMarkAsPaid = (paymentId: string) => {
+    console.log(`Marking payment ${paymentId} as paid`);
+    // Implementation would connect to backend
+    alert('Payment Updated', 'Payment has been marked as paid.');
+  };
+
+  const handleCancelPayment = (paymentId: string) => {
+    console.log(`Cancelling payment ${paymentId}`);
+    // Implementation would connect to backend
+    alert('Payment Cancelled', 'The payment has been cancelled.');
+  };
+
+  const handleActionPress = (payment: Payment) => {
+    alert(
+      'Payment Actions',
+      `Payment #${payment.id.slice(-8)}`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'View Details', 
+          onPress: () => handlePaymentDetails(payment)
+        },
+        { 
+          text: 'Send Reminder', 
+          onPress: () => handleSendReminder(payment.id)
+        },
+        ...(payment.status === 'pending' ? [
+          { 
+            text: 'Mark as Paid', 
+            onPress: () => handleMarkAsPaid(payment.id)
+          }
+        ] : []),
+        ...(payment.status === 'pending' ? [
+          { 
+            text: 'Cancel Payment', 
+            onPress: () => handleCancelPayment(payment.id),
+            style: 'destructive' as 'destructive'
+          }
+        ] : [])
+      ]
+    );
+  };
+
   const renderPaymentItem = ({ item }: { item: Payment }) => {
     return (
       <TouchableOpacity
-        onPress={() => handlePaymentDetails(item)}
+        onPress={() => handleActionPress(item)}
         activeOpacity={0.7}
       >
         <Card3D style={styles.paymentCard} elevation="small">
@@ -301,7 +352,7 @@ const VendorPaymentsScreen: React.FC = () => {
       <TouchableOpacity
         style={styles.withdrawButton}
         onPress={() => {
-          Alert.alert(
+          alert(
             'Withdraw Funds',
             'This feature will be available soon!',
             [{ text: 'OK' }]

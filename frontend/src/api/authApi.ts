@@ -42,10 +42,10 @@ export const forgotPassword = async (email: ForgotPasswordRequest): Promise<{ su
 
 // Reset password
 export const resetPassword = async (
-  token: string,
-  password: ResetPasswordRequest
+  resetData: { token: string, password: string }
 ): Promise<AuthResponse> => {
-  const response = await apiClient.put<AuthResponse>(`/auth/resetpassword/${token}`, password);
+  const { token, password } = resetData;
+  const response = await apiClient.put<AuthResponse>(`/auth/resetpassword/${token}`, { password });
   return response.data;
 };
 

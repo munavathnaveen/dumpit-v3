@@ -202,7 +202,7 @@ exports.deleteProduct = async (req, res, next) => {
       return next(new ErrorResponse(`User ${req.user.id} is not authorized to delete this product`, 401))
     }
 
-    await product.remove()
+    await product.deleteOne()
 
     res.status(200).json({
       success: true,
