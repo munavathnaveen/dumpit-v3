@@ -127,6 +127,9 @@ exports.createShop = async (req, res, next) => {
 
     const shop = await Shop.create(req.body)
 
+    // Update user with shop_id reference
+    await User.findByIdAndUpdate(req.user.id, { shop_id: shop._id })
+
     res.status(201).json({
       success: true,
       data: shop,
