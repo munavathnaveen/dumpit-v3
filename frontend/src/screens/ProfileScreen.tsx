@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -67,12 +67,17 @@ const ProfileScreen = () => {
   const [addressPhone, setAddressPhone] = useState('');
   const [isDefault, setIsDefault] = useState(false);
 
-  useEffect(() => {
-    // Only fetch addresses for customers, not vendors
-    if (!isVendor) {
+  // Memoize the fetch addresses function
+  const fetchUserAddresses = useCallback(() => {
+    if (!isVendor && user?._id) {
       dispatch(fetchAddresses());
     }
-  }, [dispatch, isVendor]);
+  }, [dispatch, isVendor, user?._id]);
+
+  // Only fetch addresses when the component mounts or when user ID changes
+  useEffect(() => {
+    fetchUserAddresses();
+  }, [fetchUserAddresses]);
 
   // Avatar upload
   const handleAvatarUpload = async () => {

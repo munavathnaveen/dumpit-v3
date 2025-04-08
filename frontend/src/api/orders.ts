@@ -1,5 +1,4 @@
-import axios from 'axios';
-import { API_URL } from '../utils/constants';
+import apiClient from './apiClient';
 
 // Order Item interface
 export interface OrderItem {
@@ -75,7 +74,7 @@ export interface ProcessPaymentParams {
  */
 export const createOrder = async (orderData: CreateOrderParams): Promise<{ success: boolean; data: Order }> => {
   try {
-    const response = await axios.post(`${API_URL}/orders`, orderData);
+    const response = await apiClient.post(`/orders`, orderData);
     return response.data;
   } catch (error: any) {
     throw error.response?.data || { message: 'Failed to create order' };
@@ -98,7 +97,7 @@ export const getOrders = async (page = 1, limit = 10): Promise<{
   }
 }> => {
   try {
-    const response = await axios.get(`${API_URL}/orders?page=${page}&limit=${limit}`);
+    const response = await apiClient.get(`/orders?page=${page}&limit=${limit}`);
     return response.data;
   } catch (error: any) {
     throw error.response?.data || { message: 'Failed to fetch orders' };
@@ -112,7 +111,7 @@ export const getOrders = async (page = 1, limit = 10): Promise<{
  */
 export const getOrderById = async (id: string): Promise<{ success: boolean; data: Order }> => {
   try {
-    const response = await axios.get(`${API_URL}/orders/${id}`);
+    const response = await apiClient.get(`/orders/${id}`);
     return response.data;
   } catch (error: any) {
     throw error.response?.data || { message: 'Failed to fetch order details' };
@@ -127,7 +126,7 @@ export const getOrderById = async (id: string): Promise<{ success: boolean; data
  */
 export const cancelOrder = async (id: string, reason?: string): Promise<{ success: boolean; data: Order }> => {
   try {
-    const response = await axios.patch(`${API_URL}/orders/${id}/cancel`, { reason });
+    const response = await apiClient.patch(`/orders/${id}/cancel`, { reason });
     return response.data;
   } catch (error: any) {
     throw error.response?.data || { message: 'Failed to cancel order' };
@@ -145,7 +144,7 @@ export const processPayment = async (paymentData: ProcessPaymentParams): Promise
   message?: string;
 }> => {
   try {
-    const response = await axios.post(`${API_URL}/orders/${paymentData.orderId}/payment`, paymentData);
+    const response = await apiClient.post(`/orders/${paymentData.orderId}/payment`, paymentData);
     return response.data;
   } catch (error: any) {
     return {
@@ -168,7 +167,7 @@ export const verifyPayment = async (
   signature: string
 ): Promise<{ success: boolean; data?: Order; message?: string }> => {
   try {
-    const response = await axios.post(`${API_URL}/orders/${orderId}/verify-payment`, {
+    const response = await apiClient.post(`/orders/${orderId}/verify-payment`, {
       paymentId,
       signature,
     });

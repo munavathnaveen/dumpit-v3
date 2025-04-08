@@ -12,26 +12,46 @@ interface HeaderProps {
   location?: string;
   onNotificationPress?: () => void;
   showBackButton?: boolean;
+  onProfilePress?: () => void;
+  onLogoutPress?: () => void;
 }
 
 const Header: React.FC<HeaderProps> = ({
   location = 'Your Location',
   onNotificationPress,
   showBackButton = false,
+  onProfilePress,
+  onLogoutPress,
 }) => {
   const navigation = useNavigation();
   const dispatch = useDispatch<AppDispatch>();
 
   const handleProfilePress = () => {
-    navigation.navigate('Profile');
+    if (onProfilePress) {
+      onProfilePress();
+    } else {
+      navigation.navigate('Profile');
+    }
   };
 
   const handleLogoutPress = () => {
-    dispatch(logout());
-    navigation.reset({
-      index: 0,
-      routes: [{ name: 'TabNavigator' }],
-    });
+    if (onLogoutPress) {
+      onLogoutPress();
+    } else {
+      dispatch(logout());
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'TabNavigator' }],
+      });
+    }
+  };
+
+  const handleNotificationPress = () => {
+    if (onNotificationPress) {
+      onNotificationPress();
+    } else {
+      navigation.navigate('Notifications');
+    }
   };
 
   return (
@@ -63,7 +83,7 @@ const Header: React.FC<HeaderProps> = ({
 
       {/* Right: Notification, Profile and Logout */}
       <View style={styles.rightContainer}>
-        <TouchableOpacity style={styles.iconButton} onPress={onNotificationPress}>
+        <TouchableOpacity style={styles.iconButton} onPress={handleNotificationPress}>
           <Feather name="bell" size={20} color={theme.colors.dark} />
         </TouchableOpacity>
         <TouchableOpacity style={styles.iconButton} onPress={handleProfilePress}>
