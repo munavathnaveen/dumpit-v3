@@ -18,7 +18,7 @@ import Card3D from '../../components/Card3D';
 import ScreenHeader from '../../components/ScreenHeader';
 import { theme } from '../../theme';
 import { MainStackNavigationProp } from '../../navigation/types';
-import { getShopDetails, updateShop, ShopSettings } from '../../api/shopApi';
+import { getShopDetails, updateShop, ShopSettings, createShop } from '../../api/shopApi';
 import alert from '../../utils/alert';
 import { RootState } from '../../store';
 import { useSelector } from 'react-redux';
@@ -79,30 +79,36 @@ const VendorShopSetupScreen: React.FC = () => {
     const loadShopDetails = async () => {
       try {
         setLoading(true);
-        const response = await getShopDetails(userId || '');  
-        const shop = response.data;
-        
-        setShopId(shop._id);
-        setForm({
-          name: shop.name || '',
-          description: shop.description || '',
-          logo: shop.logo || null,
-          bannerImage: shop.coverImage || null,
-          address: typeof shop.address === 'object' 
-            ? `${shop.address.street}, ${shop.address.village}, ${shop.address.district}, ${shop.address.state}, ${shop.address.pincode}`
-            : shop.address || '',
-          contactPhone: shop.contactNumber || '',
-          contactEmail: shop.email || '',
-          city: '', // These fields may not exist in your current API, 
-          state: '', // so they'll need backend modifications later
-          pincode: '',
-          isVerified: shop.isVerified || false,
-          acceptsCod: true, // Default value
-          minimumOrderAmount: '0', // Default value
-          shippingFee: '0', // Default value
-          freeShippingThreshold: '0', // Default value
-          taxRate: '0', // Default value
-        });
+        try {
+          const response = await getShopDetails(userId || '');  
+          const shop = response.data;
+          
+          setShopId(shop._id);
+          setForm({
+            name: shop.name || '',
+            description: shop.description || '',
+            logo: shop.logo || null,
+            bannerImage: shop.coverImage || null,
+            address: typeof shop.address === 'object' 
+              ? `${shop.address.street}, ${shop.address.village}, ${shop.address.district}, ${shop.address.state}, ${shop.address.pincode}`
+              : shop.address || '',
+            contactPhone: shop.contactNumber || '',
+            contactEmail: shop.email || '',
+            city: '', 
+            state: '', 
+            pincode: '',
+            isVerified: shop.isVerified || false,
+            acceptsCod: true,
+            minimumOrderAmount: '0',
+            shippingFee: '0',
+            freeShippingThreshold: '0',
+            taxRate: '0',
+          });
+        } catch (error) {
+          // If shop doesn't exist yet, we'll create one
+          console.log('No existing shop found, will create new one on save');
+          setShopId(null);
+        }
         setError(null);
       } catch (error) {
         console.error('Error loading shop details:', error);
@@ -113,7 +119,7 @@ const VendorShopSetupScreen: React.FC = () => {
     };
 
     loadShopDetails();
-  }, []);
+  }, [userId]);
 
   const handleInputChange = (field: keyof ShopFormState, value: string | boolean) => {
     setForm(prev => ({ ...prev, [field]: value }));
@@ -162,7 +168,7 @@ const VendorShopSetupScreen: React.FC = () => {
       };
       
       // Prepare data to send to API
-      const shopData: Partial<ShopSettings> = {
+      const shopData: ShopSettings = {
         name: form.name,
         description: form.description,
         logo: form.logo || undefined,
@@ -178,15 +184,16 @@ const VendorShopSetupScreen: React.FC = () => {
         ...numericFields
       };
       
-      // You'll need to implement image upload handling separately
-      
+      let response;
       if (shopId) {
-        await updateShop(shopId, shopData);
+        // Update existing shop
+        response = await updateShop(shopId, shopData);
         alert('Success', 'Shop updated successfully');
-        setSaving(false);
       } else {
-        // Handle case where no shop exists yet
-        alert('Error', 'No shop ID found. Please contact support.');
+        // Create new shop
+        response = await createShop(shopData);
+        setShopId(response.data._id);
+        alert('Success', 'Shop created successfully');
       }
     } catch (error) {
       console.error('Error saving shop details:', error);

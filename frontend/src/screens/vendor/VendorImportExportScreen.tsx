@@ -42,6 +42,37 @@ const VendorImportExportScreen: React.FC = () => {
     fields: [],
   });
 
+  // Sample format data for products import
+  const productImportFormat = {
+    title: 'Product Import Format',
+    sample: 'name,description,type,category,price,units,stock,discount\nProduct 1,Description for product 1,Physical,Electronics,499,piece,10,5\nProduct 2,Description for product 2,Digital,Software,999,license,100,0',
+    fields: [
+      'name - Product name (required)',
+      'description - Product description (required)',
+      'type - Product type (e.g., Physical, Digital) (required)',
+      'category - Product category (required)',
+      'price - Product price in INR (required)',
+      'units - Unit type (e.g., piece, kg, dozen) (required)',
+      'stock - Available quantity (required)',
+      'discount - Discount percentage (optional, default 0)',
+      'images - Comma-separated image URLs (optional)'
+    ]
+  };
+
+  // Sample format data for orders export (for reference only)
+  const orderExportFormat = {
+    title: 'Order Export Format',
+    sample: 'id,customer,date,total,status,items\nORD12345,John Doe,2023-01-01,1299,delivered,"Product 1 (x2), Product 2 (x1)"\nORD12346,Jane Smith,2023-01-02,499,processing,"Product 3 (x1)"',
+    fields: [
+      'id - Order ID',
+      'customer - Customer name',
+      'date - Order date (YYYY-MM-DD)',
+      'total - Order total in INR',
+      'status - Order status (pending, processing, shipped, delivered, cancelled)',
+      'items - Items in the order'
+    ]
+  };
+
   const handleExport = async (dataType: DataType, format: FormatType) => {
     try {
       setLoading(`export-${dataType}-${format}`);
@@ -243,6 +274,22 @@ const VendorImportExportScreen: React.FC = () => {
         <View style={styles.cardTitleContainer}>
           <Text style={styles.cardTitle}>{title}</Text>
           <Text style={styles.cardDescription}>{description}</Text>
+          
+          {/* Info button for format guidance */}
+          <TouchableOpacity 
+            style={styles.infoButton} 
+            onPress={() => {
+              if (dataType === 'products') {
+                setFormatGuidance({
+                  show: true,
+                  ...productImportFormat
+                });
+              }
+            }}
+          >
+            <Ionicons name="information-circle" size={22} color={theme.colors.primary} />
+            <Text style={styles.infoButtonText}>Format Guide</Text>
+          </TouchableOpacity>
         </View>
       </View>
       
@@ -374,63 +421,46 @@ const VendorImportExportScreen: React.FC = () => {
 
   return (
     <View style={styles.container}>
-      <ScreenHeader title="Import/Export" showBackButton={true} />
-      <TouchableOpacity 
-        style={styles.infoButton}
-        onPress={() => setShowInstructions(true)}
-      >
-        <Ionicons name="information-circle-outline" size={24} color={theme.colors.primary} />
-      </TouchableOpacity>
+      <ScreenHeader 
+        title="Import & Export" 
+        showBackButton={true}
+        onRightPress={() => setShowInstructions(true)}
+        rightIcon="help-circle-outline"
+      />
       
-      <ScrollView style={styles.scrollView} contentContainerStyle={styles.contentContainer}>
-        {renderInstructionsModal()}
+      {actionMessage ? (
+        <View style={styles.actionMessageContainer}>
+          <Text style={styles.actionMessageText}>{actionMessage}</Text>
+          <ActivityIndicator size="small" color={theme.colors.primary} />
+        </View>
+      ) : null}
+      
+      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollViewContent}>
         <Text style={styles.sectionTitle}>Export Data</Text>
-        <Text style={styles.sectionDescription}>
-          Export your store data in CSV or Excel format
-        </Text>
+        {renderExportCard('Products', 'Export your product catalog', 'cube-outline', 'products')}
+        {renderExportCard('Orders', 'Export your order history', 'receipt-outline', 'orders')}
+        {renderExportCard('Revenue', 'Export your revenue reports', 'cash-outline', 'revenue')}
         
-        {renderExportCard(
-          'Products',
-          'Export your product catalog with all details',
-          'cube-outline',
-          'products'
-        )}
+        <Text style={styles.sectionTitle}>Import Data</Text>
+        {renderImportCard('Products', 'Import your product catalog', 'cube-outline', 'products')}
         
-        {renderExportCard(
-          'Orders',
-          'Export all customer orders with transaction details',
-          'receipt-outline',
-          'orders'
-        )}
-        
-        {renderExportCard(
-          'Revenue',
-          'Export revenue data with daily, weekly, and monthly breakdown',
-          'stats-chart-outline',
-          'revenue'
-        )}
-        
-        <Text style={[styles.sectionTitle, styles.importSectionTitle]}>Import Data</Text>
-        <Text style={styles.sectionDescription}>
-          Import data from CSV files to update your store
-        </Text>
-        
-        {renderImportCard(
-          'Products',
-          'Update your product catalog by importing a CSV file',
-          'cloud-download-outline',
-          'products'
-        )}
-        
-        <View style={styles.importNote}>
-          <Ionicons name="information-circle-outline" size={20} color={theme.colors.warning} />
-          <Text style={styles.importNoteText}>
-            Note: Make sure your CSV file follows the required format. You can export an existing file first to see the correct format.
+        <View style={styles.helpCard}>
+          <Text style={styles.helpTitle}>Need Help?</Text>
+          <Text style={styles.helpText}>
+            For help with importing or exporting data, please refer to our documentation
+            or contact support.
           </Text>
+          <TouchableOpacity 
+            style={styles.helpButton}
+            onPress={() => setShowInstructions(true)}
+          >
+            <Text style={styles.helpButtonText}>View Instructions</Text>
+          </TouchableOpacity>
         </View>
       </ScrollView>
       
       {renderFormatGuidanceModal()}
+      {renderInstructionsModal()}
     </View>
   );
 };
@@ -696,10 +726,59 @@ const styles = StyleSheet.create({
     paddingBottom: theme.spacing.xl * 2,
   },
   infoButton: {
-    position: 'absolute',
-    right: theme.spacing.md,
-    top: theme.spacing.md,
-    zIndex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: theme.spacing.xs,
+  },
+  infoButtonText: {
+    fontSize: 12,
+    color: theme.colors.primary,
+    marginLeft: 4,
+  },
+  actionMessageContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: theme.spacing.md,
+    backgroundColor: theme.colors.white,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.lightGray,
+  },
+  actionMessageText: {
+    flex: 1,
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: theme.colors.dark,
+  },
+  helpCard: {
+    padding: theme.spacing.md,
+    backgroundColor: theme.colors.white,
+    borderRadius: theme.borderRadius.medium,
+    marginTop: theme.spacing.md,
+  },
+  helpTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: theme.colors.dark,
+    marginBottom: theme.spacing.sm,
+  },
+  helpText: {
+    fontSize: 14,
+    color: theme.colors.text,
+    marginBottom: theme.spacing.md,
+  },
+  helpButton: {
+    backgroundColor: theme.colors.primary,
+    borderRadius: theme.borderRadius.medium,
+    paddingVertical: theme.spacing.sm,
+    paddingHorizontal: theme.spacing.md,
+    alignItems: 'center',
+  },
+  helpButtonText: {
+    color: theme.colors.white,
+    fontWeight: '600',
+  },
+  scrollViewContent: {
+    paddingBottom: theme.spacing.xl * 2,
   },
 });
 

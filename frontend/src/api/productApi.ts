@@ -29,7 +29,6 @@ export interface ProductFormData {
   discountPrice?: number;
   type?: string;
   category: string;
-  rate?: number;
   units?: string;
   stock?: number;
   stockQuantity?: number;

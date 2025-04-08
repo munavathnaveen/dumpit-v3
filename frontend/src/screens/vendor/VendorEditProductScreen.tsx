@@ -206,7 +206,7 @@ const VendorEditProductScreen: React.FC = () => {
         description: formData.description,
         type: formData.type,
         category: formData.category,
-        rate: formData.price,
+        price: formData.price,
         units: formData.units,
         stock: formData.stockQuantity,
         discount: formData.discount,

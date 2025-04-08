@@ -203,7 +203,7 @@ const VendorAddProductScreen: React.FC = () => {
         description: formData.description,
         type: formData.type,
         category: formData.category,
-        rate: formData.price, // Map price to rate for backend
+        price: formData.price, // Use price directly
         units: formData.units,
         stock: formData.stock,
         discount: formData.discount,
