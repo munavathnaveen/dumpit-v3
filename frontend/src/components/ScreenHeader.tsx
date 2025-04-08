@@ -7,16 +7,12 @@ interface ScreenHeaderProps {
   title: string;
   showBackButton?: boolean;
   onNotificationPress?: () => void;
-  onRightPress?: () => void;
-  rightIcon?: string;
 }
 
 const ScreenHeader: React.FC<ScreenHeaderProps> = ({
   title,
   showBackButton = false,
   onNotificationPress,
-  onRightPress,
-  rightIcon,
 }) => {
   return (
     <View style={styles.container}>
@@ -24,8 +20,6 @@ const ScreenHeader: React.FC<ScreenHeaderProps> = ({
         location={title}
         showBackButton={showBackButton}
         onNotificationPress={onNotificationPress}
-        onRightPress={onRightPress}
-        rightIcon={rightIcon}
       />
     </View>
   );
