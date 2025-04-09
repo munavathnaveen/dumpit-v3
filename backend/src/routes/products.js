@@ -5,11 +5,15 @@ const {
   createProduct,
   updateProduct,
   deleteProduct,
-  uploadProductImages,
+  getProductsByShop,
+  getProductsByVendor,
+  getProductCategories,
+  getProductTypes,
+  uploadProductImage,
   addProductReview,
+  getProductReviews,
   searchProducts,
   getVendorProducts,
-  getProductCategories,
 } = require('../controllers/products')
 
 const {protect, authorize} = require('../middleware/auth')
@@ -34,11 +38,10 @@ router.post('/:id/reviews', protect, validateRequest(productReviewSchema), addPr
 
 // Product image upload route
 router.put(
-  '/:id/images',
+  '/:id/image',
   protect,
   authorize(config.constants.userRoles.VENDOR),
-  upload.array('images', 5),
-  uploadProductImages
+  uploadProductImage
 )
 
 // Get all products

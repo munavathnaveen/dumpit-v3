@@ -18,7 +18,7 @@ import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view
 
 import { theme } from '../../theme';
 import { MainStackNavigationProp, MainStackParamList } from '../../navigation/types';
-import { getProduct, updateProduct, ProductFormData } from '../../api/productApi';
+import { getProduct, updateProduct, uploadProductImage, ProductFormData } from '../../api/productApi';
 import Card3D from '../../components/Card3D';
 import ScreenHeader from '../../components/ScreenHeader';
 import Button from '../../components/Button';
@@ -53,12 +53,9 @@ const VendorEditProductScreen: React.FC = () => {
     type: '',
     units: '',
     discount: 0,
-    images: [],
+    image: '',
     isActive: true,
   });
-  const [existingImages, setExistingImages] = useState<string[]>([]);
-  const [newImages, setNewImages] = useState<string[]>([]);
-  const [removedImages, setRemovedImages] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -80,14 +77,9 @@ const VendorEditProductScreen: React.FC = () => {
           type: product.type || '',
           units: product.units || '',
           discount: product.discount || 0,
-          images: [],
+          image: product.image || '',
           isActive: product.isActive,
         });
-        
-        // Store existing images
-        if (product.images && product.images.length > 0) {
-          setExistingImages(product.images);
-        }
         
         setError(null);
       } catch (err) {
@@ -134,11 +126,6 @@ const VendorEditProductScreen: React.FC = () => {
       alert('Error', 'Discount must be between 0% and 100%');
       return false;
     }
-    // Images are now optional
-    // if (existingImages.length === 0 && newImages.length === 0) {
-    //   alert('Error', 'Please add at least one product image');
-    //   return false;
-    // }
     return true;
   };
 
@@ -165,28 +152,44 @@ const VendorEditProductScreen: React.FC = () => {
       allowsEditing: true,
       aspect: [1, 1],
       quality: 0.7,
-      base64: true,
     });
 
     if (!result.canceled && result.assets && result.assets.length > 0) {
       const selectedAsset = result.assets[0];
-      if (selectedAsset.base64) {
-        // For simplicity, we're using base64 data URIs
-        // In a production app, you would upload to a server and get back a URL
-        const imageUri = `data:image/jpeg;base64,${selectedAsset.base64}`;
-        setNewImages(prev => [...prev, imageUri]);
+      const uri = selectedAsset.uri;
+      
+      try {
+        // Create a File from URI for web
+        const file = Platform.OS === 'web' 
+          ? await fetch(uri).then(r => r.blob()) as File
+          : {
+              uri,
+              type: 'image/jpeg',
+              name: 'product_image.jpg',
+            } as unknown as File;
+        
+        const response = await uploadProductImage(productId, file);
+        
+        if (response.success) {
+          setFormData(prev => ({
+            ...prev,
+            image: response.data.image
+          }));
+        } else {
+          alert('Error', 'Failed to upload image. Please try again.');
+        }
+      } catch (error) {
+        console.error('Failed to upload image:', error);
+        alert('Error', 'Failed to upload image. Please try again.');
       }
     }
   };
 
-  const removeExistingImage = (index: number) => {
-    const imageToRemove = existingImages[index];
-    setRemovedImages(prev => [...prev, imageToRemove]);
-    setExistingImages(prev => prev.filter((_, i) => i !== index));
-  };
-
-  const removeNewImage = (index: number) => {
-    setNewImages(prev => prev.filter((_, i) => i !== index));
+  const handleRemoveImage = () => {
+    setFormData(prev => ({
+      ...prev,
+      image: ''
+    }));
   };
 
   const handleSubmit = async () => {
@@ -194,12 +197,6 @@ const VendorEditProductScreen: React.FC = () => {
 
     try {
       setSubmitting(true);
-
-      // Prepare images for update
-      const allImages = [
-        ...existingImages,
-        ...newImages
-      ];
 
       const updatedProductData: ProductFormData = {
         name: formData.name,
@@ -211,7 +208,7 @@ const VendorEditProductScreen: React.FC = () => {
         stock: formData.stockQuantity,
         discount: formData.discount,
         isActive: formData.isActive,
-        images: allImages,
+        image: formData.image,
       };
 
       const response = await updateProduct(productId, updatedProductData);
@@ -440,55 +437,19 @@ const VendorEditProductScreen: React.FC = () => {
           </View>
         </Card3D>
 
-        {/* Product Images */}
+        {/* Product Image */}
         <Card3D style={styles.formCard} elevation="medium">
-          <Text style={styles.sectionTitle}>Product Images</Text>
+          <Text style={styles.sectionTitle}>Product Image</Text>
           
-          {/* Existing Images */}
-          {existingImages.length > 0 && (
+          {formData.image && (
             <View>
-              <Text style={styles.imagesSubtitle}>Current Images</Text>
-              <ScrollView 
-                horizontal 
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.imagesContainer}
+              <Image source={{ uri: formData.image }} style={styles.productImage} />
+              <TouchableOpacity 
+                style={styles.removeImageButton}
+                onPress={handleRemoveImage}
               >
-                {existingImages.map((image, index) => (
-                  <View key={`existing-${index}`} style={styles.imageContainer}>
-                    <Image source={{ uri: image }} style={styles.productImage} />
-                    <TouchableOpacity 
-                      style={styles.removeImageButton}
-                      onPress={() => removeExistingImage(index)}
-                    >
-                      <Ionicons name="close-circle" size={24} color={theme.colors.error} />
-                    </TouchableOpacity>
-                  </View>
-                ))}
-              </ScrollView>
-            </View>
-          )}
-
-          {/* New Images */}
-          {newImages.length > 0 && (
-            <View>
-              <Text style={styles.imagesSubtitle}>New Images</Text>
-              <ScrollView 
-                horizontal 
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.imagesContainer}
-              >
-                {newImages.map((image, index) => (
-                  <View key={`new-${index}`} style={styles.imageContainer}>
-                    <Image source={{ uri: image }} style={styles.productImage} />
-                    <TouchableOpacity 
-                      style={styles.removeImageButton}
-                      onPress={() => removeNewImage(index)}
-                    >
-                      <Ionicons name="close-circle" size={24} color={theme.colors.error} />
-                    </TouchableOpacity>
-                  </View>
-                ))}
-              </ScrollView>
+                <Ionicons name="close-circle" size={24} color={theme.colors.error} />
+              </TouchableOpacity>
             </View>
           )}
 
@@ -640,23 +601,9 @@ const styles = StyleSheet.create({
     color: theme.colors.dark,
     marginBottom: theme.spacing.md,
   },
-  imagesSubtitle: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: theme.colors.gray,
-    marginBottom: theme.spacing.sm,
-  },
-  imagesContainer: {
-    flexDirection: 'row',
-    paddingBottom: theme.spacing.sm,
-  },
-  imageContainer: {
-    position: 'relative',
-    marginRight: theme.spacing.sm,
-  },
   productImage: {
-    width: 100,
-    height: 100,
+    width: 200,
+    height: 200,
     borderRadius: theme.borderRadius.small,
     borderWidth: 1,
     borderColor: theme.colors.lightGray,

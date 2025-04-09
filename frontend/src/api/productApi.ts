@@ -12,7 +12,7 @@ export interface ProductFormData {
   stock?: number;
   stockQuantity?: number;
   discount?: number;  
-  images: string[];
+  image?: string;
   tags?: string[];
   specs?: Record<string, string>;
   isAvailable?: boolean;
@@ -62,7 +62,7 @@ export const getProductCategories = async (): Promise<{success: boolean, count: 
 };
 
 export const searchProducts = async (searchTerm: string): Promise<ProductsResponse> => {
-  const response = await apiClient.get(`/products/search/${searchTerm}`);
+  const response = await apiClient.get(`/products/search/${encodeURIComponent(searchTerm)}`);
   return response.data;
 };
 
@@ -88,15 +88,19 @@ export const deleteProduct = async (productId: string): Promise<{ success: boole
   return response.data;
 };
 
-export const uploadProductImage = async (file: File): Promise<{ success: boolean, data: string }> => {
+export const uploadProductImage = async (productId: string, file: File): Promise<{
+  success: boolean;
+  data: {
+    image: string;
+  };
+}> => {
   const formData = new FormData();
-  formData.append('file', file);
-  
-  const response = await apiClient.post('/products/upload', formData, {
+  formData.append('image', file);
+
+  const response = await apiClient.put(`/products/${productId}/image`, formData, {
     headers: {
-      'Content-Type': 'multipart/form-data'
-    }
+      'Content-Type': 'multipart/form-data',
+    },
   });
-  
   return response.data;
 }; 

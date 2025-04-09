@@ -52,12 +52,16 @@ const VendorAnalyticsScreen: React.FC = () => {
 
   useEffect(() => {
     loadData();
-  }, [loadData]);
+  }, []);
 
   useFocusEffect(
-    useCallback(() => {
+    React.useCallback(() => {
       loadData();
-    }, [loadData])
+      
+      return () => {
+        // Cleanup if needed when screen loses focus
+      };
+    }, [])
   );
 
   const handleRefresh = () => {

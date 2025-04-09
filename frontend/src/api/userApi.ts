@@ -117,12 +117,15 @@ export const deleteAddress = async (addressId: string): Promise<{
 };
 
 // Avatar upload
-export const uploadAvatar = async (userId: string, formData: FormData): Promise<{
+export const uploadAvatar = async (userId: string, file: File): Promise<{
   success: boolean;
   data: {
     url: string;
   };
 }> => {
+  const formData = new FormData();
+  formData.append('avatar', file);
+
   const response = await apiClient.put(`/users/${userId}/avatar`, formData, {
     headers: {
       'Content-Type': 'multipart/form-data',

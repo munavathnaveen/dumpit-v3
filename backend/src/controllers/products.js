@@ -1,8 +1,9 @@
 const Product = require('../models/Product')
 const Shop = require('../models/Shop')
 const ErrorResponse = require('../utils/errorResponse')
-const {upload, uploadToCloudinary} = require('../utils/upload')
+const {upload, uploadToCloudinary, deleteFromCloudinary} = require('../utils/upload')
 const config = require('../config')
+const cloudinary = require('cloudinary')
 
 // @desc    Get all products
 // @route   GET /api/v1/products
@@ -216,78 +217,48 @@ exports.deleteProduct = async (req, res, next) => {
 // @desc    Upload product images
 // @route   PUT /api/v1/products/:id/images
 // @access  Private (Vendor only)
-exports.uploadProductImages = async (req, res, next) => {
+exports.uploadProductImage = async (req, res, next) => {
   try {
-    const product = await Product.findById(req.params.id)
+    // Find product by ID
+    const product = await Product.findById(req.params.id);
 
+    // Check if product exists
     if (!product) {
-      return next(new ErrorResponse(`Product not found with id of ${req.params.id}`, 404))
+      return next(new ErrorResponse(`Product not found with id of ${req.params.id}`, 404));
     }
 
-    // Make sure user is product vendor
+    // Check if user is product owner
     if (product.vendor.toString() !== req.user.id) {
-      return next(new ErrorResponse(`User ${req.user.id} is not authorized to update this product`, 401))
+      return next(new ErrorResponse(`User ${req.user.id} is not authorized to update this product`, 401));
     }
 
-    if (!req.files || req.files.length === 0) {
-      return next(new ErrorResponse('Please upload at least one file', 400))
+    // Delete old image if it exists
+    if (product.image) {
+      // Extract public_id from Cloudinary URL
+      const publicId = product.image.split('/').pop().split('.')[0];
+      await cloudinary.uploader.destroy(publicId);
     }
 
-    // Validate each file
-    for (const file of req.files) {
-      // Check file type if not already done by multer
-      const filetypes = /jpeg|jpg|png|gif/
-      const mimetype = filetypes.test(file.mimetype)
-      
-      if (!mimetype) {
-        return next(new ErrorResponse(`File type ${file.mimetype} is not supported. Please upload only image files.`, 400))
-      }
-      
-      // Check file size (5MB max)
-      if (file.size > 5 * 1024 * 1024) {
-        return next(new ErrorResponse(`File ${file.originalname} exceeds the 5MB size limit.`, 400))
-      }
-    }
+    // Upload new image
+    const result = await cloudinary.uploader.upload(req.files.image.tempFilePath, {
+      folder: 'products',
+    });
 
-    const imageUrls = []
-    const uploadErrors = []
-
-    // Process each file
-    for (const file of req.files) {
-      try {
-        const result = await uploadToCloudinary(file, 'products')
-        imageUrls.push(result.url)
-      } catch (error) {
-        // Log the error but continue with other uploads
-        console.error(`Error uploading ${file.originalname}:`, error)
-        uploadErrors.push({
-          file: file.originalname,
-          error: error.message || 'Failed to upload to cloud storage'
-        })
-      }
-    }
-
-    if (imageUrls.length === 0 && uploadErrors.length > 0) {
-      return next(new ErrorResponse('All image uploads failed. Please try again.', 500))
-    }
-
-    // Add successfully uploaded images to product
-    product.images = [...product.images, ...imageUrls]
-    await product.save()
+    // Update product image
+    product.image = result.secure_url;
+    await product.save();
 
     res.status(200).json({
       success: true,
-      count: imageUrls.length,
       data: {
-        images: product.images,
-        uploadErrors: uploadErrors.length > 0 ? uploadErrors : undefined
+        image: result.secure_url
       }
-    })
+    });
   } catch (err) {
-    console.error('Product image upload error:', err)
-    next(new ErrorResponse('Error processing image upload: ' + (err.message || 'Unknown error'), 500))
+    console.error(err);
+    return next(new ErrorResponse('Error uploading product image', 500));
   }
-}
+};
 
 // @desc    Add product review
 // @route   POST /api/v1/products/:id/reviews

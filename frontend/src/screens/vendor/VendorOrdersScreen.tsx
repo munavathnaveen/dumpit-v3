@@ -72,30 +72,68 @@ const VendorOrdersScreen: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
 
-  const loadOrders = useCallback(async () => {
+  const loadOrders = useCallback(async (refresh = false) => {
     try {
       setError(null);
-      const data = await getVendorOrders();
-      setOrders(data);
-      filterOrders(data, selectedFilter);
+      if (refresh) {
+        setPage(1);
+        setHasMore(true);
+      }
+      
+      const response = await getVendorOrders(page, 10);
+      
+      if (response.success) {
+        const newOrders = response.data;
+        if (refresh || page === 1) {
+          setOrders(newOrders);
+          filterOrders(newOrders, selectedFilter);
+        } else {
+          setOrders(prevOrders => {
+            const updatedOrders = [...prevOrders, ...newOrders];
+            filterOrders(updatedOrders, selectedFilter);
+            return updatedOrders;
+          });
+        }
+        
+        // Check if we have more pages
+        setHasMore(!!response.pagination?.next);
+      } else {
+        setError('Failed to load orders');
+      }
     } catch (error) {
       console.error('Failed to load orders:', error);
       setError('Failed to load orders');
     } finally {
       setLoading(false);
       setRefreshing(false);
+      setLoadingMore(false);
     }
-  }, [selectedFilter]);
+  }, [page]);
 
   useEffect(() => {
-    loadOrders();
-  }, [loadOrders]);
+    // Apply filter whenever selectedFilter changes without reloading data
+    if (orders.length > 0) {
+      filterOrders(orders, selectedFilter);
+    }
+  }, [selectedFilter, orders]);
+
+  useEffect(() => {
+    loadOrders(false);
+  }, [page, loadOrders]);
 
   useFocusEffect(
     useCallback(() => {
-      loadOrders();
-    }, [loadOrders])
+      setPage(1);
+      loadOrders(true);
+      
+      return () => {
+        // Cleanup if needed when screen loses focus
+      };
+    }, []) // Empty dependency array to prevent infinite loops
   );
 
   const filterOrders = (ordersList: Order[], filterIndex: number) => {
@@ -112,11 +150,6 @@ const VendorOrdersScreen: React.FC = () => {
   const handleFilterChange = (index: number) => {
     setSelectedFilter(index);
     filterOrders(orders, index);
-  };
-
-  const handleRefresh = () => {
-    setRefreshing(true);
-    loadOrders();
   };
 
   const handleOrderStatusUpdate = (orderId: string, currentStatus: OrderStatus) => {
@@ -340,7 +373,10 @@ const VendorOrdersScreen: React.FC = () => {
           <Text style={styles.errorText}>{error}</Text>
           <TouchableOpacity 
             style={styles.retryButton}
-            onPress={loadOrders}
+            onPress={() => {
+              setLoading(true);
+              loadOrders(true);
+            }}
           >
             <Text style={styles.retryButtonText}>Retry</Text>
           </TouchableOpacity>
@@ -356,16 +392,33 @@ const VendorOrdersScreen: React.FC = () => {
       ) : (
         <FlatList
           data={filteredOrders}
-          renderItem={renderOrderItem}
           keyExtractor={(item) => item._id}
+          renderItem={renderOrderItem}
           contentContainerStyle={styles.ordersList}
           showsVerticalScrollIndicator={false}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
-              onRefresh={handleRefresh}
+              onRefresh={() => {
+                setRefreshing(true);
+                loadOrders(true);
+              }}
               colors={[theme.colors.primary]}
             />
+          }
+          onEndReached={() => {
+            if (hasMore && !loadingMore) {
+              setLoadingMore(true);
+              setPage(prev => prev + 1);
+            }
+          }}
+          onEndReachedThreshold={0.5}
+          ListFooterComponent={
+            loadingMore ? (
+              <View style={styles.loadingMore}>
+                <ActivityIndicator size="small" color={theme.colors.primary} />
+              </View>
+            ) : null
           }
         />
       )}
@@ -577,6 +630,11 @@ const styles = StyleSheet.create({
   },
   disabledButtonText: {
     color: theme.colors.gray,
+  },
+  loadingMore: {
+    padding: theme.spacing.md,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });
 

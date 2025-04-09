@@ -1,8 +1,9 @@
 const Shop = require('../models/Shop')
 const User = require('../models/User')
 const ErrorResponse = require('../utils/errorResponse')
-const {upload, uploadToCloudinary} = require('../utils/upload')
+const {upload, uploadToCloudinary, deleteFromCloudinary} = require('../utils/upload')
 const config = require('../config')
+const cloudinary = require('cloudinary')
 
 // @desc    Get all shops
 // @route   GET /api/v1/shops
@@ -195,45 +196,49 @@ exports.deleteShop = async (req, res, next) => {
 
 // @desc    Upload shop images
 // @route   PUT /api/v1/shops/:id/images
-// @access  Private (Owner only)
-exports.uploadShopImages = async (req, res, next) => {
+// @access  Private (Shop owner only)
+exports.uploadShopImage = async (req, res, next) => {
   try {
-    const shop = await Shop.findById(req.params.id)
+    // Find shop by ID
+    const shop = await Shop.findById(req.params.id);
 
+    // Check if shop exists
     if (!shop) {
-      return next(new ErrorResponse(`Shop not found with id of ${req.params.id}`, 404))
+      return next(new ErrorResponse(`Shop not found with id of ${req.params.id}`, 404));
     }
 
-    // Make sure user is shop owner
-    if (shop.owner.toString() !== req.user.id && req.user.role !== 'admin') {
-      return next(new ErrorResponse(`User ${req.user.id} is not authorized to update this shop`, 401))
+    // Check if user is shop owner
+    if (shop.owner.toString() !== req.user.id) {
+      return next(new ErrorResponse(`User ${req.user.id} is not authorized to update this shop`, 401));
     }
 
-    if (!req.files || req.files.length === 0) {
-      return next(new ErrorResponse('Please upload at least one file', 400))
+    // Delete old image if it exists
+    if (shop.image) {
+      // Extract public_id from Cloudinary URL
+      const publicId = shop.image.split('/').pop().split('.')[0];
+      await cloudinary.uploader.destroy(publicId);
     }
 
-    const imageUrls = []
+    // Upload new image
+    const result = await cloudinary.uploader.upload(req.files.image.tempFilePath, {
+      folder: 'shops',
+    });
 
-    // Process each file
-    for (const file of req.files) {
-      const result = await uploadToCloudinary(file, 'shops')
-      imageUrls.push(result.url)
-    }
-
-    // Add images to shop
-    shop.images = [...shop.images, ...imageUrls]
-    await shop.save()
+    // Update shop image
+    shop.image = result.secure_url;
+    await shop.save();
 
     res.status(200).json({
       success: true,
-      count: imageUrls.length,
-      data: shop.images,
-    })
+      data: {
+        image: result.secure_url
+      }
+    });
   } catch (err) {
-    next(err)
+    console.error(err);
+    return next(new ErrorResponse('Error uploading shop image', 500));
   }
-}
+};
 
 // @desc    Get shops within radius
 // @route   GET /api/v1/shops/radius/:zipcode/:distance

@@ -86,7 +86,7 @@ const ProductDetailsScreen: React.FC = () => {
       
       <ScrollView showsVerticalScrollIndicator={false}>
         <Image 
-          source={{ uri: product.images[0] || 'https://via.placeholder.com/400' }}
+          source={{ uri: product.image || 'https://via.placeholder.com/400' }}
           style={styles.productImage}
           resizeMode="cover"
         />

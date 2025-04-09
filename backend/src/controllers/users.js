@@ -1,6 +1,6 @@
 const User = require('../models/User')
 const ErrorResponse = require('../utils/errorResponse')
-const {upload, uploadToCloudinary} = require('../utils/upload')
+const {upload, uploadToCloudinary, deleteFromCloudinary} = require('../utils/upload')
 const config = require('../config')
 
 // @desc    Get all users
@@ -104,31 +104,35 @@ exports.deleteUser = async (req, res, next) => {
 // @access  Private
 exports.uploadAvatar = async (req, res, next) => {
   try {
-    const user = await User.findById(req.params.id)
+    if (!req.file) {
+      return next(new ErrorResponse('No file uploaded', 400))
+    }
 
+    const user = await User.findById(req.params.id)
     if (!user) {
       return next(new ErrorResponse(`User not found with id of ${req.params.id}`, 404))
     }
 
-    // Check if user is the current logged in user or has appropriate permissions
-    if (req.user.id !== req.params.id && req.user.role !== config.constants.userRoles.VENDOR) {
-      return next(new ErrorResponse(`User ${req.user.id} is not authorized to update this avatar`, 401))
-    }
-    
-    if (!req.file) {
-      return next(new ErrorResponse('Please upload a file', 400))
+    // Delete old avatar if exists
+    if (user.avatar && user.avatar.publicId) {
+      await deleteFromCloudinary(user.avatar.publicId)
     }
 
-    // Upload to cloudinary
-    const result = await uploadToCloudinary(req.file, 'users/avatars')
+    // Upload new avatar
+    const result = await uploadToCloudinary(req.file, 'avatars')
 
-    // Update user avatar_url
-    user.avatar_url = result.url
+    // Update user avatar
+    user.avatar = {
+      url: result.secure_url,
+      publicId: result.public_id
+    }
     await user.save()
 
     res.status(200).json({
       success: true,
-      data: {url: result.url},
+      data: {
+        url: result.secure_url
+      }
     })
   } catch (err) {
     next(err)

@@ -11,15 +11,8 @@ cloudinary.config({
   api_secret: config.cloudinary.apiSecret,
 })
 
-// Configure multer for file storage
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, 'uploads/')
-  },
-  filename: function (req, file, cb) {
-    cb(null, `${Date.now()}-${file.originalname}`)
-  },
-})
+// Configure multer for memory storage
+const storage = multer.memoryStorage()
 
 // File filter function for multer
 const fileFilter = (req, file, cb) => {
