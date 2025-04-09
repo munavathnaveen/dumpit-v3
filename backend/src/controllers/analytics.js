@@ -1,6 +1,6 @@
 const ErrorResponse = require('../utils/errorResponse')
 const asyncHandler = require('express-async-handler')
-const {exportToCSV, importFromCSV} = require('../utils/csv')
+const { exportToCSV, importFromCSV } = require('../utils/csv')
 const Product = require('../models/Product')
 const Order = require('../models/Order')
 const User = require('../models/User')
@@ -14,7 +14,7 @@ const storage = multer.diskStorage({
   destination: function (req, file, cb) {
     const dir = path.join(__dirname, '../../uploads/csv')
     if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, {recursive: true})
+      fs.mkdirSync(dir, { recursive: true })
     }
     cb(null, dir)
   },
@@ -36,7 +36,7 @@ const csvFilter = (req, file, cb) => {
 exports.upload = multer({
   storage: storage,
   fileFilter: csvFilter,
-  limits: {fileSize: 5 * 1024 * 1024}, // 5MB max file size
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB max file size
 })
 
 /**
@@ -70,16 +70,16 @@ exports.exportProducts = asyncHandler(async (req, res, next) => {
 
   // Define CSV fields
   const fields = [
-    {label: 'Product ID', value: '_id'},
-    {label: 'Name', value: 'name'},
-    {label: 'Description', value: 'description'},
-    {label: 'Price', value: 'price'},
-    {label: 'Stock', value: 'stock'},
-    {label: 'Category', value: 'category'},
-    {label: 'Shop', value: 'shop.name'},
-    {label: 'Rating', value: 'rating'},
-    {label: 'Is Active', value: 'isActive'},
-    {label: 'Created At', value: 'createdAt'},
+    { label: 'Product ID', value: '_id' },
+    { label: 'Name', value: 'name' },
+    { label: 'Description', value: 'description' },
+    { label: 'Price', value: 'price' },
+    { label: 'Stock', value: 'stock' },
+    { label: 'Category', value: 'category' },
+    { label: 'Shop', value: 'shop.name' },
+    { label: 'Rating', value: 'rating' },
+    { label: 'Is Active', value: 'isActive' },
+    { label: 'Created At', value: 'createdAt' },
   ]
 
   // Export data to CSV
@@ -122,7 +122,7 @@ exports.exportOrders = asyncHandler(async (req, res, next) => {
   // Filter by shop for vendors
   if (req.user.role === 'vendor') {
     // Get all shops owned by the vendor
-    const shops = await Shop.find({owner: req.user.id})
+    const shops = await Shop.find({ owner: req.user.id })
     const shopIds = shops.map((shop) => shop._id)
 
     // If specific shop is requested, ensure it's in the vendor's shops
@@ -131,14 +131,14 @@ exports.exportOrders = asyncHandler(async (req, res, next) => {
         return next(new ErrorResponse('Not authorized to access this shop', 403))
       }
       // Find orders containing items from this shop
-      query = {'items.shop': shopId}
+      query = { 'items.shop': shopId }
     } else {
       // Find orders containing items from any of the vendor's shops
-      query = {'items.shop': {$in: shopIds}}
+      query = { 'items.shop': { $in: shopIds } }
     }
   } else if (req.user.role === 'admin' && shopId) {
     // Admin can filter by specific shop
-    query = {'items.shop': shopId}
+    query = { 'items.shop': shopId }
   }
 
   // Date range filter
@@ -180,17 +180,17 @@ exports.exportOrders = asyncHandler(async (req, res, next) => {
 
   // Define CSV fields
   const fields = [
-    {label: 'Order ID', value: '_id'},
-    {label: 'Customer', value: 'customerName'},
-    {label: 'Email', value: 'customerEmail'},
-    {label: 'Items', value: 'items'},
-    {label: 'Total Price', value: 'totalPrice'},
-    {label: 'Status', value: 'status'},
-    {label: 'Payment Method', value: 'payment.method'},
-    {label: 'Payment Status', value: 'payment.status'},
-    {label: 'Shipping Address', value: 'shippingAddress'},
-    {label: 'Created At', value: 'createdAt'},
-    {label: 'Updated At', value: 'updatedAt'},
+    { label: 'Order ID', value: '_id' },
+    { label: 'Customer', value: 'customerName' },
+    { label: 'Email', value: 'customerEmail' },
+    { label: 'Items', value: 'items' },
+    { label: 'Total Price', value: 'totalPrice' },
+    { label: 'Status', value: 'status' },
+    { label: 'Payment Method', value: 'payment.method' },
+    { label: 'Payment Status', value: 'payment.status' },
+    { label: 'Shipping Address', value: 'shippingAddress' },
+    { label: 'Created At', value: 'createdAt' },
+    { label: 'Updated At', value: 'updatedAt' },
   ]
 
   // Export data to CSV
@@ -263,11 +263,11 @@ exports.exportRevenue = asyncHandler(async (req, res, next) => {
 
   // Generate revenue data
   const revenueData = {}
-  
+
   orders.forEach(order => {
     // Skip orders that aren't completed if you only want to count completed orders
     // if (order.status !== 'completed') return;
-    
+
     const orderDate = new Date(order.createdAt)
     let dateKey
 
@@ -279,7 +279,7 @@ exports.exportRevenue = asyncHandler(async (req, res, next) => {
     } else { // monthly
       dateKey = `${orderDate.getFullYear()}-${String(orderDate.getMonth() + 1).padStart(2, '0')}` // YYYY-MM
     }
-    
+
     if (!revenueData[dateKey]) {
       revenueData[dateKey] = {
         date: dateKey,
@@ -288,27 +288,27 @@ exports.exportRevenue = asyncHandler(async (req, res, next) => {
         items: 0
       }
     }
-    
+
     // Calculate revenue from this order (only from vendor's products)
     let orderRevenue = 0
     let itemCount = 0
-    
+
     order.items.forEach(item => {
       if (productIds.some(id => id.toString() === item.product._id.toString())) {
         orderRevenue += item.price * item.quantity
         itemCount += item.quantity
       }
     })
-    
+
     revenueData[dateKey].revenue += orderRevenue
     revenueData[dateKey].orders += 1
     revenueData[dateKey].items += itemCount
   })
-  
+
   // Convert to array and format for CSV
   const csvData = Object.values(revenueData).map(item => {
     let formattedDate = item.date
-    
+
     // Format the date for display
     if (period === 'monthly') {
       const [year, month] = item.date.split('-')
@@ -318,7 +318,7 @@ exports.exportRevenue = asyncHandler(async (req, res, next) => {
       const [year, week] = item.date.split('-')
       formattedDate = `Week ${week}, ${year}`
     }
-    
+
     return {
       ...item,
       formattedDate
@@ -327,7 +327,7 @@ exports.exportRevenue = asyncHandler(async (req, res, next) => {
     // Sort by date
     return a.date.localeCompare(b.date)
   })
-  
+
   // Define CSV fields
   const fields = [
     { label: 'Period', value: 'formattedDate' },
@@ -335,10 +335,10 @@ exports.exportRevenue = asyncHandler(async (req, res, next) => {
     { label: 'Orders', value: 'orders' },
     { label: 'Items Sold', value: 'items' }
   ]
-  
+
   // Export data to CSV
   const filePath = await exportToCSV(csvData, fields, `revenue-${period}`)
-  
+
   res.status(200).json({
     success: true,
     data: {
@@ -359,19 +359,19 @@ exports.importProducts = asyncHandler(async (req, res, next) => {
   }
 
   const shopId = req.body.shop
-  
+
   // If request is for sample format, provide it
   if (req.query.format === 'sample') {
     const sampleFormat = {
       fields: [
-        'name', 'description', 'price', 'stock', 'category', 
+        'name', 'description', 'price', 'stock', 'category',
         'isActive', 'images', 'specifications'
       ],
       sample: 'name,description,price,stock,category,isActive,images,specifications\n' +
-              '"Product Name","Product description goes here",299.99,100,"Electronics",true,"https://example.com/image1.jpg,https://example.com/image2.jpg","{"color":"black","weight":"200g"}"\n' +
-              '"Another Product","Another description",99.99,50,"Clothing",true,"https://example.com/image3.jpg","{"size":"M","material":"cotton"}"'
+        '"Product Name","Product description goes here",299.99,100,"Electronics",true,"https://example.com/image1.jpg,https://example.com/image2.jpg","{"color":"black","weight":"200g"}"\n' +
+        '"Another Product","Another description",99.99,50,"Clothing",true,"https://example.com/image3.jpg","{"size":"M","material":"cotton"}"'
     };
-    
+
     return res.status(200).json({
       success: true,
       data: {
@@ -404,113 +404,43 @@ exports.importProducts = asyncHandler(async (req, res, next) => {
     // Process the CSV file
     const result = await importFromCSV(req.file.path, async (row) => {
       // Basic validation
+      console.log("ROW ", row)
       if (!row.name || !row.price) {
         throw new Error('Product name and price are required');
       }
 
-      // Create or update product
-      let product;
-      if (row._id) {
-        // Try to find existing product
-        product = await Product.findById(row._id);
-      }
+      // Create new product
+      let product = new Product({
+        name: row.name,
+        description: row.description || '',
+        price: parseFloat(row.price),
+        type: row.type || 'product',
+        stock: parseInt(row.stock || 0),
+        units: row.units || 'kg',
+        category: row.category || 'Uncategorized',
+        isActive: true,
+        shop: req.user.shop_id,
+        images: row.images,
+        vendor: req.user.id,
+      });
 
-      if (product) {
-        // Update existing product
-        product.name = row.name;
-        product.description = row.description || product.description;
-        product.price = parseFloat(row.price);
-        product.stock = parseInt(row.stock || product.stock);
-        product.category = row.category || product.category;
-        
-        // Handle boolean values
-        if (row.isActive !== undefined) {
-          product.isActive = row.isActive.toString().toLowerCase() === 'true';
-        }
-        
-        // Handle arrays and objects (if they're provided as JSON strings)
-        if (row.images) {
-          try {
-            // Check if it's already a comma-separated list
-            if (row.images.includes(',')) {
-              product.images = row.images.split(',').map(url => url.trim());
-            } else if (row.images.startsWith('[')) {
-              // It's a JSON array
-              product.images = JSON.parse(row.images);
-            } else {
-              // Single value
-              product.images = [row.images];
-            }
-          } catch (e) {
-            product.images = [row.images]; // Fallback to treating as a single image
-          }
-        }
-        
-        if (row.specifications) {
-          try {
-            product.specifications = JSON.parse(row.specifications);
-          } catch (e) {
-            // If not valid JSON, store as is
-            product.specifications = row.specifications;
-          }
-        }
-        
-        // Save the updated product
+      // Save the new product
+      console.log("PRODUCT Before Save ", product)
+      try {
         await product.save();
-        return { action: 'updated', product };
-      } else {
-        // Create new product
-        product = new Product({
-          name: row.name,
-          description: row.description || '',
-          price: parseFloat(row.price),
-          stock: parseInt(row.stock || 0),
-          category: row.category || 'Uncategorized',
-          isActive: row.isActive ? row.isActive.toString().toLowerCase() === 'true' : true,
-          shop: shop._id,
-          vendor: req.user.id,
-        });
-        
-        // Handle arrays and objects (if they're provided as JSON strings)
-        if (row.images) {
-          try {
-            // Check if it's already a comma-separated list
-            if (row.images.includes(',')) {
-              product.images = row.images.split(',').map(url => url.trim());
-            } else if (row.images.startsWith('[')) {
-              // It's a JSON array
-              product.images = JSON.parse(row.images);
-            } else {
-              // Single value
-              product.images = [row.images];
-            }
-          } catch (e) {
-            product.images = [row.images]; // Fallback to treating as a single image
-          }
-        }
-        
-        if (row.specifications) {
-          try {
-            product.specifications = JSON.parse(row.specifications);
-          } catch (e) {
-            // If not valid JSON, store as is
-            product.specifications = row.specifications;
-          }
-        }
-        
-        // Save the new product
-        await product.save();
-        return { action: 'created', product };
+      } catch (error) {
+        console.log("ERROR ", error)
       }
+      console.log("PRODUCT After Save ", product)
+      return { action: 'created', product };
+
     });
 
     res.status(200).json({
       success: true,
       data: {
         message: 'Products imported successfully',
-        processed: result.processed,
-        created: result.details.filter(d => d.action === 'created').length,
-        updated: result.details.filter(d => d.action === 'updated').length,
+        processed: result.processed
       },
     });
   } catch (error) {
@@ -518,14 +448,14 @@ exports.importProducts = asyncHandler(async (req, res, next) => {
     if (error.message.includes('format') || error.message.includes('required')) {
       const sampleFormat = {
         fields: [
-          'name', 'description', 'price', 'stock', 'category', 
+          'name', 'description', 'price', 'stock', 'category',
           'isActive', 'images', 'specifications'
         ],
         sample: 'name,description,price,stock,category,isActive,images,specifications\n' +
-                '"Product Name","Product description goes here",299.99,100,"Electronics",true,"https://example.com/image1.jpg,https://example.com/image2.jpg","{"color":"black","weight":"200g"}"\n' +
-                '"Another Product","Another description",99.99,50,"Clothing",true,"https://example.com/image3.jpg","{"size":"M","material":"cotton"}"'
+          '"Product Name","Product description goes here",299.99,100,"Electronics",true,"https://example.com/image1.jpg,https://example.com/image2.jpg","{"color":"black","weight":"200g"}"\n' +
+          '"Another Product","Another description",99.99,50,"Clothing",true,"https://example.com/image3.jpg","{"size":"M","material":"cotton"}"'
       };
-      
+
       return res.status(400).json({
         success: false,
         message: error.message || 'Invalid CSV format',
@@ -534,7 +464,7 @@ exports.importProducts = asyncHandler(async (req, res, next) => {
         }
       });
     }
-    
+
     return next(new ErrorResponse(error.message || 'Error processing CSV file', 400));
   } finally {
     // Clean up the uploaded file
@@ -569,19 +499,19 @@ exports.downloadCSV = asyncHandler(async (req, res, next) => {
 exports.getVendorDashboard = async (req, res, next) => {
   try {
     const vendorId = req.user.id;
-    
+
     // Get vendor's products
     const products = await Product.find({ vendor: vendorId });
     const productIds = products.map(product => product._id);
-    
+
     // Get orders containing vendor's products
     const orders = await Order.find({
       'items.product': { $in: productIds }
     }).populate('user', 'name');
-    
+
     // Calculate total revenue
     let totalRevenue = 0;
-    
+
     // Process orders
     orders.forEach(order => {
       order.items.forEach(item => {
@@ -590,19 +520,19 @@ exports.getVendorDashboard = async (req, res, next) => {
         }
       });
     });
-    
+
     // Get order counts by status
     const pendingOrders = orders.filter(order => order.status === 'pending').length;
     const processingOrders = orders.filter(order => order.status === 'processing').length;
     const completedOrders = orders.filter(order => order.status === 'completed').length;
     const cancelledOrders = orders.filter(order => order.status === 'cancelled').length;
-    
+
     // Generate daily, weekly, and monthly revenue data
     const revenueData = await generateRevenueData(orders, productIds);
-    
+
     // Get top selling products
     const topProducts = getTopSellingProducts(orders, products, productIds);
-    
+
     // Format recent orders
     const recentOrders = orders
       .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
@@ -619,7 +549,7 @@ exports.getVendorDashboard = async (req, res, next) => {
         }, 0),
         status: order.status
       }));
-    
+
     // Compile dashboard data
     const dashboardData = {
       totalRevenue,
@@ -636,7 +566,7 @@ exports.getVendorDashboard = async (req, res, next) => {
       topProducts,
       recentOrders
     };
-    
+
     res.status(200).json({
       success: true,
       data: dashboardData
@@ -652,13 +582,13 @@ const generateRevenueData = async (orders, productIds) => {
   const ordersByDate = {};
   const ordersByWeek = {};
   const ordersByMonth = {};
-  
+
   orders.forEach(order => {
     const orderDate = new Date(order.createdAt);
     const dateKey = orderDate.toISOString().split('T')[0];
     const weekKey = getWeekNumber(orderDate);
     const monthKey = `${orderDate.getFullYear()}-${String(orderDate.getMonth() + 1).padStart(2, '0')}`;
-    
+
     // Calculate this order's revenue from vendor's products
     const orderRevenue = order.items.reduce((sum, item) => {
       if (productIds.some(id => id.toString() === item.product.toString())) {
@@ -666,26 +596,26 @@ const generateRevenueData = async (orders, productIds) => {
       }
       return sum;
     }, 0);
-    
+
     // Add to daily revenue
     if (!ordersByDate[dateKey]) {
       ordersByDate[dateKey] = 0;
     }
     ordersByDate[dateKey] += orderRevenue;
-    
+
     // Add to weekly revenue
     if (!ordersByWeek[weekKey]) {
       ordersByWeek[weekKey] = 0;
     }
     ordersByWeek[weekKey] += orderRevenue;
-    
+
     // Add to monthly revenue
     if (!ordersByMonth[monthKey]) {
       ordersByMonth[monthKey] = 0;
     }
     ordersByMonth[monthKey] += orderRevenue;
   });
-  
+
   // Format data for charts
   const daily = Object.keys(ordersByDate)
     .sort()
@@ -694,7 +624,7 @@ const generateRevenueData = async (orders, productIds) => {
       date: date,
       amount: ordersByDate[date]
     }));
-  
+
   const weekly = Object.keys(ordersByWeek)
     .sort()
     .slice(-4) // Last 4 weeks
@@ -702,7 +632,7 @@ const generateRevenueData = async (orders, productIds) => {
       week: `Week ${week.split('-')[1]}`,
       amount: ordersByWeek[week]
     }));
-  
+
   const monthly = Object.keys(ordersByMonth)
     .sort()
     .slice(-6) // Last 6 months
@@ -714,7 +644,7 @@ const generateRevenueData = async (orders, productIds) => {
         amount: ordersByMonth[month]
       };
     });
-  
+
   return { daily, weekly, monthly };
 };
 
@@ -729,7 +659,7 @@ const getWeekNumber = (date) => {
 const getTopSellingProducts = (orders, products, productIds) => {
   // Create a map to track sales and revenue by product
   const productSales = {};
-  
+
   // Initialize with all products
   products.forEach(product => {
     productSales[product._id.toString()] = {
@@ -739,7 +669,7 @@ const getTopSellingProducts = (orders, products, productIds) => {
       revenue: 0
     };
   });
-  
+
   // Count sales from orders
   orders.forEach(order => {
     order.items.forEach(item => {
@@ -750,7 +680,7 @@ const getTopSellingProducts = (orders, products, productIds) => {
       }
     });
   });
-  
+
   // Convert to array and sort by sales
   return Object.values(productSales)
     .sort((a, b) => b.sales - a.sales)
