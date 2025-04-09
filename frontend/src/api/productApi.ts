@@ -1,23 +1,23 @@
 import apiClient from './apiClient';
+import { Product } from '../types/product';
 
-type Product = {
-  _id: string;
+export interface ProductFormData {
   name: string;
   description: string;
-  price: number;
+  price?: number;
+  discountPrice?: number;
+  type?: string;
   category: string;
-  shop: string;
-  vendor: string;
-  stock: number;
+  units?: string;
+  stock?: number;
+  stockQuantity?: number;
+  discount?: number;  
   images: string[];
-  rating: number;
-  reviewCount: number;
-  isAvailable: boolean;
-  tags: string[];
-  specs: Record<string, string>;
-  createdAt: string;
-  updatedAt: string;
-};
+  tags?: string[];
+  specs?: Record<string, string>;
+  isAvailable?: boolean;
+  isActive?: boolean;
+}
 
 type ProductsResponse = {
   success: boolean;
@@ -56,7 +56,47 @@ export const getProductsByCategory = async (category: string): Promise<ProductsR
   return response.data;
 };
 
+export const getProductCategories = async (): Promise<{success: boolean, count: number, data: string[]}> => {
+  const response = await apiClient.get('/products/categories');
+  return response.data;
+};
+
 export const searchProducts = async (searchTerm: string): Promise<ProductsResponse> => {
   const response = await apiClient.get(`/products/search/${searchTerm}`);
+  return response.data;
+};
+
+// Vendor-specific API functions
+
+export const getVendorProducts = async (): Promise<Product[]> => {
+  const response = await apiClient.get('/products/vendor');
+  return response.data.data;
+};
+
+export const createProduct = async (productData: ProductFormData): Promise<SingleProductResponse> => {
+    const response = await apiClient.post('/products', productData);
+  return response.data;
+};
+
+export const updateProduct = async (productId: string, productData: Partial<ProductFormData>): Promise<SingleProductResponse> => {
+  const response = await apiClient.put(`/products/${productId}`, productData);
+  return response.data;
+};
+
+export const deleteProduct = async (productId: string): Promise<{ success: boolean }> => {
+  const response = await apiClient.delete(`/products/${productId}`);
+  return response.data;
+};
+
+export const uploadProductImage = async (file: File): Promise<{ success: boolean, data: string }> => {
+  const formData = new FormData();
+  formData.append('file', file);
+  
+  const response = await apiClient.post('/products/upload', formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data'
+    }
+  });
+  
   return response.data;
 }; 

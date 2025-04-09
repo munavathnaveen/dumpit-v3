@@ -42,15 +42,24 @@ const emailTemplates = {
   },
 
   // Password reset template
-  resetPassword: (name, resetUrl) => {
+  resetPassword: (name, webUrl, mobileDeepLink) => {
     return `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 5px;">
         <h2 style="color: #333;">Password Reset Request</h2>
         <p>Hello ${name},</p>
         <p>You have requested to reset your password.</p>
-        <p>Please click on the link below to reset your password:</p>
-        <p><a href="${resetUrl}" style="background-color: #4CAF50; color: white; padding: 10px 15px; text-decoration: none; border-radius: 3px;">Reset Password</a></p>
-        <p>This link will expire in 10 minutes.</p>
+        
+        <div style="margin: 20px 0;">
+          <p><strong>Option 1:</strong> If you're on your mobile device with the Dumpit app installed:</p>
+          <p><a href="${mobileDeepLink}" style="background-color: #4CAF50; color: white; padding: 10px 15px; text-decoration: none; border-radius: 3px; display: inline-block; margin-bottom: 10px;">Open in Dumpit App</a></p>
+        </div>
+        
+        <div style="margin: 20px 0;">
+          <p><strong>Option 2:</strong> Or use the web link below:</p>
+          <p><a href="${webUrl}" style="background-color: #2196F3; color: white; padding: 10px 15px; text-decoration: none; border-radius: 3px; display: inline-block;">Reset via Web</a></p>
+        </div>
+        
+        <p>This reset link will expire in 10 minutes.</p>
         <p>If you did not request this, please ignore this email and your password will remain unchanged.</p>
         <p>Best regards,<br>The Dumpit Team</p>
       </div>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -16,12 +16,13 @@ import {
 import { useSelector, useDispatch } from 'react-redux';
 import { useNavigation } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
-import { MaterialIcons, FontAwesome } from '@expo/vector-icons';
+import { MaterialIcons, FontAwesome, FontAwesome5 } from '@expo/vector-icons';
 import { Ionicons } from '@expo/vector-icons';
 
 import Card3D from '../components/Card3D';
 import Button from '../components/Button';
 import Input from '../components/Input';
+import ScreenHeader from '../components/ScreenHeader';
 import { theme } from '../theme';
 import { RootState, AppDispatch } from '../store';
 import { logout } from '../store/authSlice';
@@ -30,12 +31,15 @@ import * as userApi from '../api/userApi';
 import * as authApi from '../api/authApi';
 import { Address, AddressRequest } from '../api/userApi';
 import alert from '../utils/alert';
+import { USER_ROLES } from '../utils/constants';
 
 const ProfileScreen = () => {
   const dispatch = useDispatch<AppDispatch>();
   const navigation = useNavigation();
   const { user } = useSelector((state: RootState) => state.auth);
   const { addresses, loading } = useSelector((state: RootState) => state.user);
+  
+  const isVendor = user?.role === USER_ROLES.VENDOR;
 
   // Profile editing state
   const [isEditingProfile, setIsEditingProfile] = useState(false);
@@ -63,9 +67,17 @@ const ProfileScreen = () => {
   const [addressPhone, setAddressPhone] = useState('');
   const [isDefault, setIsDefault] = useState(false);
 
+  // Memoize the fetch addresses function
+  const fetchUserAddresses = useCallback(() => {
+    if (!isVendor && user?._id) {
+      dispatch(fetchAddresses());
+    }
+  }, [dispatch, isVendor, user?._id]);
+
+  // Only fetch addresses when the component mounts or when user ID changes
   useEffect(() => {
-    dispatch(fetchAddresses());
-  }, [dispatch]);
+    fetchUserAddresses();
+  }, [fetchUserAddresses]);
 
   // Avatar upload
   const handleAvatarUpload = async () => {
@@ -307,20 +319,9 @@ const ProfileScreen = () => {
 
   return (
     <View style={styles.container}>
-      {/* Header with back button */}
-      <View style={styles.header}>
-        <TouchableOpacity 
-          style={styles.backButton} 
-          onPress={() => navigation.goBack()}
-        >
-          <Ionicons name="chevron-back" size={24} color={theme.colors.text} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Profile</Text>
-        <View style={styles.placeholder} />
-      </View>
-      
-      <ScrollView style={styles.scrollView}>
-        {/* Profile Info */}
+      <ScreenHeader title="Profile" showBackButton={true} />
+      <ScrollView style={styles.scrollView} contentContainerStyle={styles.contentContainer}>
+        {/* Profile Card */}
         <Card3D style={styles.profileCard}>
           <View style={styles.avatarContainer}>
             <Image
@@ -424,121 +425,154 @@ const ProfileScreen = () => {
           )}
         </Card3D>
 
-        {/* Addresses */}
-        <Card3D style={styles.addressesCard}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>My Addresses</Text>
-            <TouchableOpacity 
-              style={styles.addButton} 
-              onPress={() => {
-                resetAddressForm();
-                setIsEditingAddress(false);
-                setIsAddingAddress(true);
-              }}
-            >
-              <MaterialIcons name="add" size={24} color={theme.colors.primary} />
-            </TouchableOpacity>
-          </View>
+        {/* Addresses - Only for customers */}
+        {!isVendor && (
+          <Card3D style={styles.addressesCard}>
+            <View style={styles.sectionHeader}>
+              <View style={styles.sectionHeaderLeft}>
+                <MaterialIcons name="location-on" size={24} color={theme.colors.primary} />
+                <Text style={styles.sectionTitle}>My Addresses</Text>
+              </View>
+              <TouchableOpacity
+                style={styles.addButton}
+                onPress={() => {
+                  resetAddressForm();
+                  setIsAddingAddress(true);
+                }}
+              >
+                <FontAwesome name="plus" size={16} color={theme.colors.white} />
+                <Text style={styles.addButtonText}>Add New</Text>
+              </TouchableOpacity>
+            </View>
 
-          {addresses.length === 0 ? (
-            <Text style={styles.noAddressesText}>No addresses saved yet.</Text>
-          ) : (
-            addresses.map((address) => handleAddressCard(address))
-          )}
-        </Card3D>
-
-        {/* Address Form */}
-        <Modal
-          visible={isAddingAddress}
-          transparent={true}
-          animationType="slide"
-          onRequestClose={() => {
-            setIsAddingAddress(false);
-            resetAddressForm();
-          }}
-        >
-          <View style={styles.modalOverlay}>
-            <Card3D style={styles.modalContainer}>
-              <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>
-                  {isEditingAddress ? 'Edit Address' : 'Add New Address'}
-                </Text>
+            {loading ? (
+              <ActivityIndicator size="large" color={theme.colors.primary} />
+            ) : addresses.length === 0 ? (
+              <View style={styles.emptyAddressContainer}>
+                <FontAwesome5 name="map-marker-alt" size={50} color={theme.colors.gray} />
+                <Text style={styles.noAddressesText}>No addresses found</Text>
                 <TouchableOpacity
+                  style={styles.addAddressButton}
                   onPress={() => {
-                    setIsAddingAddress(false);
                     resetAddressForm();
+                    setIsAddingAddress(true);
                   }}
                 >
-                  <MaterialIcons name="close" size={24} color={theme.colors.text} />
+                  <Text style={styles.addAddressButtonText}>Add New Address</Text>
                 </TouchableOpacity>
               </View>
-              <ScrollView style={styles.modalBody}>
-                <Input
-                  label="Address Name (e.g. Home, Work)"
-                  value={addressName}
-                  onChangeText={setAddressName}
-                  placeholder="Enter a name for this address"
-                />
-                <Input
-                  label="Village/Town"
-                  value={village}
-                  onChangeText={setVillage}
-                  placeholder="Enter village or town"
-                />
-                <Input
-                  label="Street"
-                  value={street}
-                  onChangeText={setStreet}
-                  placeholder="Enter street name"
-                />
-                <Input
-                  label="District"
-                  value={district}
-                  onChangeText={setDistrict}
-                  placeholder="Enter district"
-                />
-                <Input
-                  label="State"
-                  value={state}
-                  onChangeText={setState}
-                  placeholder="Enter state"
-                />
-                <Input
-                  label="Pincode"
-                  value={pincode}
-                  onChangeText={setPincode}
-                  placeholder="Enter pincode"
-                  keyboardType="number-pad"
-                  maxLength={6}
-                />
-                <Input
-                  label="Phone Number"
-                  value={addressPhone}
-                  onChangeText={setAddressPhone}
-                  placeholder="Enter phone number"
-                  keyboardType="phone-pad"
-                  maxLength={10}
-                />
-                <View style={styles.switchContainer}>
-                  <Text style={styles.switchLabel}>Set as default address</Text>
-                  <Switch
-                    value={isDefault}
-                    onValueChange={setIsDefault}
-                    trackColor={{ false: theme.colors.lightGray, true: theme.colors.primary }}
-                    thumbColor={theme.colors.white}
-                  />
-                </View>
-                <Button
-                  title="Save Address"
-                  onPress={handleSaveAddress}
-                  style={styles.saveButton}
-                  variant="primary"
-                />
-              </ScrollView>
-            </Card3D>
-          </View>
-        </Modal>
+            ) : (
+              <View style={styles.addressList}>
+                {addresses.map(address => (
+                  <View key={address._id} style={styles.addressItem}>
+                    {handleAddressCard(address)}
+                  </View>
+                ))}
+              </View>
+            )}
+          </Card3D>
+        )}
+
+        {/* Logout Button */}
+        <TouchableOpacity
+          style={styles.logoutButton}
+          onPress={handleLogout}
+        >
+          <Text style={styles.logoutButtonText}>Logout</Text>
+        </TouchableOpacity>
       </ScrollView>
+
+      {/* Address Form Modal */}
+      <Modal
+        visible={isAddingAddress}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => {
+          setIsAddingAddress(false);
+          resetAddressForm();
+        }}
+      >
+        <View style={styles.modalOverlay}>
+          <Card3D style={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>
+                {isEditingAddress ? 'Edit Address' : 'Add New Address'}
+              </Text>
+              <TouchableOpacity
+                onPress={() => {
+                  setIsAddingAddress(false);
+                  resetAddressForm();
+                }}
+              >
+                <MaterialIcons name="close" size={24} color={theme.colors.text} />
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={styles.modalBody}>
+              <Input
+                label="Address Name (e.g. Home, Work)"
+                value={addressName}
+                onChangeText={setAddressName}
+                placeholder="Enter a name for this address"
+              />
+              <Input
+                label="Village/Town"
+                value={village}
+                onChangeText={setVillage}
+                placeholder="Enter village or town"
+              />
+              <Input
+                label="Street"
+                value={street}
+                onChangeText={setStreet}
+                placeholder="Enter street name"
+              />
+              <Input
+                label="District"
+                value={district}
+                onChangeText={setDistrict}
+                placeholder="Enter district"
+              />
+              <Input
+                label="State"
+                value={state}
+                onChangeText={setState}
+                placeholder="Enter state"
+              />
+              <Input
+                label="Pincode"
+                value={pincode}
+                onChangeText={setPincode}
+                placeholder="Enter pincode"
+                keyboardType="number-pad"
+                maxLength={6}
+              />
+              <Input
+                label="Phone Number"
+                value={addressPhone}
+                onChangeText={setAddressPhone}
+                placeholder="Enter phone number"
+                keyboardType="phone-pad"
+                maxLength={10}
+              />
+              <View style={styles.switchContainer}>
+                <Text style={styles.switchLabel}>Set as default address</Text>
+                <Switch
+                  value={isDefault}
+                  onValueChange={setIsDefault}
+                  trackColor={{ false: theme.colors.lightGray, true: theme.colors.primary }}
+                  thumbColor={theme.colors.white}
+                />
+              </View>
+              <Button
+                title="Save Address"
+                onPress={handleSaveAddress}
+                style={styles.saveButton}
+                variant="primary"
+              />
+            </ScrollView>
+          </Card3D>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -547,35 +581,18 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.colors.background,
-    padding: theme.spacing.md,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: theme.spacing.md,
-    paddingVertical: theme.spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.lightGray,
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: theme.colors.text,
-  },
-  backButton: {
-    padding: theme.spacing.xs,
-  },
-  placeholder: {
-    width: 24, // Same size as back button for alignment
-  },
   scrollView: {
     flex: 1,
+  },
+  contentContainer: {
+    padding: theme.spacing.md,
+    paddingBottom: 100,
   },
   profileCard: {
     alignItems: 'center',
@@ -659,18 +676,52 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: theme.spacing.md,
   },
+  sectionHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
   sectionTitle: {
     fontSize: 18,
     fontWeight: 'bold',
     color: theme.colors.text,
   },
   addButton: {
-    padding: theme.spacing.xs,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: theme.colors.primary,
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: theme.spacing.xs,
+    borderRadius: theme.borderRadius.small,
+  },
+  addButtonText: {
+    color: theme.colors.white,
+    marginLeft: theme.spacing.xs,
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
+  emptyAddressContainer: {
+    alignItems: 'center',
+    paddingVertical: theme.spacing.xl,
   },
   noAddressesText: {
     color: theme.colors.textLight,
-    textAlign: 'center',
-    marginVertical: theme.spacing.lg,
+    marginTop: theme.spacing.md,
+    marginBottom: theme.spacing.lg,
+    fontSize: 16,
+  },
+  addAddressButton: {
+    backgroundColor: theme.colors.primary,
+    paddingHorizontal: theme.spacing.lg,
+    paddingVertical: theme.spacing.sm,
+    borderRadius: theme.borderRadius.medium,
+  },
+  addAddressButtonText: {
+    color: theme.colors.white,
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  addressList: {
+    gap: theme.spacing.md,
   },
   addressCard: {
     backgroundColor: theme.colors.background,
@@ -724,6 +775,18 @@ const styles = StyleSheet.create({
     color: theme.colors.textLight,
     marginBottom: 2,
   },
+  logoutButton: {
+    backgroundColor: theme.colors.error,
+    padding: theme.spacing.md,
+    borderRadius: theme.borderRadius.medium,
+    alignItems: 'center',
+    marginTop: theme.spacing.md,
+  },
+  logoutButtonText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: theme.colors.white,
+  },
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
@@ -761,6 +824,9 @@ const styles = StyleSheet.create({
   },
   saveButton: {
     marginTop: theme.spacing.md,
+  },
+  addressItem: {
+    marginBottom: theme.spacing.md,
   },
 });
 

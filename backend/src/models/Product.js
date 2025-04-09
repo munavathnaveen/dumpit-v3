@@ -23,10 +23,10 @@ const ProductSchema = new mongoose.Schema(
       required: [true, 'Please specify the product category'],
       trim: true,
     },
-    rate: {
+    price: {
       type: Number,
-      required: [true, 'Please add a rate'],
-      min: [0, 'Rate must be at least 0'],
+      required: [true, 'Please add a price'],
+      min: [0, 'Price must be at least 0'],
     },
     units: {
       type: String,

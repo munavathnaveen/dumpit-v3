@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   Switch,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useSelector, useDispatch } from 'react-redux';
@@ -14,6 +15,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons, Feather } from '@expo/vector-icons';
 
 import Card3D from '../components/Card3D';
+import ScreenHeader from '../components/ScreenHeader';
 import { theme } from '../theme';
 import { RootState, AppDispatch } from '../store';
 import {
@@ -22,6 +24,7 @@ import {
   updateNotificationSettings,
 } from '../store/userSlice';
 import { MainStackParamList } from '../navigation/types';
+import { USER_ROLES } from '../utils/constants';
 
 type NotificationScreenNavigationProp = NativeStackNavigationProp<MainStackParamList, 'Notifications'>;
 
@@ -31,8 +34,10 @@ const NotificationsScreen = () => {
   const { user } = useSelector((state: RootState) => state.auth);
   const { notifications, notificationSettings, loading } = useSelector((state: RootState) => state.user);
   
+  const isVendor = user?.role === USER_ROLES.VENDOR;
   const [emailNotifications, setEmailNotifications] = useState(notificationSettings?.email || false);
   const [pushNotifications, setPushNotifications] = useState(notificationSettings?.push || false);
+  const [expanded, setExpanded] = useState(true);
 
   useEffect(() => {
     if (user?._id) {
@@ -51,6 +56,33 @@ const NotificationsScreen = () => {
   const handleMarkAsRead = (notificationId: string) => {
     if (user?._id) {
       dispatch(markNotificationRead({ userId: user._id, notificationId }));
+    }
+  };
+
+  const handleMarkAllAsRead = () => {
+    if (user?._id && filteredNotifications.length > 0) {
+      // Create a confirmation alert
+      Alert.alert(
+        "Mark All as Read",
+        "Are you sure you want to mark all notifications as read?",
+        [
+          {
+            text: "Cancel",
+            style: "cancel"
+          },
+          {
+            text: "Confirm",
+            onPress: () => {
+              // Mark each notification as read
+              filteredNotifications.forEach(notification => {
+                if (!notification.read) {
+                  dispatch(markNotificationRead({ userId: user._id, notificationId: notification._id }));
+                }
+              });
+            }
+          }
+        ]
+      );
     }
   };
 
@@ -90,52 +122,115 @@ const NotificationsScreen = () => {
 
   if (loading) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={theme.colors.primary} />
+      <View style={styles.container}>
+        <ScreenHeader title="Notifications" showBackButton={true} />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={theme.colors.primary} />
+        </View>
       </View>
     );
   }
 
+  // Filter notifications based on role
+  const filteredNotifications = isVendor 
+    ? notifications.filter(notification => 
+        notification.message.includes('order') || 
+        notification.message.includes('product') || 
+        notification.message.includes('payment') ||
+        notification.message.includes('shop'))
+    : notifications;
+
+  const unreadCount = filteredNotifications.filter(notification => !notification.read).length;
+
   return (
     <View style={styles.container}>
-      {/* Header with back button */}
-      <View style={styles.header}>
-        <TouchableOpacity 
-          style={styles.backButton} 
-          onPress={() => navigation.goBack()}
-        >
-          <Ionicons name="chevron-back" size={24} color={theme.colors.text} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Notifications</Text>
-        <View style={styles.placeholder} />
+      <ScreenHeader 
+        title="Notifications" 
+        showBackButton={true} 
+        onNotificationPress={() => navigation.navigate('Notifications')}
+      />
+
+      {/* Notification Statistics */}
+      <View style={styles.statsContainer}>
+        <Card3D style={styles.statsCard}>
+          <View style={styles.statsRow}>
+            <View style={styles.statItem}>
+              <Text style={styles.statValue}>{filteredNotifications.length}</Text>
+              <Text style={styles.statLabel}>Total</Text>
+            </View>
+            <View style={styles.statItem}>
+              <Text style={[styles.statValue, unreadCount > 0 ? styles.unreadValue : null]}>
+                {unreadCount}
+              </Text>
+              <Text style={styles.statLabel}>Unread</Text>
+            </View>
+            {unreadCount > 0 && (
+              <TouchableOpacity 
+                style={styles.markAllButton}
+                onPress={handleMarkAllAsRead}
+              >
+                <Text style={styles.markAllText}>Mark All Read</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </Card3D>
       </View>
 
       {/* Notification Settings */}
-      <Card3D style={styles.settingsCard}>
+      <TouchableOpacity 
+        style={styles.settingsHeader} 
+        onPress={() => setExpanded(!expanded)}
+      >
         <Text style={styles.settingsTitle}>Notification Settings</Text>
-        <View style={styles.settingRow}>
-          <Text style={styles.settingText}>Email Notifications</Text>
-          <Switch
-            value={emailNotifications}
-            onValueChange={handleToggleEmailNotifications}
-            trackColor={{ false: theme.colors.lightGray, true: theme.colors.primary }}
-            thumbColor={theme.colors.white}
-          />
-        </View>
-        <View style={styles.settingRow}>
-          <Text style={styles.settingText}>Push Notifications</Text>
-          <Switch
-            value={pushNotifications}
-            onValueChange={handleTogglePushNotifications}
-            trackColor={{ false: theme.colors.lightGray, true: theme.colors.primary }}
-            thumbColor={theme.colors.white}
-          />
-        </View>
-      </Card3D>
+        <Feather 
+          name={expanded ? "chevron-up" : "chevron-down"} 
+          size={20} 
+          color={theme.colors.text} 
+        />
+      </TouchableOpacity>
+      
+      {expanded && (
+        <Card3D style={styles.settingsCard}>
+          <View style={styles.settingRow}>
+            <View style={styles.settingLabelContainer}>
+              <Ionicons name="mail-outline" size={18} color={theme.colors.primary} style={styles.settingIcon} />
+              <Text style={styles.settingText}>Email Notifications</Text>
+            </View>
+            <Switch
+              value={emailNotifications}
+              onValueChange={handleToggleEmailNotifications}
+              trackColor={{ false: theme.colors.lightGray, true: theme.colors.primary }}
+              thumbColor={theme.colors.white}
+            />
+          </View>
+          <View style={styles.divider} />
+          <View style={styles.settingRow}>
+            <View style={styles.settingLabelContainer}>
+              <Ionicons name="notifications-outline" size={18} color={theme.colors.primary} style={styles.settingIcon} />
+              <Text style={styles.settingText}>Push Notifications</Text>
+            </View>
+            <Switch
+              value={pushNotifications}
+              onValueChange={handleTogglePushNotifications}
+              trackColor={{ false: theme.colors.lightGray, true: theme.colors.primary }}
+              thumbColor={theme.colors.white}
+            />
+          </View>
+        </Card3D>
+      )}
+
+      {/* Role-specific message */}
+      <View style={styles.roleInfoContainer}>
+        <Text style={styles.roleInfoText}>
+          {isVendor 
+            ? "You are receiving vendor-specific notifications about your shop, products, and orders." 
+            : "You are receiving customer notifications about your orders and account activity."}
+        </Text>
+      </View>
 
       {/* Notifications List */}
       <FlatList
-        data={notifications}
+        data={filteredNotifications}
         keyExtractor={(item) => item._id}
         renderItem={({ item }) => (
           <TouchableOpacity
@@ -181,38 +276,59 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  header: {
+  statsContainer: {
+    marginBottom: theme.spacing.md,
+  },
+  statsCard: {
+    padding: theme.spacing.md,
+  },
+  statsRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+  },
+  statItem: {
+    alignItems: 'center',
+    marginRight: theme.spacing.md,
+  },
+  statValue: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: theme.colors.text,
+  },
+  unreadValue: {
+    color: theme.colors.primary,
+  },
+  statLabel: {
+    fontSize: 12,
+    color: theme.colors.textLight,
+  },
+  markAllButton: {
+    backgroundColor: theme.colors.primaryLight,
+    paddingVertical: theme.spacing.xs,
+    paddingHorizontal: theme.spacing.md,
+    borderRadius: theme.borderRadius.small,
+  },
+  markAllText: {
+    fontSize: 12,
+    color: theme.colors.primary,
+    fontWeight: 'bold',
+  },
+  settingsHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     paddingVertical: theme.spacing.sm,
-    marginBottom: theme.spacing.md,
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: theme.colors.text,
-  },
-  backButton: {
-    padding: theme.spacing.xs,
-  },
-  placeholder: {
-    width: 24, // Same size as back button for alignment
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginVertical: theme.spacing.lg,
-    color: theme.colors.text,
-  },
-  settingsCard: {
-    marginBottom: theme.spacing.lg,
+    marginBottom: theme.spacing.xs,
   },
   settingsTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    marginBottom: theme.spacing.md,
     color: theme.colors.text,
+  },
+  settingsCard: {
+    marginBottom: theme.spacing.md,
+    padding: theme.spacing.md,
   },
   settingRow: {
     flexDirection: 'row',
@@ -220,9 +336,32 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: theme.spacing.sm,
   },
+  settingLabelContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  settingIcon: {
+    marginRight: theme.spacing.sm,
+  },
   settingText: {
     fontSize: 16,
     color: theme.colors.text,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: theme.colors.lightGray,
+    marginVertical: theme.spacing.xs,
+  },
+  roleInfoContainer: {
+    marginBottom: theme.spacing.md,
+    padding: theme.spacing.sm,
+    backgroundColor: theme.colors.primaryLight,
+    borderRadius: theme.borderRadius.small,
+  },
+  roleInfoText: {
+    fontSize: 14,
+    color: theme.colors.primary,
+    textAlign: 'center',
   },
   listContent: {
     paddingBottom: theme.spacing.xl,

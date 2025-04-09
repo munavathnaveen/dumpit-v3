@@ -14,7 +14,7 @@ import { theme } from '../theme';
 import { loginSchema, LoginFormData } from '../utils/validationSchemas';
 import { login } from '../store/authSlice';
 import { RootState, AppDispatch } from '../store';
-import { constants } from '../utils/constants';
+import { constants, USER_ROLES } from '../utils/constants';
 import alert from '../utils/alert';
 
 const LoginScreen: React.FC = () => {
@@ -45,7 +45,7 @@ const LoginScreen: React.FC = () => {
       // Dispatch login action with role
       await dispatch(login({
         ...formData,
-        role: role === 'vendor' ? constants.userRoles.VENDOR : constants.userRoles.CUSTOMER
+        role: role === 'vendor' ? USER_ROLES.VENDOR : USER_ROLES.CUSTOMER
       })).unwrap();
       
       // Navigation happens automatically due to the authentication state change

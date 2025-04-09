@@ -20,10 +20,10 @@ const productSchema = Joi.object({
     'string.empty': 'Product category is required',
   }),
 
-  rate: Joi.number().min(0).required().messages({
-    'number.base': 'Rate must be a number',
-    'number.min': 'Rate must be at least 0',
-    'any.required': 'Rate is required',
+  price: Joi.number().min(0).required().messages({
+    'number.base': 'Price must be a number',
+    'number.min': 'Price must be at least 0',
+    'any.required': 'Price is required',
   }),
 
   units: Joi.string().trim().required().messages({

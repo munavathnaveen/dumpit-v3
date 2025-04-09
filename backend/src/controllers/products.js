@@ -131,13 +131,13 @@ exports.createProduct = async (req, res, next) => {
 
     // Add vendor and shop to req.body
     req.body.vendor = req.user.id
-    req.body.shop = req.params.shopId
-
+    req.body.shop = req.user.shop_id
+    console.log(req.user);
     // Check if shop exists
-    const shop = await Shop.findById(req.params.shopId)
+    const shop = await Shop.findById(req.user.shop_id)
 
     if (!shop) {
-      return next(new ErrorResponse(`Shop not found with id of ${req.params.shopId}`, 404))
+      return next(new ErrorResponse(`Shop not found with id of ${req.params.shop_id}`, 404))
     }
 
     // Make sure user is shop owner
@@ -202,7 +202,7 @@ exports.deleteProduct = async (req, res, next) => {
       return next(new ErrorResponse(`User ${req.user.id} is not authorized to delete this product`, 401))
     }
 
-    await product.remove()
+    await product.deleteOne()
 
     res.status(200).json({
       success: true,
@@ -233,25 +233,59 @@ exports.uploadProductImages = async (req, res, next) => {
       return next(new ErrorResponse('Please upload at least one file', 400))
     }
 
+    // Validate each file
+    for (const file of req.files) {
+      // Check file type if not already done by multer
+      const filetypes = /jpeg|jpg|png|gif/
+      const mimetype = filetypes.test(file.mimetype)
+      
+      if (!mimetype) {
+        return next(new ErrorResponse(`File type ${file.mimetype} is not supported. Please upload only image files.`, 400))
+      }
+      
+      // Check file size (5MB max)
+      if (file.size > 5 * 1024 * 1024) {
+        return next(new ErrorResponse(`File ${file.originalname} exceeds the 5MB size limit.`, 400))
+      }
+    }
+
     const imageUrls = []
+    const uploadErrors = []
 
     // Process each file
     for (const file of req.files) {
-      const result = await uploadToCloudinary(file, 'products')
-      imageUrls.push(result.url)
+      try {
+        const result = await uploadToCloudinary(file, 'products')
+        imageUrls.push(result.url)
+      } catch (error) {
+        // Log the error but continue with other uploads
+        console.error(`Error uploading ${file.originalname}:`, error)
+        uploadErrors.push({
+          file: file.originalname,
+          error: error.message || 'Failed to upload to cloud storage'
+        })
+      }
     }
 
-    // Add images to product
+    if (imageUrls.length === 0 && uploadErrors.length > 0) {
+      return next(new ErrorResponse('All image uploads failed. Please try again.', 500))
+    }
+
+    // Add successfully uploaded images to product
     product.images = [...product.images, ...imageUrls]
     await product.save()
 
     res.status(200).json({
       success: true,
       count: imageUrls.length,
-      data: product.images,
+      data: {
+        images: product.images,
+        uploadErrors: uploadErrors.length > 0 ? uploadErrors : undefined
+      }
     })
   } catch (err) {
-    next(err)
+    console.error('Product image upload error:', err)
+    next(new ErrorResponse('Error processing image upload: ' + (err.message || 'Unknown error'), 500))
   }
 }
 
@@ -317,5 +351,45 @@ exports.searchProducts = async (req, res, next) => {
     })
   } catch (err) {
     next(err)
+  }
+}
+
+// @desc    Get products for logged in vendor
+// @route   GET /api/v1/products/vendor
+// @access  Private (Vendor only)
+exports.getVendorProducts = async (req, res, next) => {
+  try {
+    // Get products for the logged in vendor
+    const products = await Product.find({ vendor: req.user.id })
+      .populate([
+        {path: 'shop', select: 'name'},
+      ])
+      .sort('-createdAt')
+
+    res.status(200).json({
+      success: true,
+      count: products.length,
+      data: products,
+    })
+  } catch (err) {
+    next(err)
+  }
+}
+
+// @desc    Get all product categories
+// @route   GET /api/v1/products/categories
+// @access  Public
+exports.getProductCategories = async (req, res, next) => {
+  try {
+    // Find all distinct category values in Product collection
+    const categories = await Product.distinct('category');
+    
+    res.status(200).json({
+      success: true,
+      count: categories.length,
+      data: categories.sort(),
+    });
+  } catch (err) {
+    next(err);
   }
 }

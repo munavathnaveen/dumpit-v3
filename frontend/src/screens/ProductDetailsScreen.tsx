@@ -36,12 +36,14 @@ const ProductDetailsScreen: React.FC = () => {
   }, [dispatch, productId]);
   
   const handleAddToCart = () => {
-    dispatch(addToCart(productId));
+    if (product) {
+      dispatch(addToCart({ productId, quantity }));
+    }
   };
   
   const handleQuantityChange = (value: number) => {
     const newQuantity = quantity + value;
-    if (newQuantity >= 1) {
+    if (newQuantity >= 1 && product && newQuantity <= product.stock) {
       setQuantity(newQuantity);
     }
   };
@@ -71,6 +73,11 @@ const ProductDetailsScreen: React.FC = () => {
     );
   }
   
+  // Calculate discounted price if there's a discount
+  const discountedPrice = product.discount > 0 
+    ? product.price - (product.price * (product.discount / 100))
+    : null;
+  
   return (
     <View style={styles.container}>
       <TouchableOpacity style={styles.backIconButton} onPress={handleGoBack}>
@@ -87,15 +94,48 @@ const ProductDetailsScreen: React.FC = () => {
         <View style={styles.contentContainer}>
           <Text style={styles.productName}>{product.name}</Text>
           
+          <View style={styles.categoryContainer}>
+            <Text style={styles.categoryText}>{product.category}</Text>
+            <Text style={styles.typeText}>{product.type}</Text>
+          </View>
+          
           <View style={styles.priceContainer}>
-            <Text style={styles.priceLabel}>Price:</Text>
-            <Text style={styles.priceValue}>₹{product.price.toFixed(2)}</Text>
+            {discountedPrice ? (
+              <>
+                <Text style={styles.priceLabel}>Price:</Text>
+                <Text style={[styles.priceValue, styles.strikethrough]}>
+                  ₹{product.price.toFixed(2)}
+                </Text>
+                <Text style={styles.discountedPrice}>
+                  ₹{discountedPrice.toFixed(2)}
+                </Text>
+                <View style={styles.discountBadge}>
+                  <Text style={styles.discountText}>{product.discount}% OFF</Text>
+                </View>
+              </>
+            ) : (
+              <>
+                <Text style={styles.priceLabel}>Price:</Text>
+                <Text style={styles.priceValue}>₹{product.price.toFixed(2)}</Text>
+              </>
+            )}
+          </View>
+          
+          <View style={styles.stockInfo}>
+            <Text style={[
+              styles.stockText, 
+              product.stock > 0 ? styles.inStock : styles.outOfStock
+            ]}>
+              {product.stock > 0 ? `In Stock (${product.stock} ${product.units})` : 'Out of Stock'}
+            </Text>
           </View>
           
           <View style={styles.ratingContainer}>
             <FontAwesome name="star" size={16} color="#FFD700" />
             <Text style={styles.ratingText}>{product.rating.toFixed(1)}</Text>
-            <Text style={styles.reviewCountText}>({product.reviewCount} reviews)</Text>
+            <Text style={styles.reviewCountText}>(
+              {product.reviews ? product.reviews.length : 0} reviews)
+            </Text>
           </View>
           
           <View style={styles.divider} />
@@ -105,29 +145,47 @@ const ProductDetailsScreen: React.FC = () => {
           
           <View style={styles.divider} />
           
-          {product.specs && Object.keys(product.specs).length > 0 && (
+          {product.vendor && (
             <>
-              <Text style={styles.sectionTitle}>Specifications</Text>
-              <Card3D style={styles.specsCard}>
-                {Object.entries(product.specs).map(([key, value], index) => (
-                  <View key={index} style={styles.specRow}>
-                    <Text style={styles.specKey}>{key}</Text>
-                    <Text style={styles.specValue}>{value}</Text>
-                  </View>
-                ))}
-              </Card3D>
+              <Text style={styles.sectionTitle}>Sold By</Text>
+              <TouchableOpacity 
+                style={styles.vendorContainer}
+                onPress={() => navigation.navigate('ShopDetails', { shopId: product.shop._id })}
+              >
+                <Text style={styles.vendorName}>{product.shop.name}</Text>
+                <FontAwesome name="chevron-right" size={14} color={theme.colors.textLight} />
+              </TouchableOpacity>
               <View style={styles.divider} />
             </>
           )}
           
-          {product.tags && product.tags.length > 0 && (
-            <View style={styles.tagsContainer}>
-              {product.tags.map((tag, index) => (
-                <View key={index} style={styles.tagChip}>
-                  <Text style={styles.tagText}>{tag}</Text>
+          {product.reviews && product.reviews.length > 0 && (
+            <>
+              <Text style={styles.sectionTitle}>Reviews</Text>
+              {product.reviews.slice(0, 3).map((review, index) => (
+                <View key={index} style={styles.reviewItem}>
+                  <View style={styles.reviewHeader}>
+                    <Text style={styles.reviewerName}>{review.user.name}</Text>
+                    <View style={styles.reviewRating}>
+                      <FontAwesome name="star" size={14} color="#FFD700" />
+                      <Text style={styles.reviewRatingText}>{review.rating}</Text>
+                    </View>
+                  </View>
+                  <Text style={styles.reviewText}>{review.text}</Text>
+                  <Text style={styles.reviewDate}>
+                    {new Date(review.createdAt).toLocaleDateString()}
+                  </Text>
                 </View>
               ))}
-            </View>
+              {product.reviews.length > 3 && (
+                <TouchableOpacity style={styles.moreReviewsButton}>
+                  <Text style={styles.moreReviewsText}>
+                    See all {product.reviews.length} reviews
+                  </Text>
+                </TouchableOpacity>
+              )}
+              <View style={styles.divider} />
+            </>
           )}
         </View>
       </ScrollView>
@@ -135,28 +193,50 @@ const ProductDetailsScreen: React.FC = () => {
       <View style={styles.footer}>
         <View style={styles.quantityContainer}>
           <TouchableOpacity 
-            style={styles.quantityButton}
+            style={[
+              styles.quantityButton,
+              quantity <= 1 && styles.quantityButtonDisabled
+            ]}
             onPress={() => handleQuantityChange(-1)}
+            disabled={quantity <= 1}
           >
-            <FontAwesome name="minus" size={16} color={theme.colors.text} />
+            <FontAwesome 
+              name="minus" 
+              size={16} 
+              color={quantity <= 1 ? theme.colors.textLight : theme.colors.text} 
+            />
           </TouchableOpacity>
           
           <Text style={styles.quantityText}>{quantity}</Text>
           
           <TouchableOpacity 
-            style={styles.quantityButton}
+            style={[
+              styles.quantityButton,
+              quantity >= product.stock && styles.quantityButtonDisabled
+            ]}
             onPress={() => handleQuantityChange(1)}
+            disabled={quantity >= product.stock}
           >
-            <FontAwesome name="plus" size={16} color={theme.colors.text} />
+            <FontAwesome 
+              name="plus" 
+              size={16} 
+              color={quantity >= product.stock ? theme.colors.textLight : theme.colors.text} 
+            />
           </TouchableOpacity>
         </View>
         
         <TouchableOpacity 
-          style={styles.addToCartButton}
+          style={[
+            styles.addToCartButton,
+            product.stock <= 0 && styles.disabledButton
+          ]}
           onPress={handleAddToCart}
+          disabled={product.stock <= 0}
         >
           <FontAwesome name="shopping-cart" size={18} color={theme.colors.white} />
-          <Text style={styles.addToCartText}>Add to Cart</Text>
+          <Text style={styles.addToCartText}>
+            {product.stock > 0 ? 'Add to Cart' : 'Out of Stock'}
+          </Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -225,6 +305,27 @@ const styles = StyleSheet.create({
     color: theme.colors.text,
     marginBottom: 8,
   },
+  categoryContainer: {
+    flexDirection: 'row',
+    marginBottom: 12,
+  },
+  categoryText: {
+    fontSize: 16,
+    color: theme.colors.textLight,
+    backgroundColor: `${theme.colors.primary}15`,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 20,
+    marginRight: 8,
+  },
+  typeText: {
+    fontSize: 16,
+    color: theme.colors.textLight,
+    backgroundColor: `${theme.colors.secondary}15`,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 20,
+  },
   priceContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -240,6 +341,42 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: theme.colors.primary,
   },
+  strikethrough: {
+    textDecorationLine: 'line-through',
+    color: theme.colors.textLight,
+    fontSize: 20,
+  },
+  discountedPrice: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: theme.colors.primary,
+    marginLeft: 8,
+  },
+  discountBadge: {
+    backgroundColor: theme.colors.error,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 16,
+    marginLeft: 8,
+  },
+  discountText: {
+    color: theme.colors.white,
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  stockInfo: {
+    marginBottom: 8,
+  },
+  stockText: {
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  inStock: {
+    color: theme.colors.success,
+  },
+  outOfStock: {
+    color: theme.colors.error,
+  },
   ratingContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -248,17 +385,16 @@ const styles = StyleSheet.create({
   ratingText: {
     marginLeft: 4,
     fontSize: 14,
-    fontWeight: 'bold',
     color: theme.colors.text,
   },
   reviewCountText: {
-    marginLeft: 4,
     fontSize: 14,
     color: theme.colors.textLight,
+    marginLeft: 4,
   },
   divider: {
     height: 1,
-    backgroundColor: theme.colors.lightGray,
+    backgroundColor: theme.colors.border,
     marginVertical: 16,
   },
   sectionTitle: {
@@ -268,100 +404,113 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   descriptionText: {
-    fontSize: 15,
-    lineHeight: 24,
+    fontSize: 16,
     color: theme.colors.text,
+    lineHeight: 24,
   },
-  specsCard: {
-    padding: 16,
-    marginTop: 8,
-    borderRadius: 12,
-    backgroundColor: theme.colors.white,
-  },
-  specRow: {
+  vendorContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.lightGray,
+    alignItems: 'center',
+    padding: 12,
+    backgroundColor: theme.colors.cardBg,
+    borderRadius: 8,
   },
-  specKey: {
-    fontSize: 14,
-    color: theme.colors.textLight,
-    flex: 1,
-  },
-  specValue: {
-    fontSize: 14,
+  vendorName: {
+    fontSize: 16,
     color: theme.colors.text,
-    fontWeight: '500',
-    flex: 2,
-    textAlign: 'right',
   },
-  tagsContainer: {
+  reviewItem: {
+    marginBottom: 12,
+    padding: 12,
+    backgroundColor: theme.colors.cardBg,
+    borderRadius: 8,
+  },
+  reviewHeader: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    marginTop: 8,
-  },
-  tagChip: {
-    backgroundColor: theme.colors.primaryLight,
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 16,
-    marginRight: 8,
+    justifyContent: 'space-between',
     marginBottom: 8,
   },
-  tagText: {
+  reviewerName: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: theme.colors.text,
+  },
+  reviewRating: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  reviewRatingText: {
+    marginLeft: 4,
+    color: theme.colors.text,
+  },
+  reviewText: {
+    fontSize: 14,
+    color: theme.colors.text,
+    marginBottom: 4,
+  },
+  reviewDate: {
     fontSize: 12,
+    color: theme.colors.textLight,
+  },
+  moreReviewsButton: {
+    padding: 8,
+    alignItems: 'center',
+  },
+  moreReviewsText: {
     color: theme.colors.primary,
+    fontSize: 14,
   },
   footer: {
     flexDirection: 'row',
-    alignItems: 'center',
     padding: 16,
-    backgroundColor: theme.colors.white,
+    backgroundColor: theme.colors.cardBg,
     borderTopWidth: 1,
-    borderTopColor: theme.colors.lightGray,
-    shadowColor: theme.colors.dark,
-    shadowOffset: { width: 0, height: -3 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 5,
+    borderTopColor: theme.colors.border,
   },
   quantityContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginRight: 16,
+    justifyContent: 'space-between',
+    backgroundColor: theme.colors.background,
+    borderRadius: 25,
+    paddingHorizontal: 8,
   },
   quantityButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: theme.colors.lightGray,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: theme.colors.background,
     justifyContent: 'center',
     alignItems: 'center',
+    marginHorizontal: 4,
+  },
+  quantityButtonDisabled: {
+    opacity: 0.5,
   },
   quantityText: {
     fontSize: 16,
-    fontWeight: 'bold',
-    color: theme.colors.text,
-    marginHorizontal: 12,
-    minWidth: 20,
+    width: 30,
     textAlign: 'center',
   },
   addToCartButton: {
     flex: 1,
-    backgroundColor: theme.colors.primary,
     flexDirection: 'row',
+    height: 50,
+    backgroundColor: theme.colors.primary,
+    borderRadius: 25,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: 12,
-    borderRadius: 25,
+    marginLeft: 16,
+  },
+  disabledButton: {
+    backgroundColor: theme.colors.textLight,
   },
   addToCartText: {
-    fontSize: 16,
-    fontWeight: 'bold',
     color: theme.colors.white,
     marginLeft: 8,
+    fontSize: 16,
+    fontWeight: 'bold',
   },
 });
 

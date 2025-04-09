@@ -15,42 +15,15 @@ import { useDispatch } from 'react-redux';
 
 import { AppDispatch } from '../store';
 import { theme } from '../theme';
-import { getShop, getShopsByDistance } from '../api/shopApi';
+import { getShop } from '../api/shopApi';
 import { getProductsByShop } from '../api/productApi';
 import { addToCart } from '../store/cartSlice';
 import { useNavigation, useRoute } from '../navigation/hooks';
 import Card3D from '../components/Card3D';
+import { Product } from '../types/product';
+import { Shop } from '../api/shopApi';
 
 const { width } = Dimensions.get('window');
-
-type Shop = {
-  _id: string;
-  name: string;
-  description: string;
-  logo: string;
-  coverImage: string;
-  address: string;
-  contactNumber: string;
-  email: string;
-  categories: string[];
-  rating: number;
-  reviewCount: number;
-  isOpen: boolean;
-  openingHours: {
-    days: string;
-    hours: string;
-  }[];
-};
-
-type Product = {
-  _id: string;
-  name: string;
-  description: string;
-  price: number;
-  images: string[];
-  rating: number;
-  stock: number;
-};
 
 const ShopDetailsScreen: React.FC = () => {
   const route = useRoute<'ShopDetails'>();
@@ -84,7 +57,7 @@ const ShopDetailsScreen: React.FC = () => {
   };
   
   const handleAddToCart = (productId: string) => {
-    dispatch(addToCart(productId));
+    dispatch(addToCart({ productId, quantity: 1 }));
   };
   
   const handleProductPress = (productId: string) => {
@@ -116,6 +89,7 @@ const ShopDetailsScreen: React.FC = () => {
             <TouchableOpacity 
               style={styles.addButton}
               onPress={() => handleAddToCart(item._id)}
+              disabled={item.stock <= 0}
             >
               <FontAwesome name="plus" size={14} color={theme.colors.white} />
             </TouchableOpacity>
@@ -173,7 +147,9 @@ const ShopDetailsScreen: React.FC = () => {
             <View style={styles.ratingRow}>
               <FontAwesome name="star" size={16} color="#FFD700" />
               <Text style={styles.ratingValue}>{shop.rating.toFixed(1)}</Text>
-              <Text style={styles.reviewCount}>({shop.reviewCount} reviews)</Text>
+              <Text style={styles.reviewCount}>
+                ({shop.reviews ? shop.reviews.length : 0} reviews)
+              </Text>
             </View>
             
             <View style={[styles.statusBadge, { 
@@ -201,29 +177,18 @@ const ShopDetailsScreen: React.FC = () => {
           <Text style={styles.sectionTitle}>Contact</Text>
           <View style={styles.contactItem}>
             <FontAwesome name="map-marker" size={16} color={theme.colors.textLight} />
-            <Text style={styles.contactText}>{shop.address}</Text>
-          </View>
-          <View style={styles.contactItem}>
-            <FontAwesome name="phone" size={16} color={theme.colors.textLight} />
-            <Text style={styles.contactText}>{shop.contactNumber}</Text>
-          </View>
-          <View style={styles.contactItem}>
-            <FontAwesome name="envelope" size={16} color={theme.colors.textLight} />
-            <Text style={styles.contactText}>{shop.email}</Text>
+            <Text style={styles.contactText}>
+              {shop.address.street}, {shop.address.village}
+              {'\n'}
+              {shop.address.district}, {shop.address.state} - {shop.address.pincode}
+              {'\n'}
+              Phone: {shop.address.phone}
+            </Text>
           </View>
           
           <View style={styles.divider} />
           
-          <Text style={styles.sectionTitle}>Opening Hours</Text>
-          {shop.openingHours.map((hour, index) => (
-            <View key={index} style={styles.hourItem}>
-              <Text style={styles.dayText}>{hour.days}</Text>
-              <Text style={styles.hourText}>{hour.hours}</Text>
-            </View>
-          ))}
-          
-          <View style={styles.divider} />
-          
+          <Text style={styles.sectionTitle}>Categories</Text>
           <View style={styles.categoriesContainer}>
             {shop.categories.map((category, index) => (
               <View key={index} style={styles.categoryChip}>
@@ -235,17 +200,60 @@ const ShopDetailsScreen: React.FC = () => {
           <View style={styles.divider} />
           
           <Text style={styles.sectionTitle}>Products</Text>
-          <FlatList
-            data={products}
-            renderItem={renderProductItem}
-            keyExtractor={(item) => item._id}
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.productsList}
-            ListEmptyComponent={
-              <Text style={styles.emptyText}>No products available</Text>
-            }
-          />
+          
+          {products.length === 0 ? (
+            <View style={styles.emptyProductsContainer}>
+              <Text style={styles.emptyProductsText}>No products available</Text>
+            </View>
+          ) : (
+            <FlatList
+              data={products}
+              renderItem={renderProductItem}
+              keyExtractor={(item) => item._id}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.productsList}
+            />
+          )}
+          
+          {products.length > 0 && (
+            <TouchableOpacity 
+              style={styles.viewAllButton}
+              onPress={() => navigation.navigate('ProductsTab')}
+            >
+              <Text style={styles.viewAllText}>View All Products</Text>
+            </TouchableOpacity>
+          )}
+          
+          <View style={styles.divider} />
+          
+          {shop.reviews && shop.reviews.length > 0 && (
+            <>
+              <Text style={styles.sectionTitle}>Reviews</Text>
+              {shop.reviews.slice(0, 3).map((review, index) => (
+                <View key={index} style={styles.reviewItem}>
+                  <View style={styles.reviewHeader}>
+                    <Text style={styles.reviewerName}>{review.user.name}</Text>
+                    <View style={styles.reviewRating}>
+                      <FontAwesome name="star" size={14} color="#FFD700" />
+                      <Text style={styles.reviewRatingText}>{review.rating}</Text>
+                    </View>
+                  </View>
+                  <Text style={styles.reviewText}>{review.text}</Text>
+                  <Text style={styles.reviewDate}>
+                    {new Date(review.createdAt).toLocaleDateString()}
+                  </Text>
+                </View>
+              ))}
+              {shop.reviews.length > 3 && (
+                <TouchableOpacity style={styles.moreReviewsButton}>
+                  <Text style={styles.moreReviewsText}>
+                    See all {shop.reviews.length} reviews
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </>
+          )}
         </View>
       </ScrollView>
     </View>
@@ -303,74 +311,70 @@ const styles = StyleSheet.create({
   },
   coverImage: {
     width: width,
-    height: 200,
+    height: width * 0.6,
   },
   shopInfoContainer: {
     flexDirection: 'row',
+    padding: 16,
+    backgroundColor: theme.colors.cardBg,
+    borderRadius: 12,
     marginTop: -40,
-    paddingHorizontal: 16,
-    marginBottom: 16,
+    marginHorizontal: 16,
+    shadowColor: theme.colors.dark,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 5,
   },
   logoContainer: {
+    marginRight: 16,
+  },
+  logoImage: {
     width: 80,
     height: 80,
     borderRadius: 40,
     borderWidth: 2,
     borderColor: theme.colors.white,
-    overflow: 'hidden',
-    backgroundColor: theme.colors.white,
-    shadowColor: theme.colors.dark,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 3,
-    elevation: 4,
-  },
-  logoImage: {
-    width: '100%',
-    height: '100%',
-    borderRadius: 40,
   },
   shopHeader: {
     flex: 1,
-    marginLeft: 12,
-    marginTop: 12,
   },
   shopName: {
-    fontSize: 20,
+    fontSize: 24,
     fontWeight: 'bold',
     color: theme.colors.text,
+    marginBottom: 4,
   },
   ratingRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 4,
+    marginBottom: 8,
   },
   ratingValue: {
-    marginLeft: 4,
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: 'bold',
     color: theme.colors.text,
+    marginLeft: 4,
   },
   reviewCount: {
-    marginLeft: 4,
-    fontSize: 12,
+    fontSize: 14,
     color: theme.colors.textLight,
+    marginLeft: 4,
   },
   statusBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    alignSelf: 'flex-start',
-    paddingHorizontal: 8,
     paddingVertical: 4,
+    paddingHorizontal: 8,
     borderRadius: 12,
     borderWidth: 1,
-    marginTop: 6,
+    alignSelf: 'flex-start',
   },
   statusDot: {
     width: 8,
     height: 8,
     borderRadius: 4,
-    marginRight: 6,
+    marginRight: 4,
   },
   statusText: {
     fontSize: 12,
@@ -386,45 +390,32 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   descriptionText: {
-    fontSize: 14,
-    lineHeight: 22,
+    fontSize: 16,
     color: theme.colors.text,
+    lineHeight: 24,
   },
   divider: {
     height: 1,
-    backgroundColor: theme.colors.lightGray,
+    backgroundColor: theme.colors.border,
     marginVertical: 16,
   },
   contactItem: {
     flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 12,
   },
   contactText: {
+    fontSize: 16,
+    color: theme.colors.text,
     marginLeft: 12,
-    fontSize: 14,
-    color: theme.colors.text,
-  },
-  hourItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 6,
-  },
-  dayText: {
-    fontSize: 14,
-    color: theme.colors.text,
-    fontWeight: '500',
-  },
-  hourText: {
-    fontSize: 14,
-    color: theme.colors.textLight,
+    flex: 1,
+    lineHeight: 22,
   },
   categoriesContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
   },
   categoryChip: {
-    backgroundColor: theme.colors.primaryLight,
+    backgroundColor: `${theme.colors.primary}15`,
     paddingVertical: 6,
     paddingHorizontal: 12,
     borderRadius: 16,
@@ -432,36 +423,36 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   categoryText: {
-    fontSize: 12,
+    fontSize: 14,
     color: theme.colors.primary,
   },
   productsList: {
-    paddingTop: 8,
     paddingRight: 16,
   },
   productCard: {
     width: 160,
-    borderRadius: 12,
     marginRight: 12,
+    borderRadius: 12,
+    backgroundColor: theme.colors.cardBg,
     overflow: 'hidden',
-    backgroundColor: theme.colors.white,
   },
   productImage: {
     width: '100%',
     height: 120,
-    resizeMode: 'cover',
+    borderTopLeftRadius: 12,
+    borderTopRightRadius: 12,
   },
   productInfo: {
-    padding: 12,
+    padding: 10,
   },
   productName: {
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: 'bold',
     color: theme.colors.text,
     marginBottom: 4,
   },
   productPrice: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: 'bold',
     color: theme.colors.primary,
     marginBottom: 8,
@@ -476,23 +467,78 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   ratingText: {
-    marginLeft: 4,
     fontSize: 12,
     color: theme.colors.text,
+    marginLeft: 4,
   },
   addButton: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
     backgroundColor: theme.colors.primary,
-    width: 30,
-    height: 30,
-    borderRadius: 15,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  emptyText: {
-    fontSize: 14,
-    color: theme.colors.textLight,
-    textAlign: 'center',
+  viewAllButton: {
+    alignItems: 'center',
+    padding: 12,
     marginTop: 8,
+  },
+  viewAllText: {
+    fontSize: 16,
+    color: theme.colors.primary,
+    fontWeight: 'bold',
+  },
+  emptyProductsContainer: {
+    padding: 20,
+    alignItems: 'center',
+    backgroundColor: theme.colors.bgLight,
+    borderRadius: 8,
+  },
+  emptyProductsText: {
+    color: theme.colors.textLight,
+    fontSize: 16,
+  },
+  reviewItem: {
+    marginBottom: 12,
+    padding: 12,
+    backgroundColor: theme.colors.cardBg,
+    borderRadius: 8,
+  },
+  reviewHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  reviewerName: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: theme.colors.text,
+  },
+  reviewRating: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  reviewRatingText: {
+    marginLeft: 4,
+    color: theme.colors.text,
+  },
+  reviewText: {
+    fontSize: 14,
+    color: theme.colors.text,
+    marginBottom: 4,
+  },
+  reviewDate: {
+    fontSize: 12,
+    color: theme.colors.textLight,
+  },
+  moreReviewsButton: {
+    padding: 8,
+    alignItems: 'center',
+  },
+  moreReviewsText: {
+    color: theme.colors.primary,
+    fontSize: 14,
   },
 });
 

@@ -1,51 +1,117 @@
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import React, { ReactNode } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Feather } from '@expo/vector-icons';
 import { theme } from '../theme';
+import LogoImage from './LogoImage';
+import { useDispatch, useSelector } from 'react-redux';
+import { logout } from '../store/authSlice';
+import { AppDispatch, RootState } from '../store';
 
-interface HeaderProps {
+export interface HeaderProps {
   location?: string;
   onNotificationPress?: () => void;
+  showBackButton?: boolean;
   onProfilePress?: () => void;
   onLogoutPress?: () => void;
+  rightComponent?: ReactNode;
 }
 
 const Header: React.FC<HeaderProps> = ({
   location = 'Your Location',
   onNotificationPress,
+  showBackButton = false,
   onProfilePress,
   onLogoutPress,
+  rightComponent,
 }) => {
   const navigation = useNavigation();
+  const dispatch = useDispatch<AppDispatch>();
+  const { notifications } = useSelector((state: RootState) => state.user);
+  
+  // Count unread notifications
+  const unreadCount = notifications.filter(notification => !notification.read).length;
+
+  const handleProfilePress = () => {
+    if (onProfilePress) {
+      onProfilePress();
+    } else {
+      navigation.navigate('Profile');
+    }
+  };
+
+  const handleLogoutPress = () => {
+    if (onLogoutPress) {
+      onLogoutPress();
+    } else {
+      dispatch(logout());
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'TabNavigator' }],
+      });
+    }
+  };
+
+  const handleNotificationPress = () => {
+    if (onNotificationPress) {
+      onNotificationPress();
+    } else {
+      navigation.navigate('Notifications');
+    }
+  };
 
   return (
     <View style={styles.container}>
-      {/* Left: Location */}
-      <View style={styles.locationContainer}>
-        <Feather name="map-pin" size={18} color={theme.colors.primary} style={styles.locationIcon} />
-        <Text style={styles.locationText} numberOfLines={1}>
-          {location}
-        </Text>
+      {/* Left: Back button or Location */}
+      <View style={styles.leftContainer}>
+        {showBackButton ? (
+          <TouchableOpacity 
+            style={styles.backButton}
+            onPress={() => navigation.goBack()}
+          >
+            <Feather name="arrow-left" size={24} color={theme.colors.primary} />
+          </TouchableOpacity>
+        ) : (
+          <View style={styles.locationContainer}>
+            <Feather name="map-pin" size={18} color={theme.colors.primary} style={styles.locationIcon} />
+            <Text style={styles.locationText} numberOfLines={1}>
+              {location}
+            </Text>
+          </View>
+        )}
       </View>
 
       {/* Center: Logo */}
       <View style={styles.logoContainer}>
+        <LogoImage size="tiny" style={styles.logoImage} />
         <Text style={styles.logoText}>Dumpit</Text>
       </View>
 
-      {/* Right: Notification, Profile and Logout */}
-      <View style={styles.rightContainer}>
-        <TouchableOpacity style={styles.iconButton} onPress={onNotificationPress}>
-          <Feather name="bell" size={20} color={theme.colors.dark} />
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.iconButton} onPress={onProfilePress}>
-          <Feather name="user" size={20} color={theme.colors.dark} />
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.iconButton} onPress={onLogoutPress}>
-          <Feather name="log-out" size={20} color={theme.colors.dark} />
-        </TouchableOpacity>
-      </View>
+      {/* Right: Custom component or default icons */}
+      {rightComponent ? (
+        <View style={styles.rightContainer}>
+          {rightComponent}
+        </View>
+      ) : (
+        <View style={styles.rightContainer}>
+          <TouchableOpacity style={styles.iconButton} onPress={handleNotificationPress}>
+            <Feather name="bell" size={20} color={theme.colors.dark} />
+            {unreadCount > 0 && (
+              <View style={styles.notificationBadge}>
+                <Text style={styles.notificationBadgeText}>
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </Text>
+              </View>
+            )}
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.iconButton} onPress={handleProfilePress}>
+            <Feather name="user" size={20} color={theme.colors.dark} />
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.iconButton} onPress={handleLogoutPress}>
+            <Feather name="log-out" size={20} color={theme.colors.dark} />
+          </TouchableOpacity>
+        </View>
+      )}
     </View>
   );
 };
@@ -58,13 +124,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: theme.spacing.md,
     paddingVertical: theme.spacing.sm,
     backgroundColor: theme.colors.white,
-    ...theme.shadow.small,
-    height: 60,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.lightGray,
+  },
+  leftContainer: {
+    flex: 1,
+  },
+  backButton: {
+    padding: theme.spacing.xs,
   },
   locationContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    flex: 1,
   },
   locationIcon: {
     marginRight: theme.spacing.xs,
@@ -72,26 +143,47 @@ const styles = StyleSheet.create({
   locationText: {
     fontSize: 14,
     color: theme.colors.dark,
-    flex: 1,
+    maxWidth: 150,
   },
   logoContainer: {
-    flex: 1,
+    flexDirection: 'row',
     alignItems: 'center',
   },
+  logoImage: {
+    marginRight: theme.spacing.xs,
+  },
   logoText: {
-    fontSize: 24,
+    fontSize: 18,
     fontWeight: 'bold',
     color: theme.colors.primary,
   },
   rightContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'flex-end',
     flex: 1,
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    alignItems: 'center',
   },
   iconButton: {
     padding: theme.spacing.xs,
     marginLeft: theme.spacing.sm,
+    position: 'relative',
+  },
+  notificationBadge: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    backgroundColor: theme.colors.error,
+    borderRadius: 10,
+    minWidth: 18,
+    height: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 2,
+  },
+  notificationBadgeText: {
+    color: theme.colors.white,
+    fontSize: 10,
+    fontWeight: 'bold',
   },
 });
 

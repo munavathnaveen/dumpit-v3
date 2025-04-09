@@ -34,6 +34,40 @@ type Order = {
   updatedAt: string;
 };
 
+export interface VendorOrder {
+  _id: string;
+  orderNumber: string;
+  user: {
+    _id: string;
+    name: string;
+    email: string;
+    phone: string;
+  };
+  items: {
+    product: {
+      _id: string;
+      name: string;
+      price: number;
+      image: string;
+    };
+    quantity: number;
+    price: number;
+  }[];
+  status: OrderStatus;
+  total: number;
+  shippingAddress: {
+    street: string;
+    city: string;
+    state: string;
+    pincode: string;
+    phone: string;
+  };
+  paymentMethod: string;
+  paymentStatus: 'pending' | 'paid' | 'failed';
+  createdAt: string;
+  updatedAt: string;
+}
+
 type OrderResponse = {
   success: boolean;
   data: Order[];
@@ -42,6 +76,16 @@ type OrderResponse = {
 type SingleOrderResponse = {
   success: boolean;
   data: Order;
+};
+
+type VendorOrderResponse = {
+  success: boolean;
+  data: VendorOrder[];
+};
+
+type VendorSingleOrderResponse = {
+  success: boolean;
+  data: VendorOrder;
 };
 
 export const getOrders = async (): Promise<OrderResponse> => {
@@ -65,4 +109,26 @@ export const createOrder = async (orderData: {
 export const cancelOrder = async (orderId: string): Promise<SingleOrderResponse> => {
   const response = await apiClient.put(`/orders/${orderId}/cancel`);
   return response.data;
+};
+
+// Vendor-specific API functions
+
+export const getVendorOrders = async (): Promise<VendorOrder[]> => {
+  const response = await apiClient.get('/orders/vendor');
+  return response.data.data;
+};
+
+export const getVendorOrder = async (orderId: string): Promise<VendorOrder> => {
+  const response = await apiClient.get(`/orders/vendor/${orderId}`);
+  return response.data.data;
+};
+
+export const updateOrderStatus = async (orderId: string, status: OrderStatus): Promise<VendorSingleOrderResponse> => {
+  const response = await apiClient.put(`/orders/${orderId}/status`, { status });
+  return response.data;
+};
+
+export const getVendorOrderStats = async (): Promise<any> => {
+  const response = await apiClient.get('/orders/vendor/stats');
+  return response.data.data;
 }; 

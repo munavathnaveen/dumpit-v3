@@ -493,3 +493,223 @@ const buildOrderDetailsHtml = (order) => {
 
   return html
 }
+
+// @desc    Get vendor-specific orders
+// @route   GET /api/v1/orders/vendor
+// @access  Private (Vendor only)
+exports.getVendorOrders = async (req, res, next) => {
+  try {
+    // Find all products owned by the vendor
+    const products = await Product.find({ vendor: req.user.id }).select('_id')
+    const productIds = products.map(product => product._id)
+
+    // Find orders that contain products from this vendor
+    const orders = await Order.find({
+      'items.product': { $in: productIds }
+    })
+    .populate([
+      { path: 'user', select: 'name email phone' },
+      { path: 'items.product', select: 'name images rate discount' },
+      { path: 'items.shop', select: 'name' },
+      { path: 'shippingAddress' }
+    ])
+    .sort('-createdAt')
+
+    // Format the order data for the frontend
+    const formattedOrders = orders.map(order => {
+      const vendorItems = order.items.filter(item => 
+        productIds.some(id => id.toString() === item.product._id.toString())
+      )
+      
+      return {
+        _id: order._id,
+        orderNumber: order._id.toString().slice(-6).toUpperCase(),
+        user: {
+          _id: order.user._id,
+          name: order.user.name,
+          email: order.user.email,
+          phone: order.user.phone
+        },
+        items: vendorItems.map(item => ({
+          product: {
+            _id: item.product._id,
+            name: item.product.name,
+            price: item.price,
+            image: item.product.images && item.product.images.length > 0 ? item.product.images[0] : ''
+          },
+          quantity: item.quantity,
+          price: item.price
+        })),
+        status: order.status,
+        total: vendorItems.reduce((sum, item) => sum + (item.price * item.quantity), 0),
+        shippingAddress: order.shippingAddress,
+        paymentMethod: order.payment.method,
+        paymentStatus: order.payment.status,
+        createdAt: order.createdAt,
+        updatedAt: order.updatedAt
+      }
+    })
+
+    res.status(200).json({
+      success: true,
+      count: formattedOrders.length,
+      data: formattedOrders
+    })
+  } catch (err) {
+    next(err)
+  }
+}
+
+// @desc    Get single vendor order
+// @route   GET /api/v1/orders/vendor/:id
+// @access  Private (Vendor only)
+exports.getVendorOrder = async (req, res, next) => {
+  try {
+    const order = await Order.findById(req.params.id)
+      .populate([
+        { path: 'user', select: 'name email phone' },
+        { path: 'items.product', select: 'name images rate discount vendor' },
+        { path: 'items.shop', select: 'name' },
+        { path: 'shippingAddress' }
+      ])
+
+    if (!order) {
+      return next(new ErrorResponse(`Order not found with id of ${req.params.id}`, 404))
+    }
+
+    // Verify that at least one product in the order belongs to this vendor
+    const hasVendorProduct = order.items.some(item => 
+      item.product.vendor && item.product.vendor.toString() === req.user.id
+    )
+
+    if (!hasVendorProduct) {
+      return next(new ErrorResponse('Not authorized to access this order', 403))
+    }
+
+    // Filter to only include products from this vendor
+    const vendorItems = order.items.filter(item => 
+      item.product.vendor && item.product.vendor.toString() === req.user.id
+    )
+    
+    // Format the order data
+    const formattedOrder = {
+      _id: order._id,
+      orderNumber: order._id.toString().slice(-6).toUpperCase(),
+      user: {
+        _id: order.user._id,
+        name: order.user.name,
+        email: order.user.email,
+        phone: order.user.phone
+      },
+      items: vendorItems.map(item => ({
+        product: {
+          _id: item.product._id,
+          name: item.product.name,
+          price: item.price,
+          image: item.product.images && item.product.images.length > 0 ? item.product.images[0] : ''
+        },
+        quantity: item.quantity,
+        price: item.price
+      })),
+      status: order.status,
+      total: vendorItems.reduce((sum, item) => sum + (item.price * item.quantity), 0),
+      shippingAddress: order.shippingAddress,
+      paymentMethod: order.payment.method,
+      paymentStatus: order.payment.status,
+      createdAt: order.createdAt,
+      updatedAt: order.updatedAt
+    }
+
+    res.status(200).json({
+      success: true,
+      data: formattedOrder
+    })
+  } catch (err) {
+    next(err)
+  }
+}
+
+// @desc    Get vendor order statistics
+// @route   GET /api/v1/orders/vendor/stats
+// @access  Private (Vendor only)
+exports.getVendorOrderStats = async (req, res, next) => {
+  try {
+    // Find all products owned by the vendor
+    const products = await Product.find({ vendor: req.user.id }).select('_id')
+    const productIds = products.map(product => product._id)
+    
+    // Find orders containing vendor products
+    const orders = await Order.find({
+      'items.product': { $in: productIds }
+    })
+    
+    // Calculate total revenue
+    let totalRevenue = 0
+    let ordersByStatus = {
+      pending: 0,
+      processing: 0,
+      completed: 0,
+      cancelled: 0
+    }
+    
+    // Process orders to calculate revenue and count by status
+    orders.forEach(order => {
+      // Count by status
+      if (ordersByStatus[order.status.toLowerCase()] !== undefined) {
+        ordersByStatus[order.status.toLowerCase()]++
+      }
+      
+      // Calculate revenue from vendor's products only
+      order.items.forEach(item => {
+        if (productIds.some(id => id.toString() === item.product.toString())) {
+          totalRevenue += item.price * item.quantity
+        }
+      })
+    })
+    
+    // Format the stats data
+    const formattedStats = {
+      totalOrders: orders.length,
+      totalRevenue,
+      ordersByStatus: [
+        { status: 'pending', count: ordersByStatus.pending },
+        { status: 'processing', count: ordersByStatus.processing },
+        { status: 'completed', count: ordersByStatus.completed },
+        { status: 'cancelled', count: ordersByStatus.cancelled }
+      ],
+      recentOrders: await getRecentOrders(req.user.id, productIds, 5)
+    }
+    
+    res.status(200).json({
+      success: true,
+      data: formattedStats
+    })
+  } catch (err) {
+    next(err)
+  }
+}
+
+// Helper function to get recent orders
+const getRecentOrders = async (vendorId, productIds, limit = 5) => {
+  const orders = await Order.find({
+    'items.product': { $in: productIds }
+  })
+  .populate([
+    { path: 'user', select: 'name' },
+  ])
+  .sort('-createdAt')
+  .limit(limit)
+  
+  return orders.map(order => ({
+    id: order._id,
+    customerName: order.user ? order.user.name : 'Unknown Customer',
+    date: order.createdAt,
+    total: order.items.reduce((sum, item) => {
+      if (productIds.some(id => id.toString() === item.product.toString())) {
+        return sum + (item.price * item.quantity)
+      }
+      return sum
+    }, 0),
+    status: order.status
+  }))
+}

@@ -36,6 +36,10 @@ const UserSchema = new mongoose.Schema(
       enum: [config.constants.userRoles.VENDOR, config.constants.userRoles.CUSTOMER],
       default: config.constants.userRoles.CUSTOMER,
     },
+    shop_id: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Shop',
+    },
     avatar_url: {
       type: String,
       default: 'https://i.ibb.co/1trwLj3m/vecteezy-3d-illustration-of-professional-character-with-laptop-47389238-1.png',

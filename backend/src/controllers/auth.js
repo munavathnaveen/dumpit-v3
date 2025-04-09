@@ -9,7 +9,7 @@ const config = require('../config')
 // @access  Public
 exports.register = async (req, res, next) => {
   try {
-    const {name, email, password, phone, role} = req.body
+    const {name, email, password, phone, role, shopName, shopDescription, shopAddress} = req.body
 
     // Create user
     const user = await User.create({
@@ -19,6 +19,27 @@ exports.register = async (req, res, next) => {
       phone,
       role,
     })
+
+    // If registering as a vendor, create a shop
+    if (role === config.constants.userRoles.VENDOR) {
+      const Shop = require('../models/Shop')
+      
+      if (!shopName || !shopDescription || !shopAddress) {
+        await User.findByIdAndDelete(user._id);
+        return next(new ErrorResponse('Shop details are required for vendor registration', 400));
+      }
+      
+      // Create shop associated with the vendor
+      const shop = await Shop.create({
+        name: shopName,
+        description: shopDescription,
+        owner: user._id,
+        address: shopAddress,
+      });
+      const updatedUser = await User.findByIdAndUpdate(user._id, { shop_id: shop._id }, { new: true });
+      console.log(updatedUser);
+
+    }
 
     // Send welcome email
     try {
@@ -165,14 +186,15 @@ exports.forgotPassword = async (req, res, next) => {
 
     await user.save({validateBeforeSave: false})
 
-    // Create reset url
-    const resetUrl = `${req.protocol}://${req.get('host')}/api/v1/auth/resetpassword/${resetToken}`
+    // Create reset url - use mobile deep link format for better UX
+    const mobileDeepLink = `dumpit://resetpassword/${resetToken}`;
+    const webUrl = `${req.protocol}://${req.get('host')}/api/v1/auth/resetpassword/${resetToken}`;
 
     try {
       await sendEmail({
         email: user.email,
         subject: 'Password reset token',
-        message: emailTemplates.resetPassword(user.name, resetUrl),
+        message: emailTemplates.resetPassword(user.name, webUrl, mobileDeepLink),
       })
 
       res.status(200).json({success: true, data: 'Email sent'})

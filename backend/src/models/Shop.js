@@ -61,6 +61,12 @@ const ShopSchema = new mongoose.Schema(
         default: [0, 0],
       },
     },
+    categories: [
+      {
+        type: String,
+        trim: true
+      }
+    ],
     images: [
       {
         type: String,
@@ -95,6 +101,10 @@ const ShopSchema = new mongoose.Schema(
         },
       },
     ],
+    isOpen: {
+      type: Boolean,
+      default: true
+    },
     isActive: {
       type: Boolean,
       default: true,

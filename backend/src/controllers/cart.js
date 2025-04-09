@@ -8,12 +8,7 @@ const ErrorResponse = require('../utils/errorResponse')
 exports.getCartItems = async (req, res, next) => {
   try {
     const user = await User.findById(req.user.id).populate({
-      path: 'cart.product',
-      select: 'name rate discount images stock vendor shop',
-      populate: [
-        {path: 'vendor', select: 'name'},
-        {path: 'shop', select: 'name'},
-      ],
+      path: 'cart.product'
     })
 
     res.status(200).json({

@@ -1,80 +1,48 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { FontAwesome } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
-
+import { View, StyleSheet, TouchableOpacity } from 'react-native';
 import { theme } from '../theme';
+import Header from './Header';
+import { Ionicons } from '@expo/vector-icons';
 
-interface ScreenHeaderProps {
+export interface ScreenHeaderProps {
   title: string;
   showBackButton?: boolean;
-  onBackPress?: () => void;
-  rightComponent?: React.ReactNode;
+  onNotificationPress?: () => void;
+  rightIcon?: string;
+  onRightPress?: () => void;
 }
 
 const ScreenHeader: React.FC<ScreenHeaderProps> = ({
   title,
-  showBackButton = true,
-  onBackPress,
-  rightComponent,
+  showBackButton = false,
+  onNotificationPress,
+  rightIcon,
+  onRightPress,
 }) => {
-  const navigation = useNavigation();
-
-  const handleBackPress = () => {
-    if (onBackPress) {
-      onBackPress();
-    } else {
-      navigation.goBack();
-    }
-  };
-
   return (
     <View style={styles.container}>
-      {showBackButton ? (
-        <TouchableOpacity style={styles.backButton} onPress={handleBackPress}>
-          <FontAwesome name="arrow-left" size={20} color={theme.colors.text} />
-        </TouchableOpacity>
-      ) : (
-        <View style={styles.placeholderWidth} />
-      )}
-      
-      <Text style={styles.title} numberOfLines={1}>
-        {title}
-      </Text>
-      
-      {rightComponent ? (
-        rightComponent
-      ) : (
-        <View style={styles.placeholderWidth} />
-      )}
+      <Header
+        location={title}
+        showBackButton={showBackButton}
+        onNotificationPress={onNotificationPress}
+        rightComponent={
+          rightIcon && onRightPress ? (
+            <TouchableOpacity onPress={onRightPress} style={styles.rightButton}>
+              <Ionicons name={rightIcon as any} size={24} color={theme.colors.dark} />
+            </TouchableOpacity>
+          ) : null
+        }
+      />
     </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    height: 56,
     backgroundColor: theme.colors.white,
-    paddingHorizontal: theme.spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border,
-    ...theme.shadow.small,
   },
-  backButton: {
-    padding: theme.spacing.sm,
-  },
-  title: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: theme.colors.text,
-    flex: 1,
-    textAlign: 'center',
-  },
-  placeholderWidth: {
-    width: 40,
+  rightButton: {
+    padding: 8,
   },
 });
 

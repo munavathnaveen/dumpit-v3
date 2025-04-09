@@ -8,6 +8,8 @@ const {
   uploadShopImages,
   getShopsInRadius,
   addShopReview,
+  getNearbyShops,
+  getShopCategories,
 } = require('../controllers/shops')
 
 // Include product routes
@@ -25,6 +27,12 @@ router.use('/:shopId/products', productRouter)
 // Get shops within radius
 router.get('/radius/:pincode/:distance', getShopsInRadius)
 
+// Get nearby shops
+router.get('/nearby', getNearbyShops)
+
+// Get all shop categories
+router.get('/categories', getShopCategories)
+
 // Shop review route
 router.post('/:id/reviews', protect, addShopReview)
 
@@ -38,7 +46,7 @@ router.get('/', getShops)
 router.post('/', protect, authorize(config.constants.userRoles.VENDOR), createShop)
 
 // Get single shop
-router.get('/:id', getShop)
+router.get('/:id',protect, getShop)
 
 // Update shop
 router.put('/:id', protect, updateShop)
