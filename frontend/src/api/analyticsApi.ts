@@ -88,6 +88,8 @@ export const exportData = async (
 export interface ImportResult {
   success: boolean;
   processed: number;
+  created?: number;
+  updated?: number;
   errors?: string[];
   format?: {
     sample: string;

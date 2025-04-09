@@ -27,9 +27,15 @@ export interface Shop {
   reviews: {
     rating: number;
     text: string;
-    user: string;
+    user: {
+      _id: string;
+      name: string;
+    };
     createdAt: string;
   }[];
+  rating: number;
+  isOpen: boolean;
+  categories: string[];
   createdAt: string;
   updatedAt: string;
 }
