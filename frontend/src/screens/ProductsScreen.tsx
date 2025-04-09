@@ -10,11 +10,13 @@ import {
   RefreshControl,
   Modal,
   ScrollView,
-  Switch
+  Switch,
+  SafeAreaView
 } from 'react-native';
 import { useSelector, useDispatch } from 'react-redux';
 import { FontAwesome, Ionicons, MaterialIcons } from '@expo/vector-icons';
 import Slider from '@react-native-community/slider';
+import { RouteProp } from '@react-navigation/native';
 
 import { RootState, AppDispatch } from '../store';
 import { theme } from '../theme';
@@ -23,7 +25,8 @@ import { Product } from '../types/product';
 import Card3D from '../components/Card3D';
 import SearchBar from '../components/SearchBar';
 import ScreenHeader from '../components/ScreenHeader';
-import { useNavigation, useRoute } from '../navigation/hooks';
+import { useNavigation, useTabRoute } from '../navigation/hooks';
+import { BottomTabParamList } from '../navigation/types';
 import * as productApi from '../api/productApi';
 
 const sortOptions = [
@@ -35,7 +38,7 @@ const sortOptions = [
 
 const ProductsScreen: React.FC = () => {
   const navigation = useNavigation();
-  const route = useRoute<'Products'>();
+  const route = useTabRoute<'ProductsTab'>();
   const dispatch = useDispatch<AppDispatch>();
   const { products, loading, error } = useSelector((state: RootState) => state.product);
   const [refreshing, setRefreshing] = useState(false);
@@ -48,18 +51,37 @@ const ProductsScreen: React.FC = () => {
   const [selectedCategory, setSelectedCategory] = useState<string>(route.params?.category || '');
   const [priceRange, setPriceRange] = useState<[number, number]>([0, 10000]);
   const [currentPriceRange, setCurrentPriceRange] = useState<[number, number]>([0, 10000]);
-  const [sortBy, setSortBy] = useState<string>(route.params?.sort || '');
-  const [inStock, setInStock] = useState<boolean>(route.params?.inStock || false);
+  const [sortBy, setSortBy] = useState<string>('');
+  const [inStock, setInStock] = useState<boolean>(false);
   const [loadingCategories, setLoadingCategories] = useState(false);
+  const [shopId, setShopId] = useState<string | undefined>(route.params?.shopId);
 
   useEffect(() => {
+    // Log navigation params for debugging
+    console.log("Route params:", route.params);
+    
     loadProducts();
     fetchCategories();
   }, []);
 
   useEffect(() => {
+    // Update parameters when they change in the route
+    if (route.params) {
+      if (route.params.shopId) {
+        setShopId(route.params.shopId);
+      }
+      if (route.params.searchQuery) {
+        setSearchQuery(route.params.searchQuery);
+      }
+      if (route.params.category) {
+        setSelectedCategory(route.params.category);
+      }
+    }
+  }, [route.params]);
+
+  useEffect(() => {
     loadProducts();
-  }, [searchQuery, selectedCategory, priceRange, sortBy, inStock]);
+  }, [searchQuery, selectedCategory, priceRange, sortBy, inStock, shopId]);
 
   const fetchCategories = async () => {
     try {
@@ -91,9 +113,12 @@ const ProductsScreen: React.FC = () => {
       if (priceRange[1] < 10000) queryParams.maxPrice = priceRange[1].toString();
       if (inStock) queryParams.stock = 'gt:0';
       
+      // Add shopId filter if present
+      if (shopId) queryParams.shop = shopId;
+      
       // Add pagination params
       queryParams.page = '1';
-      queryParams.limit = '10';
+      queryParams.limit = '20';
       
       // Convert to query string
       const queryString = Object.entries(queryParams)
@@ -326,100 +351,116 @@ const ProductsScreen: React.FC = () => {
   }
 
   return (
-    <View style={styles.container}>
-      <ScreenHeader title="Products" />
-      
-      <View style={styles.contentContainer}>
-        <View style={styles.searchFilterContainer}>
-          <SearchBar 
-            placeholder="Search products..."
-            onSearch={handleSearch}
-            value={searchQuery}
-            style={styles.searchBar}
+    <SafeAreaView style={styles.safeArea}>
+      <View style={styles.container}>
+        <ScreenHeader title="Products" />
+        
+        <View style={styles.contentContainer}>
+          <View style={styles.searchFilterContainer}>
+            <SearchBar 
+              placeholder="Search products..."
+              onSearch={handleSearch}
+              value={searchQuery}
+              style={styles.searchBar}
+            />
+            <TouchableOpacity 
+              style={styles.filterButton}
+              onPress={handleFilterPress}
+            >
+              <MaterialIcons name="filter-list" size={24} color={theme.colors.primary} />
+            </TouchableOpacity>
+          </View>
+          
+          {/* Active Filters */}
+          {(selectedCategory || priceRange[0] > 0 || priceRange[1] < 10000 || inStock || sortBy || shopId) && (
+            <View style={styles.activeFiltersContainer}>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                {selectedCategory && (
+                  <View style={styles.activeFilterChip}>
+                    <Text style={styles.activeFilterText}>Category: {selectedCategory}</Text>
+                    <TouchableOpacity onPress={() => setSelectedCategory('')}>
+                      <Ionicons name="close-circle" size={16} color={theme.colors.white} />
+                    </TouchableOpacity>
+                  </View>
+                )}
+                
+                {shopId && (
+                  <View style={styles.activeFilterChip}>
+                    <Text style={styles.activeFilterText}>Shop Products</Text>
+                    <TouchableOpacity onPress={() => setShopId(undefined)}>
+                      <Ionicons name="close-circle" size={16} color={theme.colors.white} />
+                    </TouchableOpacity>
+                  </View>
+                )}
+                
+                {(priceRange[0] > 0 || priceRange[1] < 10000) && (
+                  <View style={styles.activeFilterChip}>
+                    <Text style={styles.activeFilterText}>Price: ₹{priceRange[0]} - ₹{priceRange[1]}</Text>
+                    <TouchableOpacity onPress={() => setPriceRange([0, 10000])}>
+                      <Ionicons name="close-circle" size={16} color={theme.colors.white} />
+                    </TouchableOpacity>
+                  </View>
+                )}
+                
+                {inStock && (
+                  <View style={styles.activeFilterChip}>
+                    <Text style={styles.activeFilterText}>In Stock</Text>
+                    <TouchableOpacity onPress={() => setInStock(false)}>
+                      <Ionicons name="close-circle" size={16} color={theme.colors.white} />
+                    </TouchableOpacity>
+                  </View>
+                )}
+                
+                {sortBy && (
+                  <View style={styles.activeFilterChip}>
+                    <Text style={styles.activeFilterText}>
+                      Sort: {sortOptions.find(option => option.value === sortBy)?.label.split(': ')[1]}
+                    </Text>
+                    <TouchableOpacity onPress={() => setSortBy('')}>
+                      <Ionicons name="close-circle" size={16} color={theme.colors.white} />
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </ScrollView>
+            </View>
+          )}
+          
+          <FlatList
+            data={filteredProducts}
+            renderItem={renderProductItem}
+            keyExtractor={(item) => item._id}
+            contentContainerStyle={styles.productsList}
+            showsVerticalScrollIndicator={false}
+            refreshControl={
+              <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
+            }
+            ListEmptyComponent={
+              <Text style={styles.emptyText}>
+                {searchQuery || selectedCategory || priceRange[0] > 0 || priceRange[1] < 10000 || inStock || shopId
+                  ? 'No products match your filters'
+                  : 'No products available'}
+              </Text>
+            }
           />
-          <TouchableOpacity 
-            style={styles.filterButton}
-            onPress={handleFilterPress}
-          >
-            <MaterialIcons name="filter-list" size={24} color={theme.colors.primary} />
-          </TouchableOpacity>
         </View>
         
-        {/* Active Filters */}
-        {(selectedCategory || priceRange[0] > 0 || priceRange[1] < 10000 || inStock || sortBy) && (
-          <View style={styles.activeFiltersContainer}>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              {selectedCategory && (
-                <View style={styles.activeFilterChip}>
-                  <Text style={styles.activeFilterText}>Category: {selectedCategory}</Text>
-                  <TouchableOpacity onPress={() => setSelectedCategory('')}>
-                    <Ionicons name="close-circle" size={16} color={theme.colors.white} />
-                  </TouchableOpacity>
-                </View>
-              )}
-              
-              {(priceRange[0] > 0 || priceRange[1] < 10000) && (
-                <View style={styles.activeFilterChip}>
-                  <Text style={styles.activeFilterText}>Price: ₹{priceRange[0]} - ₹{priceRange[1]}</Text>
-                  <TouchableOpacity onPress={() => setPriceRange([0, 10000])}>
-                    <Ionicons name="close-circle" size={16} color={theme.colors.white} />
-                  </TouchableOpacity>
-                </View>
-              )}
-              
-              {inStock && (
-                <View style={styles.activeFilterChip}>
-                  <Text style={styles.activeFilterText}>In Stock</Text>
-                  <TouchableOpacity onPress={() => setInStock(false)}>
-                    <Ionicons name="close-circle" size={16} color={theme.colors.white} />
-                  </TouchableOpacity>
-                </View>
-              )}
-              
-              {sortBy && (
-                <View style={styles.activeFilterChip}>
-                  <Text style={styles.activeFilterText}>
-                    Sort: {sortOptions.find(option => option.value === sortBy)?.label.split(': ')[1]}
-                  </Text>
-                  <TouchableOpacity onPress={() => setSortBy('')}>
-                    <Ionicons name="close-circle" size={16} color={theme.colors.white} />
-                  </TouchableOpacity>
-                </View>
-              )}
-            </ScrollView>
-          </View>
-        )}
-        
-        <FlatList
-          data={filteredProducts}
-          renderItem={renderProductItem}
-          keyExtractor={(item) => item._id}
-          contentContainerStyle={styles.productsList}
-          showsVerticalScrollIndicator={false}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
-          }
-          ListEmptyComponent={
-            <Text style={styles.emptyText}>
-              {searchQuery || selectedCategory || priceRange[0] > 0 || priceRange[1] < 10000 || inStock
-                ? 'No products match your filters'
-                : 'No products available'}
-            </Text>
-          }
-        />
+        {renderFiltersModal()}
       </View>
-      
-      {renderFiltersModal()}
-    </View>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: theme.colors.background,
+  },
   container: {
     flex: 1,
     backgroundColor: theme.colors.background,
   },
   contentContainer: {
+    flex: 1,
     padding: theme.spacing.md,
     paddingBottom: 120,
   },
@@ -501,7 +542,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   productsList: {
-    paddingBottom: 80,
+    paddingBottom: 100,
   },
   productCard: {
     marginBottom: 16,

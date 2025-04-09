@@ -216,14 +216,7 @@ const ShopDetailsScreen: React.FC = () => {
             />
           )}
           
-          {products.length > 0 && (
-            <TouchableOpacity 
-              style={styles.viewAllButton}
-              onPress={() => navigation.navigate('ProductsTab')}
-            >
-              <Text style={styles.viewAllText}>View All Products</Text>
-            </TouchableOpacity>
-          )}
+ 
           
           <View style={styles.divider} />
           

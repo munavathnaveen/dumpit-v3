@@ -2,6 +2,7 @@ import { useNavigation as useNativeNavigation, ParamListBase } from '@react-navi
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
+import { useRoute as useNativeRoute } from '@react-navigation/core';
 import { MainStackParamList, BottomTabParamList } from './types';
 
 // Define a route type since we can't directly import it
@@ -20,14 +21,23 @@ export function useTabNavigation<T extends keyof BottomTabParamList>() {
   return useNativeNavigation<BottomTabNavigationProp<BottomTabParamList, T>>();
 }
 
-// Type safe useRoute hook
+// Type safe useRoute hook for MainStack
 export function useRoute<T extends keyof MainStackParamList>() {
-  const navigation = useNavigation<T>();
-  const currentRoute = navigation.getState().routes[navigation.getState().index];
+  const route = useNativeRoute<any>();
   return {
-    key: currentRoute.key,
-    name: currentRoute.name,
-    params: currentRoute.params as MainStackParamList[T]
+    key: route.key,
+    name: route.name as T,
+    params: route.params as MainStackParamList[T]
+  };
+}
+
+// Type safe useRoute hook for BottomTabs
+export function useTabRoute<T extends keyof BottomTabParamList>() {
+  const route = useNativeRoute<any>();
+  return {
+    key: route.key,
+    name: route.name as T,
+    params: route.params as BottomTabParamList[T]
   };
 }
 

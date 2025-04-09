@@ -11,7 +11,8 @@ import {
   Modal,
   ScrollView,
   Platform,
-  Alert
+  Alert,
+  SafeAreaView
 } from 'react-native';
 import { useSelector, useDispatch } from 'react-redux';
 import { FontAwesome, Ionicons, MaterialIcons } from '@expo/vector-icons';
@@ -484,104 +485,110 @@ const ShopsScreen: React.FC = () => {
   }
 
   return (
-    <View style={styles.container}>
-      <ScreenHeader title="Shops" />
-      
-      <View style={styles.contentContainer}>
-        <View style={styles.searchFilterContainer}>
-          <SearchBar 
-            placeholder="Search shops..."
-            onSearch={handleSearch}
-            value={searchQuery}
-            style={styles.searchBar}
+    <SafeAreaView style={styles.safeArea}>
+      <View style={styles.container}>
+        <ScreenHeader title="Shops" />
+        
+        <View style={styles.contentContainer}>
+          <View style={styles.searchFilterContainer}>
+            <SearchBar 
+              placeholder="Search shops..."
+              onSearch={handleSearch}
+              value={searchQuery}
+              style={styles.searchBar}
+            />
+            <TouchableOpacity 
+              style={styles.filterButton}
+              onPress={handleFilterPress}
+            >
+              <MaterialIcons name="filter-list" size={24} color={theme.colors.primary} />
+            </TouchableOpacity>
+          </View>
+          
+          {/* Active Filters */}
+          {(selectedCategory || onlyOpen || minRating > 0 || sortBy || showNearby) && (
+            <View style={styles.activeFiltersContainer}>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                {selectedCategory && (
+                  <View style={styles.activeFilterChip}>
+                    <Text style={styles.activeFilterText}>Category: {selectedCategory}</Text>
+                    <TouchableOpacity onPress={() => setSelectedCategory('')}>
+                      <Ionicons name="close-circle" size={16} color={theme.colors.white} />
+                    </TouchableOpacity>
+                  </View>
+                )}
+                
+                {onlyOpen && (
+                  <View style={styles.activeFilterChip}>
+                    <Text style={styles.activeFilterText}>Open Only</Text>
+                    <TouchableOpacity onPress={() => setOnlyOpen(false)}>
+                      <Ionicons name="close-circle" size={16} color={theme.colors.white} />
+                    </TouchableOpacity>
+                  </View>
+                )}
+                
+                {minRating > 0 && (
+                  <View style={styles.activeFilterChip}>
+                    <Text style={styles.activeFilterText}>Rating: {minRating}+</Text>
+                    <TouchableOpacity onPress={() => setMinRating(0)}>
+                      <Ionicons name="close-circle" size={16} color={theme.colors.white} />
+                    </TouchableOpacity>
+                  </View>
+                )}
+                
+                {sortBy && (
+                  <View style={styles.activeFilterChip}>
+                    <Text style={styles.activeFilterText}>
+                      Sort: {sortBy === 'rating' ? 'Rating' : 'Name'}
+                    </Text>
+                    <TouchableOpacity onPress={() => setSortBy('')}>
+                      <Ionicons name="close-circle" size={16} color={theme.colors.white} />
+                    </TouchableOpacity>
+                  </View>
+                )}
+                
+                {showNearby && (
+                  <View style={styles.activeFilterChip}>
+                    <Text style={styles.activeFilterText}>Nearby</Text>
+                    <TouchableOpacity onPress={() => setShowNearby(false)}>
+                      <Ionicons name="close-circle" size={16} color={theme.colors.white} />
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </ScrollView>
+            </View>
+          )}
+          
+          <FlatList
+            data={filteredShops}
+            renderItem={renderShopItem}
+            keyExtractor={(item) => item._id}
+            contentContainerStyle={styles.shopsList}
+            showsVerticalScrollIndicator={false}
+            refreshControl={
+              <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
+            }
+            ListEmptyComponent={
+              <Text style={styles.emptyText}>
+                {searchQuery || selectedCategory || onlyOpen || minRating > 0
+                  ? 'No shops match your filters'
+                  : 'No shops available'}
+              </Text>
+            }
           />
-          <TouchableOpacity 
-            style={styles.filterButton}
-            onPress={handleFilterPress}
-          >
-            <MaterialIcons name="filter-list" size={24} color={theme.colors.primary} />
-          </TouchableOpacity>
         </View>
         
-        {/* Active Filters */}
-        {(selectedCategory || onlyOpen || minRating > 0 || sortBy || showNearby) && (
-          <View style={styles.activeFiltersContainer}>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              {selectedCategory && (
-                <View style={styles.activeFilterChip}>
-                  <Text style={styles.activeFilterText}>Category: {selectedCategory}</Text>
-                  <TouchableOpacity onPress={() => setSelectedCategory('')}>
-                    <Ionicons name="close-circle" size={16} color={theme.colors.white} />
-                  </TouchableOpacity>
-                </View>
-              )}
-              
-              {onlyOpen && (
-                <View style={styles.activeFilterChip}>
-                  <Text style={styles.activeFilterText}>Open Only</Text>
-                  <TouchableOpacity onPress={() => setOnlyOpen(false)}>
-                    <Ionicons name="close-circle" size={16} color={theme.colors.white} />
-                  </TouchableOpacity>
-                </View>
-              )}
-              
-              {minRating > 0 && (
-                <View style={styles.activeFilterChip}>
-                  <Text style={styles.activeFilterText}>Rating: {minRating}+</Text>
-                  <TouchableOpacity onPress={() => setMinRating(0)}>
-                    <Ionicons name="close-circle" size={16} color={theme.colors.white} />
-                  </TouchableOpacity>
-                </View>
-              )}
-              
-              {sortBy && (
-                <View style={styles.activeFilterChip}>
-                  <Text style={styles.activeFilterText}>
-                    Sort: {sortBy === 'rating' ? 'Rating' : 'Name'}
-                  </Text>
-                  <TouchableOpacity onPress={() => setSortBy('')}>
-                    <Ionicons name="close-circle" size={16} color={theme.colors.white} />
-                  </TouchableOpacity>
-                </View>
-              )}
-              
-              {showNearby && (
-                <View style={styles.activeFilterChip}>
-                  <Text style={styles.activeFilterText}>Nearby</Text>
-                  <TouchableOpacity onPress={() => setShowNearby(false)}>
-                    <Ionicons name="close-circle" size={16} color={theme.colors.white} />
-                  </TouchableOpacity>
-                </View>
-              )}
-            </ScrollView>
-          </View>
-        )}
-        
-        <FlatList
-          data={filteredShops}
-          renderItem={renderShopItem}
-          keyExtractor={(item) => item._id}
-          contentContainerStyle={styles.shopsList}
-          showsVerticalScrollIndicator={false}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
-          }
-          ListEmptyComponent={
-            <Text style={styles.emptyText}>
-              {searchQuery || selectedCategory || onlyOpen || minRating > 0 || showNearby
-                ? 'No shops match your filters'
-                : 'No shops available'}
-            </Text>
-          }
-        />
+        {renderFiltersModal()}
       </View>
-      
-      {renderFiltersModal()}
-    </View>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: theme.colors.background,
+  },
   container: {
     flex: 1,
     backgroundColor: theme.colors.background,
@@ -589,7 +596,7 @@ const styles = StyleSheet.create({
   contentContainer: {
     flex: 1,
     padding: theme.spacing.md,
-    paddingBottom: 100,
+    paddingBottom: 120,
   },
   searchFilterContainer: {
     flexDirection: 'row',
@@ -636,7 +643,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   shopsList: {
-    paddingBottom: 80,
+    paddingBottom: 100,
   },
   shopCard: {
     marginBottom: 16,
