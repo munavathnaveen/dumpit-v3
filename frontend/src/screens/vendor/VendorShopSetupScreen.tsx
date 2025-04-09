@@ -41,8 +41,7 @@ interface AddressType {
 interface ShopFormState {
   name: string;
   description: string;
-  logo?: string;
-  coverImage?: string;
+  image?: string;
   address: AddressType;
   location: LocationType;
   isActive: boolean;
@@ -60,8 +59,7 @@ const VendorShopSetupScreen: React.FC = () => {
   const [form, setForm] = useState<ShopFormState>({
     name: '',
     description: '',
-    logo: '',
-    coverImage: '',
+    image: '',
     address: {
       village: '',
       street: '',
@@ -82,21 +80,22 @@ const VendorShopSetupScreen: React.FC = () => {
   });
   const [error, setError] = useState<string | null>(null);
   const userId = useSelector((state: RootState) => state.auth.user?._id);
-  console.log('userId', userId);
+  
   useEffect(() => {
+    if (!userId) return;
+    
     const loadShopDetails = async () => {
       try {
         setLoading(true);
         try {
-          const response = await getShopDetails(userId || '');  
+          const response = await getShopDetails(userId);  
           const shop = response.data;
           
           setShopId(shop._id);
           setForm({
             name: shop.name || '',
             description: shop.description || '',
-            logo: shop.logo || undefined,
-            coverImage: shop.coverImage || undefined,
+            image: shop.image || '',
             address: {
               village: shop.address.village || '',
               street: shop.address.street || '',
@@ -149,7 +148,7 @@ const VendorShopSetupScreen: React.FC = () => {
     }
   };
 
-  const pickImage = async (imageType: 'logo' | 'coverImage') => {
+  const pickImage = async () => {
     try {
       const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
       
@@ -161,12 +160,12 @@ const VendorShopSetupScreen: React.FC = () => {
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
-        aspect: imageType === 'logo' ? [1, 1] : [16, 9],
+        aspect: [1, 1],
         quality: 0.8,
       });
       
       if (!result.canceled && result.assets && result.assets.length > 0) {
-        handleInputChange(imageType, result.assets[0].uri);
+        handleInputChange('image', result.assets[0].uri);
       }
     } catch (error) {
       console.error('Error picking image:', error);
@@ -199,8 +198,7 @@ const VendorShopSetupScreen: React.FC = () => {
       const apiData: ShopSettings = {
         name: form.name,
         description: form.description,
-        logo: form.logo,
-        coverImage: form.coverImage,
+        image: form.image,
         address: {
           village: form.address.village,
           street: form.address.street,
@@ -325,10 +323,10 @@ const VendorShopSetupScreen: React.FC = () => {
           <Text style={styles.sectionTitle}>Shop Images</Text>
           
           <View style={styles.formGroup}>
-            <Text style={styles.label}>Shop Logo</Text>
+            <Text style={styles.label}>Shop Image</Text>
             <View style={styles.imageContainer}>
-              {form.logo ? (
-                <Image source={{ uri: form.logo }} style={styles.logoPreview} />
+              {form.image ? (
+                <Image source={{ uri: form.image }} style={styles.imagePreview} />
               ) : (
                 <View style={styles.imagePlaceholder}>
                   <Ionicons name="image-outline" size={40} color={theme.colors.gray} />
@@ -336,31 +334,10 @@ const VendorShopSetupScreen: React.FC = () => {
               )}
               <TouchableOpacity 
                 style={styles.uploadButton}
-                onPress={() => pickImage('logo')}
+                onPress={pickImage}
               >
                 <Text style={styles.uploadButtonText}>
-                  {form.logo ? 'Change Logo' : 'Upload Logo'}
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-          
-          <View style={styles.formGroup}>
-            <Text style={styles.label}>Banner Image</Text>
-            <View style={styles.imageContainer}>
-              {form.coverImage ? (
-                <Image source={{ uri: form.coverImage }} style={styles.bannerPreview} />
-              ) : (
-                <View style={[styles.imagePlaceholder, styles.bannerPlaceholder]}>
-                  <Ionicons name="image-outline" size={40} color={theme.colors.gray} />
-                </View>
-              )}
-              <TouchableOpacity 
-                style={styles.uploadButton}
-                onPress={() => pickImage('coverImage')}
-              >
-                <Text style={styles.uploadButtonText}>
-                  {form.coverImage ? 'Change Banner' : 'Upload Banner'}
+                  {form.image ? 'Change Image' : 'Upload Image'}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -617,16 +594,10 @@ const styles = StyleSheet.create({
   imageContainer: {
     alignItems: 'center',
   },
-  logoPreview: {
+  imagePreview: {
     width: 120,
     height: 120,
     borderRadius: 60,
-    marginBottom: theme.spacing.sm,
-  },
-  bannerPreview: {
-    width: '100%',
-    height: 160,
-    borderRadius: theme.borderRadius.medium,
     marginBottom: theme.spacing.sm,
   },
   imagePlaceholder: {
@@ -637,11 +608,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: theme.spacing.sm,
-  },
-  bannerPlaceholder: {
-    width: '100%',
-    height: 160,
-    borderRadius: theme.borderRadius.medium,
   },
   uploadButton: {
     backgroundColor: theme.colors.primary,

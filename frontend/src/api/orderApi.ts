@@ -113,22 +113,39 @@ export const cancelOrder = async (orderId: string): Promise<SingleOrderResponse>
 
 // Vendor-specific API functions
 
-export const getVendorOrders = async (): Promise<VendorOrder[]> => {
-  const response = await apiClient.get('/orders/vendor');
-  return response.data.data;
-};
-
-export const getVendorOrder = async (orderId: string): Promise<VendorOrder> => {
-  const response = await apiClient.get(`/orders/vendor/${orderId}`);
-  return response.data.data;
-};
-
-export const updateOrderStatus = async (orderId: string, status: OrderStatus): Promise<VendorSingleOrderResponse> => {
-  const response = await apiClient.put(`/orders/${orderId}/status`, { status });
+export const getVendorOrders = async (page = 1, limit = 10): Promise<{
+  success: boolean;
+  count: number;
+  pagination: {
+    next?: { page: number; limit: number };
+    prev?: { page: number; limit: number };
+  };
+  data: VendorOrder[];
+}> => {
+  const response = await apiClient.get(`/orders/vendor?page=${page}&limit=${limit}`);
   return response.data;
 };
 
-export const getVendorOrderStats = async (): Promise<any> => {
+export const getVendorOrder = async (orderId: string): Promise<{ 
+  success: boolean; 
+  data: VendorOrder;
+}> => {
+  const response = await apiClient.get(`/orders/vendor/${orderId}`);
+  return response.data;
+};
+
+export const updateOrderStatus = async (orderId: string, status: OrderStatus): Promise<{
+  success: boolean;
+  data: VendorOrder;
+}> => {
+  const response = await apiClient.put(`/orders/${orderId}`, { status });
+  return response.data;
+};
+
+export const getVendorOrderStats = async (): Promise<{
+  success: boolean;
+  data: any;
+}> => {
   const response = await apiClient.get('/orders/vendor/stats');
-  return response.data.data;
+  return response.data;
 }; 

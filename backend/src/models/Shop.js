@@ -67,11 +67,9 @@ const ShopSchema = new mongoose.Schema(
         trim: true
       }
     ],
-    images: [
-      {
-        type: String,
-      },
-    ],
+    image: {
+      type: String,
+    },
     rating: {
       type: Number,
       default: 0,

@@ -49,7 +49,7 @@ const VendorAddProductScreen: React.FC = () => {
     units: '',
     stock: 0,
     discount: 0,
-    images: [],
+    image: '',
     isActive: true,
   });
 
@@ -148,19 +148,32 @@ const VendorAddProductScreen: React.FC = () => {
                 name: 'product_image.jpg',
               } as unknown as File;
           
-          const response = await uploadProductImage(file);
+          // First create the product to get its ID
+          const productResponse = await createProduct({
+            name: 'Temporary Product',
+            description: 'Temporary product for image upload',
+            category: formData.category,
+            image: ''
+          });
+          
+          if (!productResponse.success) {
+            throw new Error('Failed to create temporary product');
+          }
+          
+          const productId = productResponse.data._id;
+          const response = await uploadProductImage(productId, file);
           
           if (response.success) {
-            // Add the image URL to the images array
+            // Add the image URL
             setFormData({
               ...formData,
-              images: [...formData.images, response.data],
+              image: response.data.image,
             });
             
             // Clear any image error
-            if (errors.images) {
+            if (errors.image) {
               const newErrors = { ...errors };
-              delete newErrors.images;
+              delete newErrors.image;
               setErrors(newErrors);
             }
           } else {
@@ -180,12 +193,10 @@ const VendorAddProductScreen: React.FC = () => {
     }
   };
 
-  const handleRemoveImage = (index: number) => {
-    const newImages = [...formData.images];
-    newImages.splice(index, 1);
+  const handleRemoveImage = () => {
     setFormData({
       ...formData,
-      images: newImages,
+      image: '',
     });
   };
 
@@ -203,11 +214,11 @@ const VendorAddProductScreen: React.FC = () => {
         description: formData.description,
         type: formData.type,
         category: formData.category,
-        price: formData.price, // Use price directly
+        price: formData.price,
         units: formData.units,
         stock: formData.stock,
         discount: formData.discount,
-        images: formData.images,
+        image: formData.image,
         isActive: formData.isActive
       };
 
@@ -384,35 +395,37 @@ const VendorAddProductScreen: React.FC = () => {
 
           {/* Images */}
           <View style={styles.formGroup}>
-            <Text style={styles.label}>Product Images*</Text>
+            <Text style={styles.label}>Product Image</Text>
             <View style={styles.imagesContainer}>
-              {formData.images.map((uri, index) => (
-                <View key={index} style={styles.imagePreviewContainer}>
-                  <Image source={{ uri }} style={styles.imagePreview} />
+              {formData.image ? (
+                <View style={styles.imagePreviewContainer}>
+                  <Image source={{ uri: formData.image }} style={styles.imagePreview} />
                   <TouchableOpacity
                     style={styles.removeImageButton}
-                    onPress={() => handleRemoveImage(index)}
+                    onPress={handleRemoveImage}
                   >
                     <Ionicons name="close-circle" size={24} color={theme.colors.error} />
                   </TouchableOpacity>
                 </View>
-              ))}
-              <TouchableOpacity
-                style={styles.addImageButton}
-                onPress={handleImagePick}
-                disabled={uploading}
-              >
-                {uploading ? (
-                  <ActivityIndicator size="small" color={theme.colors.primary} />
-                ) : (
-                  <>
-                    <Ionicons name="add" size={24} color={theme.colors.primary} />
-                    <Text style={styles.addImageText}>Add Image</Text>
-                  </>
-                )}
-              </TouchableOpacity>
+              ) : null}
+              {!formData.image && (
+                <TouchableOpacity
+                  style={styles.addImageButton}
+                  onPress={handleImagePick}
+                  disabled={uploading}
+                >
+                  {uploading ? (
+                    <ActivityIndicator size="small" color={theme.colors.primary} />
+                  ) : (
+                    <>
+                      <Ionicons name="add" size={24} color={theme.colors.primary} />
+                      <Text style={styles.addImageText}>Add Image</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              )}
             </View>
-            {errors.images && <Text style={styles.errorText}>{errors.images}</Text>}
+            {errors.image && <Text style={styles.errorText}>{errors.image}</Text>}
           </View>
 
           {/* Submit Button */}

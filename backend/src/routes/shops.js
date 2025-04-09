@@ -5,11 +5,13 @@ const {
   createShop,
   updateShop,
   deleteShop,
-  uploadShopImages,
-  getShopsInRadius,
-  addShopReview,
-  getNearbyShops,
+  getShopsByDistance,
+  getShopsByVendor,
   getShopCategories,
+  uploadShopImage,
+  addShopReview,
+  getShopsInRadius,
+  getNearbyShops,
 } = require('../controllers/shops')
 
 // Include product routes
@@ -37,7 +39,12 @@ router.get('/categories', getShopCategories)
 router.post('/:id/reviews', protect, addShopReview)
 
 // Shop image upload route
-router.put('/:id/images', protect, upload.array('images', 5), uploadShopImages)
+router.put(
+  '/:id/image',
+  protect,
+  authorize(config.constants.userRoles.VENDOR),
+  uploadShopImage
+)
 
 // Get all shops
 router.get('/', getShops)

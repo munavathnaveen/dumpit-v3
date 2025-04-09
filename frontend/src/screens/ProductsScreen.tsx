@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState } from 'react';
 import { 
   View, 
   Text, 
@@ -18,9 +18,8 @@ import Slider from '@react-native-community/slider';
 
 import { RootState, AppDispatch } from '../store';
 import { theme } from '../theme';
-import { getProducts } from '../store/productSlice';
 import { addToCart } from '../store/cartSlice';
-import { Product, ProductFilters } from '../types/product';
+import { Product } from '../types/product';
 import Card3D from '../components/Card3D';
 import SearchBar from '../components/SearchBar';
 import ScreenHeader from '../components/ScreenHeader';
@@ -59,10 +58,8 @@ const ProductsScreen: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    if (products.length > 0) {
-      filterProducts();
-    }
-  }, [products, searchQuery, selectedCategory, priceRange, sortBy, inStock]);
+    loadProducts();
+  }, [searchQuery, selectedCategory, priceRange, sortBy, inStock]);
 
   const fetchCategories = async () => {
     try {
@@ -76,57 +73,16 @@ const ProductsScreen: React.FC = () => {
     }
   };
 
-  const filterProducts = useCallback(() => {
-    let filtered = [...products];
-    
-    // Apply text search filter if not already applied by API
-    if (searchQuery.trim() && !route.params?.searchQuery) {
-      const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(
-        (product) => 
-          product.name.toLowerCase().includes(query) || 
-          product.description.toLowerCase().includes(query)
-      );
-    }
-    
-    // Apply category filter if not already applied by API
-    if (selectedCategory && !route.params?.category) {
-      filtered = filtered.filter(product => product.category === selectedCategory);
-    }
-    
-    // Apply price range filter
-    filtered = filtered.filter(
-      product => product.price >= priceRange[0] && product.price <= priceRange[1]
-    );
-    
-    // Apply in-stock filter if not already applied by API
-    if (inStock && !route.params?.inStock) {
-      filtered = filtered.filter(product => product.stock > 0);
-    }
-    
-    // Apply sorting if not already applied by API
-    if (sortBy && !route.params?.sort) {
-      const direction = sortBy.startsWith('-') ? -1 : 1;
-      const field = sortBy.startsWith('-') ? sortBy.substring(1) : sortBy;
-      
-      filtered.sort((a, b) => {
-        if (field === 'price') {
-          return direction * (a.price - b.price);
-        } else if (field === 'rating') {
-          return direction * (a.rating - b.rating);
-        } else if (field === 'createdAt') {
-          return direction * (new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
-        }
-        return 0;
-      });
-    }
-    
-    setFilteredProducts(filtered);
-  }, [products, searchQuery, selectedCategory, priceRange, sortBy, inStock, route.params]);
-
   const loadProducts = async () => {
     try {
-      // Build query params based on filters
+      // If search query is provided, use the dedicated search endpoint
+      if (searchQuery && searchQuery.trim() !== '') {
+        const response = await productApi.searchProducts(searchQuery);
+        setFilteredProducts(response.data);
+        return;
+      }
+      
+      // Otherwise, build query params based on filters
       const queryParams: Record<string, string> = {};
       
       if (selectedCategory) queryParams.category = selectedCategory;
@@ -134,7 +90,6 @@ const ProductsScreen: React.FC = () => {
       if (priceRange[0] > 0) queryParams.minPrice = priceRange[0].toString();
       if (priceRange[1] < 10000) queryParams.maxPrice = priceRange[1].toString();
       if (inStock) queryParams.stock = 'gt:0';
-      if (searchQuery) queryParams.search = searchQuery;
       
       // Add pagination params
       queryParams.page = '1';
@@ -145,7 +100,8 @@ const ProductsScreen: React.FC = () => {
         .map(([key, value]) => `${key}=${encodeURIComponent(value)}`)
         .join('&');
       
-      await dispatch(getProducts({ query: queryString })).unwrap();
+      const response = await productApi.getProducts(queryString);
+      setFilteredProducts(response.data);
     } catch (error) {
       console.error('Failed to load products:', error);
     }
@@ -192,7 +148,7 @@ const ProductsScreen: React.FC = () => {
         activeOpacity={0.9}
       >
         <Image 
-          source={{ uri: item.images[0] || 'https://via.placeholder.com/150' }} 
+          source={{ uri: item.image || 'https://via.placeholder.com/150' }} 
           style={styles.productImage} 
         />
       </TouchableOpacity>

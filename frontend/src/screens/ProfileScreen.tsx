@@ -101,17 +101,15 @@ const ProfileScreen = () => {
       });
       if (!result.canceled) {
         const uri = result.assets[0].uri;
-        // Create form data
-        const formData = new FormData();
         const fileExtension = uri.split('.').pop() || 'jpg';
         
-        formData.append('avatar', {
+        const file = {
           uri,
           type: `image/${fileExtension}`,
           name: `avatar.${fileExtension}`,
-        } as any);
+        } as any;
     
-        const response = await userApi.uploadAvatar(user._id, formData);
+        const response = await userApi.uploadAvatar(user._id, file);
         if (response.success) {
           alert('Success', 'Avatar updated successfully!');
           // Reload user data

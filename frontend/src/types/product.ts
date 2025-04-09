@@ -9,7 +9,7 @@ export interface Product {
   stock: number;
   discount: number;
   rating: number;
-  images: string[];
+  image: string;
   vendor: {
     _id: string;
     name: string;

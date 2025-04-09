@@ -50,11 +50,9 @@ const ProductSchema = new mongoose.Schema(
       min: [0, 'Rating must be at least 0'],
       max: [5, 'Rating cannot be more than 5'],
     },
-    images: [
-      {
-        type: String,
-      },
-    ],
+    image: {
+      type: String,
+    },
     vendor: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',

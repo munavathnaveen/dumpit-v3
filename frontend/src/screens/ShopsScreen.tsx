@@ -19,7 +19,7 @@ import * as Location from 'expo-location';
 
 import { RootState, AppDispatch } from '../store';
 import { theme } from '../theme';
-import { getShops, getNearbyShops, ShopsResponse, getShopCategories } from '../api/shopApi';
+import { getShops, getNearbyShops, ShopsResponse, getShopCategories, searchShops } from '../api/shopApi';
 import Card3D from '../components/Card3D';
 import SearchBar from '../components/SearchBar';
 import ScreenHeader from '../components/ScreenHeader';
@@ -201,6 +201,14 @@ const ShopsScreen: React.FC = () => {
   const loadShops = async () => {
     try {
       setLoading(true);
+      
+      // If search query is provided, use the dedicated search function
+      if (searchQuery && searchQuery.trim() !== '') {
+        const response = await searchShops(searchQuery);
+        setShops(response.data as unknown as Shop[]);
+        setFilteredShops(response.data as unknown as Shop[]);
+        return;
+      }
       
       let response: ShopsResponse;
       if (showNearby && userLocation) {

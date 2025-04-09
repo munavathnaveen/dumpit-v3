@@ -75,7 +75,7 @@ const ShopDetailsScreen: React.FC = () => {
     >
       <Card3D style={styles.productCard}>
         <Image 
-          source={{ uri: item.images[0] || 'https://via.placeholder.com/150' }} 
+          source={{ uri: item.image || 'https://via.placeholder.com/150' }} 
           style={styles.productImage} 
         />
         <View style={styles.productInfo}>
@@ -128,7 +128,7 @@ const ShopDetailsScreen: React.FC = () => {
       
       <ScrollView showsVerticalScrollIndicator={false}>
         <Image 
-          source={{ uri: shop.coverImage || shop.logo || 'https://via.placeholder.com/400' }}
+          source={{ uri: shop.image || 'https://via.placeholder.com/400' }}
           style={styles.coverImage}
           resizeMode="cover"
         />
@@ -136,7 +136,7 @@ const ShopDetailsScreen: React.FC = () => {
         <View style={styles.shopInfoContainer}>
           <View style={styles.logoContainer}>
             <Image 
-              source={{ uri: shop.logo || 'https://via.placeholder.com/100' }}
+              source={{ uri: shop.image || 'https://via.placeholder.com/100' }}
               style={styles.logoImage}
               resizeMode="cover"
             />

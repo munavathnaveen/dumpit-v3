@@ -4,8 +4,7 @@ export interface Shop {
   _id: string;
   name: string;
   description: string;
-  logo?: string;
-  coverImage?: string;
+  image: string;
   address: {
     village: string;
     street: string;
@@ -43,8 +42,7 @@ export interface Shop {
 export type ShopSettings = {
   name: string;
   description: string;
-  logo?: string;
-  coverImage?: string;
+  image?: string;
   address: {
     village: string;
     street: string;
@@ -123,8 +121,8 @@ export const getShopCategories = async (): Promise<{success: boolean, count: num
 };
 
 export const searchShops = async (searchTerm: string): Promise<ShopsResponse> => {
-  // Since there's no dedicated search endpoint, we'll use query parameters to filter
-  const response = await apiClient.get(`/shops?name=${searchTerm}`);
+  // Use proper search query parameter for the API
+  const response = await apiClient.get(`/shops?search=${encodeURIComponent(searchTerm)}`);
   return response.data;
 };
 
@@ -148,4 +146,21 @@ export const updateShop = async (shopId: string, shopData: Partial<ShopSettings>
 export const getShopDetails = async (userId: string): Promise<SingleShopResponse> => {
   // This is an alias for getVendorShop to match the function name used in VendorShopSetupScreen
     return getVendorShop(userId);
+};
+
+export const uploadShopImage = async (shopId: string, file: File): Promise<{
+  success: boolean;
+  data: {
+    image: string;
+  };
+}> => {
+  const formData = new FormData();
+  formData.append('image', file);
+
+  const response = await apiClient.put(`/shops/${shopId}/image`, formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  });
+  return response.data;
 }; 

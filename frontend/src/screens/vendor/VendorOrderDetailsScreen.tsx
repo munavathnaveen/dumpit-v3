@@ -37,9 +37,12 @@ const VendorOrderDetailsScreen: React.FC = () => {
     const fetchOrderDetails = async () => {
       try {
         setLoading(true);
-        const data = await getVendorOrder(orderId);
-        setOrder(data);
-        setError(null);
+        const response = await getVendorOrder(orderId);
+        if (response.success) {
+          setOrder(response.data);
+        } else {
+          setError('Failed to load order details');
+        }
       } catch (error) {
         console.error('Failed to load order details:', error);
         setError('Failed to load order details');

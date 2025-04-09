@@ -8,7 +8,6 @@ import {
   ActivityIndicator,
   RefreshControl,
   Modal,
-  TextInput,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -20,143 +19,140 @@ import { theme } from '../../theme';
 import SegmentedControl from '../../components/SegmentedControl';
 import { MainStackNavigationProp } from '../../navigation/types';
 import alert from '../../utils/alert';
-
-// Mock data for payments
-// In a real application, this would come from an API
-interface Payment {
-  id: string;
-  amount: number;
-  status: 'pending' | 'processing' | 'completed' | 'failed';
-  date: string;
-  orderId: string;
-  orderNumber: string;
-  paymentMethod: string;
-  transactionId: string;
-}
-
-const mockPayments: Payment[] = [
-  {
-    id: '1',
-    amount: 1750.00,
-    status: 'completed',
-    date: '2024-06-10T10:30:00Z',
-    orderId: 'ord123',
-    orderNumber: 'ORD-12345',
-    paymentMethod: 'Bank Transfer',
-    transactionId: 'TXN78945612',
-  },
-  {
-    id: '2',
-    amount: 2500.50,
-    status: 'pending',
-    date: '2024-06-05T14:45:00Z',
-    orderId: 'ord124',
-    orderNumber: 'ORD-12346',
-    paymentMethod: 'Bank Transfer',
-    transactionId: 'TXN78945613',
-  },
-  {
-    id: '3',
-    amount: 3450.75,
-    status: 'processing',
-    date: '2024-06-01T09:15:00Z',
-    orderId: 'ord125',
-    orderNumber: 'ORD-12347',
-    paymentMethod: 'Bank Transfer',
-    transactionId: 'TXN78945614',
-  },
-  {
-    id: '4',
-    amount: 1200.25,
-    status: 'completed',
-    date: '2024-05-25T16:20:00Z',
-    orderId: 'ord126',
-    orderNumber: 'ORD-12348',
-    paymentMethod: 'Bank Transfer',
-    transactionId: 'TXN78945615',
-  },
-  {
-    id: '5',
-    amount: 980.50,
-    status: 'failed',
-    date: '2024-05-20T11:10:00Z',
-    orderId: 'ord127',
-    orderNumber: 'ORD-12349',
-    paymentMethod: 'Bank Transfer',
-    transactionId: 'TXN78945616',
-  },
-];
+import { getVendorOrders, updateOrderStatus, VendorOrder } from '../../api/orderApi';
 
 const paymentFilterOptions = ['All', 'Pending', 'Processing', 'Completed', 'Failed'];
 
+// Map order payment status to payment screen status
+const mapPaymentStatus = (status: string): 'pending' | 'processing' | 'completed' | 'failed' => {
+  switch (status) {
+    case 'paid':
+      return 'completed';
+    case 'pending':
+      return 'pending';
+    case 'failed':
+      return 'failed';
+    default:
+      return 'processing';
+  }
+};
+
 const VendorPaymentsScreen: React.FC = () => {
   const navigation = useNavigation<MainStackNavigationProp<'VendorPayments'>>();
-  const [payments, setPayments] = useState<Payment[]>([]);
-  const [filteredPayments, setFilteredPayments] = useState<Payment[]>([]);
+  const [payments, setPayments] = useState<VendorOrder[]>([]);
+  const [filteredPayments, setFilteredPayments] = useState<VendorOrder[]>([]);
   const [selectedFilterIndex, setSelectedFilterIndex] = useState(0);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [selectedPayment, setSelectedPayment] = useState<Payment | null>(null);
+  const [selectedPayment, setSelectedPayment] = useState<VendorOrder | null>(null);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+  const [totalItems, setTotalItems] = useState(0);
 
   // Calculate total earnings
   const completedPaymentsTotal = payments
-    .filter(payment => payment.status === 'completed')
-    .reduce((sum, payment) => sum + payment.amount, 0);
+    .filter(payment => payment.paymentStatus === 'paid')
+    .reduce((sum, payment) => sum + payment.total, 0);
 
   // Calculate pending payouts
   const pendingPaymentsTotal = payments
-    .filter(payment => payment.status === 'pending' || payment.status === 'processing')
-    .reduce((sum, payment) => sum + payment.amount, 0);
+    .filter(payment => payment.paymentStatus === 'pending')
+    .reduce((sum, payment) => sum + payment.total, 0);
 
-  const loadPayments = useCallback(async () => {
+  const loadPayments = useCallback(async (pageNum = 1, shouldAppend = false) => {
     try {
-      setLoading(true);
-      // In a real app, this would be an API call
-      // const response = await getVendorPayments();
-      // setPayments(response);
+      if (pageNum === 1) {
+        setLoading(true);
+      } else {
+        setLoadingMore(true);
+      }
       
-      // Using mock data for now
-      setPayments(mockPayments);
+      // Get orders from the API with pagination
+      const response = await getVendorOrders(pageNum, 10);
       
-      // Initially show all payments
-      setFilteredPayments(mockPayments);
-      setError(null);
+      if (response.success) {
+        const newPayments = response.data;
+        
+        // Update state based on whether we're appending or replacing
+        if (shouldAppend) {
+          setPayments(prevPayments => [...prevPayments, ...newPayments]);
+        } else {
+          setPayments(newPayments);
+        }
+        
+        // Update pagination info
+        setTotalItems(response.count);
+        setHasMore(!!response.pagination?.next);
+        setPage(pageNum);
+      } else {
+        setError('Failed to load payment data');
+      }
     } catch (err) {
       console.error('Failed to load payments:', err);
       setError('Failed to load payments. Please try again.');
     } finally {
       setLoading(false);
+      setLoadingMore(false);
     }
   }, []);
 
-  useFocusEffect(
-    useCallback(() => {
-      loadPayments();
-    }, [loadPayments])
-  );
-
-  const handleFilterChange = (index: number) => {
-    setSelectedFilterIndex(index);
-    const filter = paymentFilterOptions[index].toLowerCase();
+  // Move filter logic outside of loadPayments
+  const applyCurrentFilter = useCallback(() => {
+    const filter = paymentFilterOptions[selectedFilterIndex].toLowerCase();
     
     if (filter === 'all') {
       setFilteredPayments(payments);
     } else {
       setFilteredPayments(
-        payments.filter(payment => payment.status.toLowerCase() === filter)
+        payments.filter(payment => mapPaymentStatus(payment.paymentStatus) === filter)
       );
+    }
+  }, [payments, selectedFilterIndex]);
+
+  // Apply filter whenever payments or selectedFilterIndex changes
+  React.useEffect(() => {
+    applyCurrentFilter();
+  }, [applyCurrentFilter, payments, selectedFilterIndex]);
+
+  useFocusEffect(
+    useCallback(() => {
+      let isMounted = true;
+      
+      const fetchData = async () => {
+        if (isMounted) {
+          await loadPayments(1, false);
+        }
+      };
+      
+      fetchData();
+      
+      return () => {
+        isMounted = false;
+      };
+    }, [loadPayments])
+  );
+
+  const handleFilterChange = (index: number) => {
+    setSelectedFilterIndex(index);
+  };
+
+  const handleLoadMore = () => {
+    if (hasMore && !loading && !refreshing && !loadingMore) {
+      loadPayments(page + 1, true);
     }
   };
 
-  const handleRefresh = async () => {
+  const onRefresh = useCallback(() => {
     setRefreshing(true);
-    await loadPayments();
-    setRefreshing(false);
-  };
+    loadPayments(1, false).finally(() => {
+      setRefreshing(false);
+    });
+  }, [loadPayments]);
 
-  const handlePaymentDetails = (payment: Payment) => {
+  const handlePaymentDetails = (payment: VendorOrder) => {
     setSelectedPayment(payment);
     setShowDetailsModal(true);
   };
@@ -166,57 +162,42 @@ const VendorPaymentsScreen: React.FC = () => {
     setSelectedPayment(null);
   };
 
-  // Mock functions for payment actions
-  const handleSendReminder = (paymentId: string) => {
-    console.log(`Sending reminder for payment ${paymentId}`);
-    // Implementation would connect to backend
+  // Functions for payment actions
+  const handleSendReminder = async (paymentId: string) => {
     alert('Reminder Sent', 'Payment reminder has been sent to the customer.');
   };
 
-  const handleMarkAsPaid = (paymentId: string) => {
-    console.log(`Marking payment ${paymentId} as paid`);
-    // Implementation would connect to backend
-    alert('Payment Updated', 'Payment has been marked as paid.');
+  const handleViewOrder = (orderId: string) => {
+    navigation.navigate('VendorOrderDetails', { orderId });
   };
 
-  const handleCancelPayment = (paymentId: string) => {
-    console.log(`Cancelling payment ${paymentId}`);
-    // Implementation would connect to backend
-    alert('Payment Cancelled', 'The payment has been cancelled.');
-  };
-
-  const handleActionPress = (payment: Payment) => {
+  const handleActionPress = (payment: VendorOrder) => {
     alert(
       'Payment Actions',
-      `Payment #${payment.id.slice(-8)}`,
+      `Order #${payment.orderNumber}`,
       [
         { text: 'Cancel', style: 'cancel' },
         { 
           text: 'View Details', 
           onPress: () => handlePaymentDetails(payment)
         },
-        { 
-          text: 'Send Reminder', 
-          onPress: () => handleSendReminder(payment.id)
+        {
+          text: 'View Order',
+          onPress: () => handleViewOrder(payment._id)
         },
-        ...(payment.status === 'pending' ? [
+        ...(payment.paymentStatus === 'pending' ? [
           { 
-            text: 'Mark as Paid', 
-            onPress: () => handleMarkAsPaid(payment.id)
-          }
-        ] : []),
-        ...(payment.status === 'pending' ? [
-          { 
-            text: 'Cancel Payment', 
-            onPress: () => handleCancelPayment(payment.id),
-            style: 'destructive' as 'destructive'
+            text: 'Send Reminder', 
+            onPress: () => handleSendReminder(payment._id)
           }
         ] : [])
       ]
     );
   };
 
-  const renderPaymentItem = ({ item }: { item: Payment }) => {
+  const renderPaymentItem = ({ item }: { item: VendorOrder }) => {
+    const paymentStatus = mapPaymentStatus(item.paymentStatus);
+    
     return (
       <TouchableOpacity
         onPress={() => handleActionPress(item)}
@@ -225,9 +206,9 @@ const VendorPaymentsScreen: React.FC = () => {
         <Card3D style={styles.paymentCard} elevation="small">
           <View style={styles.paymentHeader}>
             <View>
-              <Text style={styles.paymentAmount}>₹{item.amount.toFixed(2)}</Text>
+              <Text style={styles.paymentAmount}>₹{item.total.toFixed(2)}</Text>
               <Text style={styles.paymentDate}>
-                {new Date(item.date).toLocaleDateString('en-IN', {
+                {new Date(item.createdAt).toLocaleDateString('en-IN', {
                   day: 'numeric',
                   month: 'short',
                   year: 'numeric',
@@ -236,10 +217,10 @@ const VendorPaymentsScreen: React.FC = () => {
             </View>
             <View style={[
               styles.statusBadge,
-              { backgroundColor: getStatusColor(item.status) }
+              { backgroundColor: getStatusColor(paymentStatus) }
             ]}>
               <Text style={styles.statusText}>
-                {item.status.charAt(0).toUpperCase() + item.status.slice(1)}
+                {paymentStatus.charAt(0).toUpperCase() + paymentStatus.slice(1)}
               </Text>
             </View>
           </View>
@@ -252,215 +233,214 @@ const VendorPaymentsScreen: React.FC = () => {
             </View>
             
             <View style={styles.detailRow}>
+              <Ionicons name="person-outline" size={16} color={theme.colors.gray} />
+              <Text style={styles.detailLabel}>Customer:</Text>
+              <Text style={styles.detailValue}>{item.user.name}</Text>
+            </View>
+            
+            <View style={styles.detailRow}>
               <Ionicons name="card-outline" size={16} color={theme.colors.gray} />
               <Text style={styles.detailLabel}>Method:</Text>
               <Text style={styles.detailValue}>{item.paymentMethod}</Text>
             </View>
-            
-            <View style={styles.detailRow}>
-              <Ionicons name="key-outline" size={16} color={theme.colors.gray} />
-              <Text style={styles.detailLabel}>Transaction ID:</Text>
-              <Text style={styles.detailValue} numberOfLines={1} ellipsizeMode="middle">
-                {item.transactionId}
-              </Text>
-            </View>
-          </View>
-
-          <View style={styles.viewDetailsContainer}>
-            <Text style={styles.viewDetailsText}>View Details</Text>
-            <Ionicons name="chevron-forward" size={16} color={theme.colors.primary} />
           </View>
         </Card3D>
       </TouchableOpacity>
     );
   };
 
-  if (loading) {
+  // Render payment details modal
+  const renderDetailsModal = () => {
+    if (!selectedPayment) return null;
+    
+    const paymentStatus = mapPaymentStatus(selectedPayment.paymentStatus);
+    
     return (
-      <View style={styles.container}>
-        <ScreenHeader title="Payments" showBackButton={true} />
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={theme.colors.primary} />
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={showDetailsModal}
+        onRequestClose={closeDetailsModal}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Payment Details</Text>
+              <TouchableOpacity onPress={closeDetailsModal}>
+                <Ionicons name="close" size={24} color={theme.colors.text} />
+              </TouchableOpacity>
+            </View>
+            
+            <View style={styles.detailsCard}>
+              <View style={styles.detailsRow}>
+                <Text style={styles.detailsLabel}>Order ID:</Text>
+                <Text style={styles.detailsValue}>{selectedPayment.orderNumber}</Text>
+              </View>
+              
+              <View style={styles.detailsRow}>
+                <Text style={styles.detailsLabel}>Amount:</Text>
+                <Text style={styles.detailsValue}>₹{selectedPayment.total.toFixed(2)}</Text>
+              </View>
+              
+              <View style={styles.detailsRow}>
+                <Text style={styles.detailsLabel}>Status:</Text>
+                <View style={[styles.statusBadgeSmall, { backgroundColor: getStatusColor(paymentStatus) }]}>
+                  <Text style={styles.statusTextSmall}>
+                    {paymentStatus.charAt(0).toUpperCase() + paymentStatus.slice(1)}
+                  </Text>
+                </View>
+              </View>
+              
+              <View style={styles.detailsRow}>
+                <Text style={styles.detailsLabel}>Date:</Text>
+                <Text style={styles.detailsValue}>
+                  {new Date(selectedPayment.createdAt).toLocaleDateString('en-IN', {
+                    day: 'numeric',
+                    month: 'long',
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                  })}
+                </Text>
+              </View>
+              
+              <View style={styles.detailsRow}>
+                <Text style={styles.detailsLabel}>Customer:</Text>
+                <Text style={styles.detailsValue}>{selectedPayment.user.name}</Text>
+              </View>
+              
+              <View style={styles.detailsRow}>
+                <Text style={styles.detailsLabel}>Email:</Text>
+                <Text style={styles.detailsValue}>{selectedPayment.user.email}</Text>
+              </View>
+              
+              <View style={styles.detailsRow}>
+                <Text style={styles.detailsLabel}>Phone:</Text>
+                <Text style={styles.detailsValue}>{selectedPayment.user.phone}</Text>
+              </View>
+              
+              <View style={styles.detailsRow}>
+                <Text style={styles.detailsLabel}>Payment Method:</Text>
+                <Text style={styles.detailsValue}>{selectedPayment.paymentMethod}</Text>
+              </View>
+            </View>
+            
+            <View style={styles.modalActions}>
+              <TouchableOpacity 
+                style={[styles.actionButton, styles.viewOrderButton]}
+                onPress={() => {
+                  closeDetailsModal();
+                  handleViewOrder(selectedPayment._id);
+                }}
+              >
+                <Text style={styles.actionButtonText}>View Order</Text>
+              </TouchableOpacity>
+              
+              {selectedPayment.paymentStatus === 'pending' && (
+                <TouchableOpacity 
+                  style={[styles.actionButton, styles.reminderButton]}
+                  onPress={() => {
+                    closeDetailsModal();
+                    handleSendReminder(selectedPayment._id);
+                  }}
+                >
+                  <Text style={styles.actionButtonText}>Send Reminder</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
         </View>
+      </Modal>
+    );
+  };
+
+  const renderFooter = () => {
+    if (!loadingMore) return null;
+    
+    return (
+      <View style={styles.footerLoader}>
+        <ActivityIndicator size="small" color={theme.colors.primary} />
+        <Text style={styles.footerText}>Loading more...</Text>
       </View>
     );
-  }
+  };
 
   return (
     <View style={styles.container}>
-      <ScreenHeader title="Payments" showBackButton={true} />
+      <ScreenHeader 
+        title="Payments" 
+        onRightPress={handleNotificationPress}
+        rightIcon="notifications-outline"
+      />
       
-      {/* Summary Cards */}
-      <View style={styles.summaryContainer}>
-        <Card3D style={[styles.summaryCard, styles.earningsCard]} elevation="medium">
+      <Card3D style={styles.summaryCard} elevation="medium">
+        <View style={styles.summaryItem}>
           <Text style={styles.summaryLabel}>Total Earnings</Text>
           <Text style={styles.summaryAmount}>₹{completedPaymentsTotal.toFixed(2)}</Text>
-          <View style={styles.summaryIconContainer}>
-            <Ionicons name="cash-outline" size={24} color={theme.colors.white} />
-          </View>
-        </Card3D>
-
-        <Card3D style={[styles.summaryCard, styles.pendingCard]} elevation="medium">
-          <Text style={styles.summaryLabel}>Pending Payouts</Text>
+        </View>
+        <View style={styles.divider} />
+        <View style={styles.summaryItem}>
+          <Text style={styles.summaryLabel}>Pending</Text>
           <Text style={styles.summaryAmount}>₹{pendingPaymentsTotal.toFixed(2)}</Text>
-          <View style={styles.summaryIconContainer}>
-            <Ionicons name="time-outline" size={24} color={theme.colors.white} />
-          </View>
-        </Card3D>
-      </View>
-
-      {/* Filter Controls */}
-      <View style={styles.filterContainer}>
-        <SegmentedControl
-          values={paymentFilterOptions}
-          selectedIndex={selectedFilterIndex}
-          onChange={handleFilterChange}
-        />
-      </View>
-
-      {error ? (
+        </View>
+      </Card3D>
+      
+      <SegmentedControl
+        values={paymentFilterOptions}
+        selectedIndex={selectedFilterIndex}
+        onChange={handleFilterChange}
+        style={styles.filterControl}
+      />
+      
+      {loading && !loadingMore ? (
+        <View style={styles.loaderContainer}>
+          <ActivityIndicator size="large" color={theme.colors.primary} />
+        </View>
+      ) : error ? (
         <View style={styles.errorContainer}>
           <Text style={styles.errorText}>{error}</Text>
-          <TouchableOpacity style={styles.retryButton} onPress={loadPayments}>
+          <TouchableOpacity 
+            style={styles.retryButton} 
+            onPress={() => loadPayments(1, false)}
+          >
             <Text style={styles.retryButtonText}>Retry</Text>
           </TouchableOpacity>
         </View>
       ) : filteredPayments.length === 0 ? (
         <View style={styles.emptyContainer}>
-          <Ionicons name="cash-outline" size={64} color={theme.colors.lightGray} />
+          <Ionicons name="cash-outline" size={64} color={theme.colors.gray} />
           <Text style={styles.emptyText}>No payments found</Text>
         </View>
       ) : (
         <FlatList
           data={filteredPayments}
+          keyExtractor={(item) => item._id}
           renderItem={renderPaymentItem}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.listContainer}
+          contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
           refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={handleRefresh}
-              colors={[theme.colors.primary]}
-              tintColor={theme.colors.primary}
-            />
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
           }
+          onEndReached={handleLoadMore}
+          onEndReachedThreshold={0.5}
+          ListFooterComponent={renderFooter}
         />
       )}
-
-      {/* Withdraw Button */}
-      <TouchableOpacity
-        style={styles.withdrawButton}
-        onPress={() => {
-          alert(
-            'Withdraw Funds',
-            'This feature will be available soon!',
-            [{ text: 'OK' }]
-          );
-        }}
-      >
-        <Ionicons name="wallet-outline" size={20} color={theme.colors.white} />
-        <Text style={styles.withdrawButtonText}>Withdraw Funds</Text>
-      </TouchableOpacity>
-
-      {/* Payment Details Modal */}
-      <Modal
-        visible={showDetailsModal}
-        transparent={true}
-        animationType="slide"
-        onRequestClose={closeDetailsModal}
-      >
-        <View style={styles.modalOverlay}>
-          <Card3D style={styles.modalContent} elevation="large">
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Payment Details</Text>
-              <TouchableOpacity onPress={closeDetailsModal}>
-                <Ionicons name="close" size={24} color={theme.colors.dark} />
-              </TouchableOpacity>
-            </View>
-
-            {selectedPayment && (
-              <View style={styles.paymentDetailsContainer}>
-                <View style={styles.detailsRow}>
-                  <Text style={styles.detailsLabel}>Payment ID:</Text>
-                  <Text style={styles.detailsValue}>{selectedPayment.id}</Text>
-                </View>
-                
-                <View style={styles.detailsRow}>
-                  <Text style={styles.detailsLabel}>Amount:</Text>
-                  <Text style={[styles.detailsValue, styles.amountValue]}>
-                    ₹{selectedPayment.amount.toFixed(2)}
-                  </Text>
-                </View>
-                
-                <View style={styles.detailsRow}>
-                  <Text style={styles.detailsLabel}>Status:</Text>
-                  <View style={[
-                    styles.statusBadge,
-                    { backgroundColor: getStatusColor(selectedPayment.status) }
-                  ]}>
-                    <Text style={styles.statusText}>
-                      {selectedPayment.status.charAt(0).toUpperCase() + selectedPayment.status.slice(1)}
-                    </Text>
-                  </View>
-                </View>
-                
-                <View style={styles.detailsRow}>
-                  <Text style={styles.detailsLabel}>Date:</Text>
-                  <Text style={styles.detailsValue}>
-                    {new Date(selectedPayment.date).toLocaleString('en-IN', {
-                      day: 'numeric',
-                      month: 'long',
-                      year: 'numeric',
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    })}
-                  </Text>
-                </View>
-                
-                <View style={styles.detailsRow}>
-                  <Text style={styles.detailsLabel}>Order Number:</Text>
-                  <Text style={styles.detailsValue}>{selectedPayment.orderNumber}</Text>
-                </View>
-                
-                <View style={styles.detailsRow}>
-                  <Text style={styles.detailsLabel}>Payment Method:</Text>
-                  <Text style={styles.detailsValue}>{selectedPayment.paymentMethod}</Text>
-                </View>
-                
-                <View style={styles.detailsRow}>
-                  <Text style={styles.detailsLabel}>Transaction ID:</Text>
-                  <Text style={styles.detailsValue}>{selectedPayment.transactionId}</Text>
-                </View>
-                
-                <View style={styles.actionsContainer}>
-                  <TouchableOpacity 
-                    style={styles.actionButton}
-                    onPress={() => {
-                      closeDetailsModal();
-                      navigation.navigate('VendorOrderDetails', { orderId: selectedPayment.orderId });
-                    }}
-                  >
-                    <Text style={styles.actionButtonText}>View Related Order</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            )}
-          </Card3D>
-        </View>
-      </Modal>
+      
+      {renderDetailsModal()}
     </View>
   );
 };
 
+// Helper function to get status color
 const getStatusColor = (status: string): string => {
-  switch (status.toLowerCase()) {
+  switch (status) {
+    case 'completed':
+      return theme.colors.success;
     case 'pending':
       return theme.colors.warning;
     case 'processing':
       return theme.colors.info;
-    case 'completed':
-      return theme.colors.success;
     case 'failed':
       return theme.colors.error;
     default:
@@ -468,84 +448,64 @@ const getStatusColor = (status: string): string => {
   }
 };
 
+// Helper function for notifications
+const handleNotificationPress = () => {
+  // Handle notification icon press
+};
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.colors.background,
-  },
-  header: {
-    padding: theme.spacing.md,
-    backgroundColor: theme.colors.white,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.lightGray,
-    alignItems: 'center',
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: theme.colors.dark,
-  },
-  summaryContainer: {
-    flexDirection: 'row',
-    paddingHorizontal: theme.spacing.md,
-    marginTop: theme.spacing.md,
+    padding: 15,
   },
   summaryCard: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: 15,
+    paddingHorizontal: 20,
+    marginBottom: 15,
+    borderRadius: 12,
+  },
+  summaryItem: {
     flex: 1,
-    padding: theme.spacing.md,
-    height: 100,
-    borderRadius: theme.borderRadius.medium,
-    marginHorizontal: theme.spacing.xs,
-    position: 'relative',
-    overflow: 'hidden',
-  },
-  earningsCard: {
-    backgroundColor: theme.colors.primary,
-  },
-  pendingCard: {
-    backgroundColor: theme.colors.accent,
+    alignItems: 'center',
   },
   summaryLabel: {
     fontSize: 14,
-    color: theme.colors.white,
-    opacity: 0.9,
-    marginBottom: theme.spacing.xs,
+    color: theme.colors.gray,
+    marginBottom: 4,
+    fontWeight: '500',
   },
   summaryAmount: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: theme.colors.white,
+    color: theme.colors.text,
   },
-  summaryIconContainer: {
-    position: 'absolute',
-    right: theme.spacing.sm,
-    bottom: theme.spacing.sm,
-    opacity: 0.2,
+  divider: {
+    width: 1,
+    height: '80%',
+    backgroundColor: theme.colors.border,
+    alignSelf: 'center',
   },
-  filterContainer: {
-    paddingHorizontal: theme.spacing.md,
-    marginVertical: theme.spacing.md,
-  },
-  listContainer: {
-    padding: theme.spacing.md,
-    paddingBottom: 90, // Space for the withdraw button
+  filterControl: {
+    marginBottom: 15,
   },
   paymentCard: {
-    backgroundColor: theme.colors.white,
-    borderRadius: theme.borderRadius.medium,
-    marginBottom: theme.spacing.md,
-    padding: theme.spacing.md,
+    padding: 15,
+    marginBottom: 12,
+    borderRadius: 12,
   },
   paymentHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: theme.spacing.sm,
+    alignItems: 'center',
+    marginBottom: 10,
   },
   paymentAmount: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: theme.colors.dark,
+    color: theme.colors.text,
   },
   paymentDate: {
     fontSize: 12,
@@ -553,47 +513,35 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   statusBadge: {
-    paddingHorizontal: theme.spacing.sm,
-    paddingVertical: 4,
-    borderRadius: theme.borderRadius.small,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 12,
   },
   statusText: {
+    color: '#fff',
     fontSize: 12,
-    fontWeight: '500',
-    color: theme.colors.white,
+    fontWeight: '600',
   },
   paymentDetails: {
-    marginTop: theme.spacing.xs,
+    marginTop: 5,
   },
   detailRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 6,
+    marginBottom: 5,
   },
   detailLabel: {
-    fontSize: 12,
+    fontSize: 14,
     color: theme.colors.gray,
-    marginLeft: theme.spacing.xs,
-    width: 90,
+    marginLeft: 8,
+    marginRight: 5,
   },
   detailValue: {
-    fontSize: 12,
-    color: theme.colors.dark,
+    fontSize: 14,
+    color: theme.colors.text,
     flex: 1,
   },
-  viewDetailsContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'flex-end',
-    marginTop: theme.spacing.xs,
-  },
-  viewDetailsText: {
-    fontSize: 12,
-    color: theme.colors.primary,
-    fontWeight: '500',
-    marginRight: 4,
-  },
-  loadingContainer: {
+  loaderContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
@@ -602,125 +550,127 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: theme.spacing.lg,
+    padding: 20,
   },
   errorText: {
     fontSize: 16,
     color: theme.colors.error,
-    marginBottom: theme.spacing.md,
+    marginBottom: 15,
     textAlign: 'center',
   },
   retryButton: {
     backgroundColor: theme.colors.primary,
-    paddingVertical: theme.spacing.sm,
-    paddingHorizontal: theme.spacing.lg,
-    borderRadius: theme.borderRadius.medium,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 8,
   },
   retryButtonText: {
-    color: theme.colors.white,
-    fontWeight: 'bold',
+    color: '#fff',
+    fontWeight: '600',
+    fontSize: 16,
   },
   emptyContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: theme.spacing.lg,
+    padding: 20,
   },
   emptyText: {
     fontSize: 16,
     color: theme.colors.gray,
-    marginTop: theme.spacing.md,
+    marginTop: 15,
     textAlign: 'center',
   },
-  withdrawButton: {
-    position: 'absolute',
-    bottom: theme.spacing.md,
-    left: theme.spacing.md,
-    right: theme.spacing.md,
-    backgroundColor: theme.colors.primary,
-    borderRadius: theme.borderRadius.medium,
-    paddingVertical: theme.spacing.md,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    ...theme.shadow.medium,
+  listContent: {
+    paddingBottom: 20,
   },
-  withdrawButtonText: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: theme.colors.white,
-    marginLeft: theme.spacing.xs,
+  footerLoader: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 10,
+  },
+  footerText: {
+    marginLeft: 10,
+    fontSize: 14,
+    color: theme.colors.gray,
   },
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'center',
     alignItems: 'center',
-    padding: theme.spacing.lg,
   },
   modalContent: {
-    backgroundColor: theme.colors.white,
-    borderRadius: theme.borderRadius.medium,
-    width: '100%',
+    backgroundColor: theme.colors.background,
+    borderRadius: 12,
+    width: '90%',
     maxHeight: '80%',
-    padding: theme.spacing.lg,
+    padding: 20,
   },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: theme.spacing.md,
-    paddingBottom: theme.spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.lightGray,
+    marginBottom: 15,
   },
   modalTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: theme.colors.dark,
+    color: theme.colors.text,
   },
-  paymentDetailsContainer: {
-    marginTop: theme.spacing.sm,
+  detailsCard: {
+    backgroundColor: theme.colors.background,
+    borderRadius: 8,
+    padding: 15,
+    marginBottom: 15,
   },
   detailsRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: theme.spacing.md,
+    marginBottom: 10,
   },
   detailsLabel: {
     fontSize: 14,
     color: theme.colors.gray,
-    fontWeight: '500',
-    flex: 1,
+    width: 100,
   },
   detailsValue: {
     fontSize: 14,
-    color: theme.colors.dark,
-    fontWeight: '500',
-    flex: 2,
-    textAlign: 'right',
+    color: theme.colors.text,
+    flex: 1,
   },
-  amountValue: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: theme.colors.primary,
+  statusBadgeSmall: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
   },
-  actionsContainer: {
-    marginTop: theme.spacing.lg,
-    borderTopWidth: 1,
-    borderTopColor: theme.colors.lightGray,
-    paddingTop: theme.spacing.md,
+  statusTextSmall: {
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  modalActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
   },
   actionButton: {
-    backgroundColor: theme.colors.primary,
-    padding: theme.spacing.sm,
-    borderRadius: theme.borderRadius.medium,
+    paddingHorizontal: 15,
+    paddingVertical: 10,
+    borderRadius: 8,
+    flex: 1,
     alignItems: 'center',
+    marginHorizontal: 5,
+  },
+  viewOrderButton: {
+    backgroundColor: theme.colors.primary,
+  },
+  reminderButton: {
+    backgroundColor: theme.colors.warning,
   },
   actionButtonText: {
-    color: theme.colors.white,
-    fontWeight: 'bold',
+    color: '#fff',
+    fontWeight: '600',
   },
 });
 
