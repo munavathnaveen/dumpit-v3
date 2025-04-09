@@ -24,6 +24,16 @@ export type Shop = {
   categories: string[];
   rating: number;
   reviewCount: number;
+  reviews: Array<{
+    user: {
+      _id: string;
+      name: string;
+      avatar_url?: string;
+    };
+    rating: number;
+    text: string;
+    createdAt: string;
+  }>;
   isVerified: boolean;
   isOpen: boolean;
   openingHours: {

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { ReactNode } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Feather } from '@expo/vector-icons';
@@ -8,12 +8,13 @@ import { useDispatch, useSelector } from 'react-redux';
 import { logout } from '../store/authSlice';
 import { AppDispatch, RootState } from '../store';
 
-interface HeaderProps {
+export interface HeaderProps {
   location?: string;
   onNotificationPress?: () => void;
   showBackButton?: boolean;
   onProfilePress?: () => void;
   onLogoutPress?: () => void;
+  rightComponent?: ReactNode;
 }
 
 const Header: React.FC<HeaderProps> = ({
@@ -22,6 +23,7 @@ const Header: React.FC<HeaderProps> = ({
   showBackButton = false,
   onProfilePress,
   onLogoutPress,
+  rightComponent,
 }) => {
   const navigation = useNavigation();
   const dispatch = useDispatch<AppDispatch>();
@@ -85,25 +87,31 @@ const Header: React.FC<HeaderProps> = ({
         <Text style={styles.logoText}>Dumpit</Text>
       </View>
 
-      {/* Right: Notification, Profile and Logout */}
-      <View style={styles.rightContainer}>
-        <TouchableOpacity style={styles.iconButton} onPress={handleNotificationPress}>
-          <Feather name="bell" size={20} color={theme.colors.dark} />
-          {unreadCount > 0 && (
-            <View style={styles.notificationBadge}>
-              <Text style={styles.notificationBadgeText}>
-                {unreadCount > 9 ? '9+' : unreadCount}
-              </Text>
-            </View>
-          )}
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.iconButton} onPress={handleProfilePress}>
-          <Feather name="user" size={20} color={theme.colors.dark} />
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.iconButton} onPress={handleLogoutPress}>
-          <Feather name="log-out" size={20} color={theme.colors.dark} />
-        </TouchableOpacity>
-      </View>
+      {/* Right: Custom component or default icons */}
+      {rightComponent ? (
+        <View style={styles.rightContainer}>
+          {rightComponent}
+        </View>
+      ) : (
+        <View style={styles.rightContainer}>
+          <TouchableOpacity style={styles.iconButton} onPress={handleNotificationPress}>
+            <Feather name="bell" size={20} color={theme.colors.dark} />
+            {unreadCount > 0 && (
+              <View style={styles.notificationBadge}>
+                <Text style={styles.notificationBadgeText}>
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </Text>
+              </View>
+            )}
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.iconButton} onPress={handleProfilePress}>
+            <Feather name="user" size={20} color={theme.colors.dark} />
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.iconButton} onPress={handleLogoutPress}>
+            <Feather name="log-out" size={20} color={theme.colors.dark} />
+          </TouchableOpacity>
+        </View>
+      )}
     </View>
   );
 };

@@ -46,7 +46,7 @@ router.get('/', getShops)
 router.post('/', protect, authorize(config.constants.userRoles.VENDOR), createShop)
 
 // Get single shop
-router.get('/:id',protect,authorize(config.constants.userRoles.VENDOR), getShop)
+router.get('/:id',protect, getShop)
 
 // Update shop
 router.put('/:id', protect, updateShop)

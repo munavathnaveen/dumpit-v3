@@ -38,7 +38,7 @@ const ProductsScreen: React.FC = () => {
   const navigation = useNavigation();
   const route = useRoute<'Products'>();
   const dispatch = useDispatch<AppDispatch>();
-  const { products, loading } = useSelector((state: RootState) => state.product);
+  const { products, loading, error } = useSelector((state: RootState) => state.product);
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState(route.params?.searchQuery || '');
   const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
@@ -49,8 +49,8 @@ const ProductsScreen: React.FC = () => {
   const [selectedCategory, setSelectedCategory] = useState<string>(route.params?.category || '');
   const [priceRange, setPriceRange] = useState<[number, number]>([0, 10000]);
   const [currentPriceRange, setCurrentPriceRange] = useState<[number, number]>([0, 10000]);
-  const [sortBy, setSortBy] = useState<string>('');
-  const [inStock, setInStock] = useState<boolean>(false);
+  const [sortBy, setSortBy] = useState<string>(route.params?.sort || '');
+  const [inStock, setInStock] = useState<boolean>(route.params?.inStock || false);
   const [loadingCategories, setLoadingCategories] = useState(false);
 
   useEffect(() => {
@@ -62,7 +62,7 @@ const ProductsScreen: React.FC = () => {
     if (products.length > 0) {
       filterProducts();
     }
-  }, [searchQuery, selectedCategory, priceRange, sortBy, inStock]);
+  }, [products, searchQuery, selectedCategory, priceRange, sortBy, inStock]);
 
   const fetchCategories = async () => {
     try {
@@ -79,8 +79,8 @@ const ProductsScreen: React.FC = () => {
   const filterProducts = useCallback(() => {
     let filtered = [...products];
     
-    // Apply text search filter
-    if (searchQuery.trim()) {
+    // Apply text search filter if not already applied by API
+    if (searchQuery.trim() && !route.params?.searchQuery) {
       const query = searchQuery.toLowerCase();
       filtered = filtered.filter(
         (product) => 
@@ -89,8 +89,8 @@ const ProductsScreen: React.FC = () => {
       );
     }
     
-    // Apply category filter
-    if (selectedCategory) {
+    // Apply category filter if not already applied by API
+    if (selectedCategory && !route.params?.category) {
       filtered = filtered.filter(product => product.category === selectedCategory);
     }
     
@@ -99,13 +99,13 @@ const ProductsScreen: React.FC = () => {
       product => product.price >= priceRange[0] && product.price <= priceRange[1]
     );
     
-    // Apply in-stock filter
-    if (inStock) {
+    // Apply in-stock filter if not already applied by API
+    if (inStock && !route.params?.inStock) {
       filtered = filtered.filter(product => product.stock > 0);
     }
     
-    // Apply sorting
-    if (sortBy) {
+    // Apply sorting if not already applied by API
+    if (sortBy && !route.params?.sort) {
       const direction = sortBy.startsWith('-') ? -1 : 1;
       const field = sortBy.startsWith('-') ? sortBy.substring(1) : sortBy;
       
@@ -122,17 +122,23 @@ const ProductsScreen: React.FC = () => {
     }
     
     setFilteredProducts(filtered);
-  }, [products, searchQuery, selectedCategory, priceRange, sortBy, inStock]);
+  }, [products, searchQuery, selectedCategory, priceRange, sortBy, inStock, route.params]);
 
   const loadProducts = async () => {
     try {
       // Build query params based on filters
       const queryParams: Record<string, string> = {};
+      
       if (selectedCategory) queryParams.category = selectedCategory;
       if (sortBy) queryParams.sort = sortBy;
       if (priceRange[0] > 0) queryParams.minPrice = priceRange[0].toString();
       if (priceRange[1] < 10000) queryParams.maxPrice = priceRange[1].toString();
-      if (inStock) queryParams.inStock = 'true';
+      if (inStock) queryParams.stock = 'gt:0';
+      if (searchQuery) queryParams.search = searchQuery;
+      
+      // Add pagination params
+      queryParams.page = '1';
+      queryParams.limit = '10';
       
       // Convert to query string
       const queryString = Object.entries(queryParams)
@@ -352,6 +358,17 @@ const ProductsScreen: React.FC = () => {
     );
   }
 
+  if (error && !refreshing && products.length === 0) {
+    return (
+      <View style={styles.errorContainer}>
+        <Text style={styles.errorText}>{error}</Text>
+        <TouchableOpacity style={styles.retryButton} onPress={loadProducts}>
+          <Text style={styles.retryButtonText}>Retry</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
       <ScreenHeader title="Products" />
@@ -494,6 +511,39 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  errorText: {
+    color: theme.colors.error,
+    fontSize: 16,
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  retryButton: {
+    backgroundColor: theme.colors.primary,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 5,
+  },
+  retryButtonText: {
+    color: theme.colors.white,
+    fontSize: 16,
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  emptyText: {
+    color: theme.colors.text,
+    fontSize: 16,
+    textAlign: 'center',
+  },
   productsList: {
     paddingBottom: 80,
   },
@@ -551,11 +601,6 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  emptyText: {
-    textAlign: 'center',
-    color: theme.colors.gray,
-    marginTop: 40,
   },
   modalContainer: {
     flex: 1,

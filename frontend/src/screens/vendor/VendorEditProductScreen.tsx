@@ -81,7 +81,7 @@ const VendorEditProductScreen: React.FC = () => {
           units: product.units || '',
           discount: product.discount || 0,
           images: [],
-          isActive: product.isAvailable,
+          isActive: product.isActive,
         });
         
         // Store existing images

@@ -56,9 +56,9 @@ const CartScreen = () => {
 
   const renderItem = ({ item }: { item: CartItem }) => (
     <View style={styles.cartItem}>
-      <Image source={{ uri: item.product.images[0] }} style={styles.productImage} />
+      <Image source={{ uri: item.product?.image }} style={styles.productImage} />
       <View style={styles.itemDetails}>
-        <Text style={styles.productName}>{item.product.name}</Text>
+        <Text style={styles.productName}>{item.product?.name}</Text>
         <Text style={styles.productPrice}>${item.product.price.toFixed(2)}</Text>
         <View style={styles.quantityContainer}>
           <TouchableOpacity

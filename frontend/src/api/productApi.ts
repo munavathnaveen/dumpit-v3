@@ -1,26 +1,5 @@
 import apiClient from './apiClient';
-
-type Product = {
-  _id: string;
-  name: string;
-  description: string;
-  price: number;
-  category: string;
-  shop: string;
-  vendor: string;
-  stock: number;
-  images: string[];
-  rating: number;
-  reviewCount: number;
-  isAvailable: boolean;
-  tags: string[];
-  specs: Record<string, string>;
-  type?: string;
-  units?: string;
-  discount?: number;
-  createdAt: string;
-  updatedAt: string;
-};
+import { Product } from '../types/product';
 
 export interface ProductFormData {
   name: string;

@@ -19,7 +19,14 @@ export type MainStackParamList = {
   Register: undefined;
   Profile: undefined;
   Notifications: undefined;
-  Products: { searchQuery?: string, category?: string };
+  Products: {
+    searchQuery?: string;
+    category?: string;
+    inStock?: boolean;
+    sort?: string;
+    minPrice?: number;
+    maxPrice?: number;
+  };
   ProductDetails: { productId: string };
   ShopDetails: { shopId: string };
   Cart: undefined;
@@ -68,6 +75,14 @@ export type RootStackParamList = {
   Auth: undefined;
   Main: undefined;
   Loading: undefined;
+  Products: {
+    searchQuery?: string;
+    category?: string;
+    inStock?: boolean;
+    sort?: string;
+    minPrice?: number;
+    maxPrice?: number;
+  };
 };
 
 // Navigation types for screens

@@ -33,7 +33,8 @@ interface Product {
   category: string;
   description: string;
   isActive: boolean;
-  isAvailable: boolean;
+  type: string;
+  units: string;
 }
 
 const VendorProductsScreen: React.FC = () => {
@@ -53,7 +54,7 @@ const VendorProductsScreen: React.FC = () => {
       const data = await getVendorProducts();
       
       // Map the API response to match our Product interface
-      const formattedProducts: Product[] = data.map(item => ({
+      const formattedProducts: Product[] = data.map((item: any) => ({
         _id: item._id,
         name: item.name,
         price: item.price,
@@ -62,8 +63,9 @@ const VendorProductsScreen: React.FC = () => {
         images: item.images || [],
         category: item.category,
         description: item.description,
-        isActive: item.isAvailable || false,
-        isAvailable: item.isAvailable || false
+        isActive: item.isActive || false,
+        type: item.type || '',
+        units: item.units || ''
       }));
       
       setProducts(formattedProducts);

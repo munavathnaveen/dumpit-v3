@@ -1,18 +1,23 @@
 import React from 'react';
-import { View, StyleSheet } from 'react-native';
+import { View, StyleSheet, TouchableOpacity } from 'react-native';
 import { theme } from '../theme';
 import Header from './Header';
+import { Ionicons } from '@expo/vector-icons';
 
-interface ScreenHeaderProps {
+export interface ScreenHeaderProps {
   title: string;
   showBackButton?: boolean;
   onNotificationPress?: () => void;
+  rightIcon?: string;
+  onRightPress?: () => void;
 }
 
 const ScreenHeader: React.FC<ScreenHeaderProps> = ({
   title,
   showBackButton = false,
   onNotificationPress,
+  rightIcon,
+  onRightPress,
 }) => {
   return (
     <View style={styles.container}>
@@ -20,6 +25,13 @@ const ScreenHeader: React.FC<ScreenHeaderProps> = ({
         location={title}
         showBackButton={showBackButton}
         onNotificationPress={onNotificationPress}
+        rightComponent={
+          rightIcon && onRightPress ? (
+            <TouchableOpacity onPress={onRightPress} style={styles.rightButton}>
+              <Ionicons name={rightIcon as any} size={24} color={theme.colors.dark} />
+            </TouchableOpacity>
+          ) : null
+        }
       />
     </View>
   );
@@ -28,6 +40,9 @@ const ScreenHeader: React.FC<ScreenHeaderProps> = ({
 const styles = StyleSheet.create({
   container: {
     backgroundColor: theme.colors.white,
+  },
+  rightButton: {
+    padding: 8,
   },
 });
 

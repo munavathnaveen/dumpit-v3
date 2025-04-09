@@ -1,29 +1,47 @@
-export type Product = {
+export interface Product {
   _id: string;
   name: string;
   description: string;
-  price: number;
+  type: string;
   category: string;
-  shop: string;
-  vendor: string;
+  price: number;
+  units: string;
   stock: number;
-  images: string[];
+  discount: number;
   rating: number;
-  reviewCount: number;
-  isAvailable: boolean;
-  tags: string[];
-  specs: Record<string, string>;
+  images: string[];
+  vendor: {
+    _id: string;
+    name: string;
+  };
+  shop: {
+    _id: string;
+    name: string;
+  };
+  reviews: Array<{
+    user: {
+      _id: string;
+      name: string;
+      avatar_url?: string;
+    };
+    rating: number;
+    text: string;
+    createdAt: string;
+  }>;
+  featured: boolean;
+  isActive: boolean;
   createdAt: string;
   updatedAt: string;
-};
+}
 
-export type ProductFilters = {
+export interface ProductFilters {
   category?: string;
   minPrice?: number;
   maxPrice?: number;
   rating?: number;
   search?: string;
-  sort?: 'price' | '-price' | 'rating' | '-rating' | 'newest';
+  sort?: string;
+  page?: number;
+  limit?: number;
   query?: string;
-  inStock?: boolean;
-}; 
+} 

@@ -45,6 +45,8 @@ export const getProducts = createAsyncThunk(
         if (filters.rating) params.append('rating', filters.rating.toString());
         if (filters.search) params.append('search', filters.search);
         if (filters.sort) params.append('sort', filters.sort);
+        if (filters.page) params.append('page', filters.page.toString());
+        if (filters.limit) params.append('limit', filters.limit.toString());
         queryString = params.toString();
       }
       const response = await productApi.getProducts(queryString);
