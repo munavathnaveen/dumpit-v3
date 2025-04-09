@@ -26,6 +26,7 @@ export type MainStackParamList = {
     sort?: string;
     minPrice?: number;
     maxPrice?: number;
+    shopId?: string;
   };
   ProductDetails: { productId: string };
   ShopDetails: { shopId: string };
@@ -38,7 +39,10 @@ export type MainStackParamList = {
   EditProfile: undefined;
   Shops: { searchQuery?: string };
   AddEditShop: { shopId?: string };
-  BottomTabs: undefined;
+  BottomTabs: {
+    screen?: keyof BottomTabParamList;
+    params?: any;
+  };
   VendorBottomTabs: undefined;
   VendorDashboard: undefined;
   VendorProducts: undefined;
@@ -58,7 +62,11 @@ export type MainStackParamList = {
 // Tab navigator params
 export type BottomTabParamList = {
   HomeTab: undefined;
-  ProductsTab: undefined;
+  ProductsTab: {
+    shopId?: string;
+    category?: string;
+    searchQuery?: string;
+  };
   ShopsTab: undefined;
   OrdersTab: undefined;
   CartTab: undefined;
@@ -82,6 +90,7 @@ export type RootStackParamList = {
     sort?: string;
     minPrice?: number;
     maxPrice?: number;
+    shopId?: string;
   };
 };
 
