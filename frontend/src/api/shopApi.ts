@@ -1,16 +1,11 @@
 import apiClient from './apiClient';
 
-export type Shop = {
+export interface Shop {
   _id: string;
   name: string;
   description: string;
-  logo: string;
-  coverImage: string;
-  owner: string;
-  location: {
-    type: string;
-    coordinates: [number, number];
-  };
+  logo?: string;
+  coverImage?: string;
   address: {
     village: string;
     street: string;
@@ -19,39 +14,48 @@ export type Shop = {
     pincode: string;
     phone: string;
   };
-  contactNumber: string;
-  email: string;
-  categories: string[];
-  rating: number;
-  reviewCount: number;
-  reviews: Array<{
-    user: {
-      _id: string;
-      name: string;
-      avatar_url?: string;
-    };
+  location: {
+    type: string;
+    coordinates: number[];
+  };
+  isActive: boolean;
+  isVerified: boolean;
+  minimumOrderAmount: number;
+  shippingFee: number;
+  freeShippingThreshold: number;
+  taxRate: number;
+  reviews: {
     rating: number;
     text: string;
+    user: string;
     createdAt: string;
-  }>;
-  isVerified: boolean;
-  isOpen: boolean;
-  openingHours: {
-    days: string;
-    hours: string;
   }[];
   createdAt: string;
   updatedAt: string;
-};
+}
 
 export type ShopSettings = {
   name: string;
   description: string;
   logo?: string;
   coverImage?: string;
-  address?: string;
-  contactNumber?: string;
-  email?: string;
+  address: {
+    village: string;
+    street: string;
+    district: string;
+    state: string;
+    pincode: string;
+    phone: string;
+  };
+  location?: {
+    type: string;
+    coordinates: number[];
+  };
+  isActive?: boolean;
+  minimumOrderAmount?: number;
+  shippingFee?: number;
+  freeShippingThreshold?: number;
+  taxRate?: number;
   categories?: string[];
   isOpen?: boolean;
   openingHours?: {

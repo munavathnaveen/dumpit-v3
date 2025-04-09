@@ -9,6 +9,7 @@ import {
   Image,
   Switch,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -18,31 +19,33 @@ import Card3D from '../../components/Card3D';
 import ScreenHeader from '../../components/ScreenHeader';
 import { theme } from '../../theme';
 import { MainStackNavigationProp } from '../../navigation/types';
-import { getShopDetails, updateShop, ShopSettings, createShop } from '../../api/shopApi';
+import { getShopDetails, updateShop, ShopSettings, createShop, Shop } from '../../api/shopApi';
 import alert from '../../utils/alert';
 import { RootState } from '../../store';
 import { useSelector } from 'react-redux';
 
+interface LocationType {
+  type: string;
+  coordinates: number[];
+}
+
+interface AddressType {
+  village: string;
+  street: string;
+  district: string;
+  state: string;
+  pincode: string;
+  phone: string;
+}
+
 interface ShopFormState {
   name: string;
   description: string;
-  logo: string | null;
-  bannerImage: string | null;
-  address: {
-    village: string;
-    street: string;
-    district: string;
-    state: string;
-    pincode: string;
-    phone: string;
-  } | string;
-  contactPhone: string;
-  contactEmail: string;
-  city: string;
-  state: string;
-  pincode: string;
-  isVerified: boolean;
-  acceptsCod: boolean;
+  logo?: string;
+  coverImage?: string;
+  address: AddressType;
+  location: LocationType;
+  isActive: boolean;
   minimumOrderAmount: string;
   shippingFee: string;
   freeShippingThreshold: string;
@@ -57,20 +60,25 @@ const VendorShopSetupScreen: React.FC = () => {
   const [form, setForm] = useState<ShopFormState>({
     name: '',
     description: '',
-    logo: null,
-    bannerImage: null,
-    address: '',
-    contactPhone: '',
-    contactEmail: '',
-    city: '',
-    state: '',
-    pincode: '',
-    isVerified: false,
-    acceptsCod: true,
-    minimumOrderAmount: '0',
-    shippingFee: '0',
-    freeShippingThreshold: '0',
-    taxRate: '0',
+    logo: '',
+    coverImage: '',
+    address: {
+      village: '',
+      street: '',
+      district: '',
+      state: '',
+      pincode: '',
+      phone: '',
+    },
+    location: {
+      type: 'Point',
+      coordinates: [0, 0],
+    },
+    isActive: true,
+    minimumOrderAmount: '',
+    shippingFee: '',
+    freeShippingThreshold: '',
+    taxRate: '',
   });
   const [error, setError] = useState<string | null>(null);
   const userId = useSelector((state: RootState) => state.auth.user?._id);
@@ -87,22 +95,25 @@ const VendorShopSetupScreen: React.FC = () => {
           setForm({
             name: shop.name || '',
             description: shop.description || '',
-            logo: shop.logo || null,
-            bannerImage: shop.coverImage || null,
-            address: typeof shop.address === 'object' 
-              ? `${shop.address.street}, ${shop.address.village}, ${shop.address.district}, ${shop.address.state}, ${shop.address.pincode}`
-              : shop.address || '',
-            contactPhone: shop.contactNumber || '',
-            contactEmail: shop.email || '',
-            city: '', 
-            state: '', 
-            pincode: '',
-            isVerified: shop.isVerified || false,
-            acceptsCod: true,
-            minimumOrderAmount: '0',
-            shippingFee: '0',
-            freeShippingThreshold: '0',
-            taxRate: '0',
+            logo: shop.logo || undefined,
+            coverImage: shop.coverImage || undefined,
+            address: {
+              village: shop.address.village || '',
+              street: shop.address.street || '',
+              district: shop.address.district || '',
+              state: shop.address.state || '',
+              pincode: shop.address.pincode || '',
+              phone: shop.address.phone || ''
+            },
+            location: {
+              type: shop.location.type || 'Point',
+              coordinates: shop.location.coordinates || [0, 0],
+            },
+            isActive: shop.isActive || true,
+            minimumOrderAmount: shop.minimumOrderAmount?.toString() || '',
+            shippingFee: shop.shippingFee?.toString() || '',
+            freeShippingThreshold: shop.freeShippingThreshold?.toString() || '',
+            taxRate: shop.taxRate?.toString() || ''
           });
         } catch (error) {
           // If shop doesn't exist yet, we'll create one
@@ -121,11 +132,24 @@ const VendorShopSetupScreen: React.FC = () => {
     loadShopDetails();
   }, [userId]);
 
-  const handleInputChange = (field: keyof ShopFormState, value: string | boolean) => {
-    setForm(prev => ({ ...prev, [field]: value }));
+  const handleInputChange = (
+    field: keyof ShopFormState,
+    value: string | boolean | LocationType
+  ) => {
+    setForm(prev => ({
+      ...prev,
+      [field]: value
+    }));
   };
 
-  const pickImage = async (imageType: 'logo' | 'bannerImage') => {
+  const handleNumericInputChange = (field: keyof ShopFormState, value: string) => {
+    // Only allow numeric values
+    if (value === '' || /^\d*\.?\d*$/.test(value)) {
+      handleInputChange(field, value);
+    }
+  };
+
+  const pickImage = async (imageType: 'logo' | 'coverImage') => {
     try {
       const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
       
@@ -151,56 +175,89 @@ const VendorShopSetupScreen: React.FC = () => {
   };
 
   const handleSave = async () => {
-    if (!form.name.trim()) {
-      alert('Error', 'Shop name is required');
-      return;
-    }
-
     try {
-      setSaving(true);
-      
-      // Convert numeric string fields to numbers
-      const numericFields = {
+      // Validate form data
+      if (!form.name || !form.description || !form.address.village || !form.address.street || 
+          !form.address.district || !form.address.state || !form.address.pincode || !form.address.phone) {
+        Alert.alert('Error', 'Please fill in all required fields');
+        return;
+      }
+
+      // Validate phone number format (10 digits)
+      if (!/^[0-9]{10}$/.test(form.address.phone)) {
+        Alert.alert('Error', 'Please enter a valid 10-digit phone number');
+        return;
+      }
+
+      // Validate pincode format (6 digits)
+      if (!/^[0-9]{6}$/.test(form.address.pincode)) {
+        Alert.alert('Error', 'Please enter a valid 6-digit pincode');
+        return;
+      }
+
+      // Transform the data to match the backend model
+      const apiData: ShopSettings = {
+        name: form.name,
+        description: form.description,
+        logo: form.logo,
+        coverImage: form.coverImage,
+        address: {
+          village: form.address.village,
+          street: form.address.street,
+          district: form.address.district,
+          state: form.address.state,
+          pincode: form.address.pincode,
+          phone: form.address.phone
+        },
+        location: {
+          type: form.location.type,
+          coordinates: form.location.coordinates
+        },
+        isActive: form.isActive,
         minimumOrderAmount: parseFloat(form.minimumOrderAmount) || 0,
         shippingFee: parseFloat(form.shippingFee) || 0,
         freeShippingThreshold: parseFloat(form.freeShippingThreshold) || 0,
-        taxRate: parseFloat(form.taxRate) || 0,
+        taxRate: parseFloat(form.taxRate) || 0
       };
-      
-      // Prepare data to send to API
-      const shopData: ShopSettings = {
-        name: form.name,
-        description: form.description,
-        logo: form.logo || undefined,
-        coverImage: form.bannerImage || undefined,
-        contactNumber: form.contactPhone,
-        email: form.contactEmail,
-        address: typeof form.address === 'string' 
-          ? form.address 
-          : form.address 
-            ? JSON.stringify(form.address) 
-            : undefined,
-        // Include numeric fields
-        ...numericFields
-      };
-      
-      let response;
-      if (shopId) {
-        // Update existing shop
-        response = await updateShop(shopId, shopData);
-        alert('Success', 'Shop updated successfully');
-      } else {
-        // Create new shop
-        response = await createShop(shopData);
-        setShopId(response.data._id);
-        alert('Success', 'Shop created successfully');
+
+      setSaving(true);
+      try {
+        if (shopId) {
+          await updateShop(shopId, apiData);
+        } else {
+          await createShop(apiData);
+        }
+        navigation.goBack();
+      } catch (error: any) {
+        console.error('Error saving shop:', error);
+        Alert.alert('Error', error.response?.data?.error || 'Failed to save shop details');
+      } finally {
+        setSaving(false);
       }
     } catch (error) {
-      console.error('Error saving shop details:', error);
-      alert('Error', 'Failed to save shop details');
-    } finally {
-      setSaving(false);
+      console.error('Error in form validation:', error);
+      Alert.alert('Error', 'Please check all fields and try again');
     }
+  };
+
+  const handleAddressChange = (field: keyof ShopFormState['address'], value: string) => {
+    setForm(prev => ({
+      ...prev,
+      address: {
+        ...prev.address,
+        [field]: value
+      }
+    }));
+  };
+
+  const handleLocationChange = (field: 'type' | 'coordinates', value: string | number[]) => {
+    setForm(prev => ({
+      ...prev,
+      location: {
+        ...prev.location,
+        [field]: value
+      }
+    }));
   };
 
   if (loading) {
@@ -291,8 +348,8 @@ const VendorShopSetupScreen: React.FC = () => {
           <View style={styles.formGroup}>
             <Text style={styles.label}>Banner Image</Text>
             <View style={styles.imageContainer}>
-              {form.bannerImage ? (
-                <Image source={{ uri: form.bannerImage }} style={styles.bannerPreview} />
+              {form.coverImage ? (
+                <Image source={{ uri: form.coverImage }} style={styles.bannerPreview} />
               ) : (
                 <View style={[styles.imagePlaceholder, styles.bannerPlaceholder]}>
                   <Ionicons name="image-outline" size={40} color={theme.colors.gray} />
@@ -300,10 +357,10 @@ const VendorShopSetupScreen: React.FC = () => {
               )}
               <TouchableOpacity 
                 style={styles.uploadButton}
-                onPress={() => pickImage('bannerImage')}
+                onPress={() => pickImage('coverImage')}
               >
                 <Text style={styles.uploadButtonText}>
-                  {form.bannerImage ? 'Change Banner' : 'Upload Banner'}
+                  {form.coverImage ? 'Change Banner' : 'Upload Banner'}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -313,73 +370,99 @@ const VendorShopSetupScreen: React.FC = () => {
         {/* Contact Information */}
         <Card3D style={styles.section} elevation="medium">
           <Text style={styles.sectionTitle}>Contact Information</Text>
-          
-          <View style={styles.formGroup}>
-            <Text style={styles.label}>Address</Text>
-            <TextInput
-              style={[styles.input, styles.textArea]}
-              value={typeof form.address === 'string' ? form.address : JSON.stringify(form.address)}
-              onChangeText={(text) => handleInputChange('address', text)}
-              placeholder="Shop address"
-              multiline
-              numberOfLines={3}
-            />
-          </View>
-          
-          <View style={styles.row}>
-            <View style={[styles.formGroup, styles.halfWidth]}>
-              <Text style={styles.label}>City</Text>
-              <TextInput
-                style={styles.input}
-                value={form.city}
-                onChangeText={(text) => handleInputChange('city', text)}
-                placeholder="City"
-              />
-            </View>
-            
-            <View style={[styles.formGroup, styles.halfWidth]}>
-              <Text style={styles.label}>State</Text>
-              <TextInput
-                style={styles.input}
-                value={form.state}
-                onChangeText={(text) => handleInputChange('state', text)}
-                placeholder="State"
-              />
-            </View>
-          </View>
-          
-          <View style={styles.formGroup}>
-            <Text style={styles.label}>PIN Code</Text>
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Village</Text>
             <TextInput
               style={styles.input}
-              value={form.pincode}
-              onChangeText={(text) => handleInputChange('pincode', text)}
-              placeholder="PIN Code"
-              keyboardType="number-pad"
-              maxLength={6}
+              value={form.address.village}
+              onChangeText={(text) => handleAddressChange('village', text)}
+              placeholder="Enter village name"
             />
           </View>
-          
-          <View style={styles.formGroup}>
-            <Text style={styles.label}>Contact Phone</Text>
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Street</Text>
             <TextInput
               style={styles.input}
-              value={form.contactPhone}
-              onChangeText={(text) => handleInputChange('contactPhone', text)}
-              placeholder="Contact phone number"
+              value={form.address.street}
+              onChangeText={(text) => handleAddressChange('street', text)}
+              placeholder="Enter street address"
+            />
+          </View>
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>District</Text>
+            <TextInput
+              style={styles.input}
+              value={form.address.district}
+              onChangeText={(text) => handleAddressChange('district', text)}
+              placeholder="Enter district"
+            />
+          </View>
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>State</Text>
+            <TextInput
+              style={styles.input}
+              value={form.address.state}
+              onChangeText={(text) => handleAddressChange('state', text)}
+              placeholder="Enter state"
+            />
+          </View>
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Pincode</Text>
+            <TextInput
+              style={styles.input}
+              value={form.address.pincode}
+              onChangeText={(text) => handleAddressChange('pincode', text)}
+              placeholder="Enter pincode"
+              keyboardType="numeric"
+            />
+          </View>
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Phone Number</Text>
+            <TextInput
+              style={styles.input}
+              value={form.address.phone}
+              onChangeText={(text) => handleAddressChange('phone', text)}
+              placeholder="Enter phone number"
               keyboardType="phone-pad"
             />
           </View>
-          
-          <View style={styles.formGroup}>
-            <Text style={styles.label}>Contact Email</Text>
+        </Card3D>
+        
+        {/* Location */}
+        <Card3D style={styles.section} elevation="medium">
+          <Text style={styles.sectionTitle}>Location</Text>
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Location Type</Text>
             <TextInput
               style={styles.input}
-              value={form.contactEmail}
-              onChangeText={(text) => handleInputChange('contactEmail', text)}
-              placeholder="Contact email"
-              keyboardType="email-address"
-              autoCapitalize="none"
+              value={form.location.type}
+              onChangeText={(text) => handleLocationChange('type', text)}
+              placeholder="Enter location type"
+            />
+          </View>
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Coordinates</Text>
+            <TextInput
+              style={styles.input}
+              value={form.location.coordinates.join(',')}
+              onChangeText={(text) => {
+                const coords = text.split(',').map(Number);
+                handleLocationChange('coordinates', coords);
+              }}
+              placeholder="Enter coordinates (comma-separated)"
+              keyboardType="numeric"
+            />
+          </View>
+        </Card3D>
+        
+        {/* Shop Status */}
+        <Card3D style={styles.section} elevation="medium">
+          <Text style={styles.sectionTitle}>Shop Status</Text>
+          <View style={styles.switchContainer}>
+            <Text style={styles.label}>Active</Text>
+            <Switch
+              value={form.isActive}
+              onValueChange={(value) => handleInputChange('isActive', value)}
             />
           </View>
         </Card3D>
@@ -388,24 +471,14 @@ const VendorShopSetupScreen: React.FC = () => {
         <Card3D style={styles.section} elevation="medium">
           <Text style={styles.sectionTitle}>Payment & Delivery Settings</Text>
           
-          <View style={styles.switchFormGroup}>
-            <Text style={styles.label}>Accept Cash on Delivery</Text>
-            <Switch
-              value={form.acceptsCod}
-              onValueChange={(value) => handleInputChange('acceptsCod', value)}
-              trackColor={{ false: theme.colors.lightGray, true: theme.colors.success }}
-              thumbColor={theme.colors.white}
-            />
-          </View>
-          
           <View style={styles.formGroup}>
             <Text style={styles.label}>Minimum Order Amount (₹)</Text>
             <TextInput
               style={styles.input}
               value={form.minimumOrderAmount}
-              onChangeText={(text) => handleInputChange('minimumOrderAmount', text)}
-              placeholder="0"
-              keyboardType="decimal-pad"
+              onChangeText={(text) => handleNumericInputChange('minimumOrderAmount', text)}
+              placeholder="Enter minimum order amount"
+              keyboardType="numeric"
             />
           </View>
           
@@ -414,9 +487,9 @@ const VendorShopSetupScreen: React.FC = () => {
             <TextInput
               style={styles.input}
               value={form.shippingFee}
-              onChangeText={(text) => handleInputChange('shippingFee', text)}
-              placeholder="0"
-              keyboardType="decimal-pad"
+              onChangeText={(text) => handleNumericInputChange('shippingFee', text)}
+              placeholder="Enter shipping fee"
+              keyboardType="numeric"
             />
           </View>
           
@@ -425,9 +498,9 @@ const VendorShopSetupScreen: React.FC = () => {
             <TextInput
               style={styles.input}
               value={form.freeShippingThreshold}
-              onChangeText={(text) => handleInputChange('freeShippingThreshold', text)}
-              placeholder="0"
-              keyboardType="decimal-pad"
+              onChangeText={(text) => handleNumericInputChange('freeShippingThreshold', text)}
+              placeholder="Enter free shipping threshold"
+              keyboardType="numeric"
             />
           </View>
           
@@ -436,35 +509,10 @@ const VendorShopSetupScreen: React.FC = () => {
             <TextInput
               style={styles.input}
               value={form.taxRate}
-              onChangeText={(text) => handleInputChange('taxRate', text)}
-              placeholder="0"
-              keyboardType="decimal-pad"
+              onChangeText={(text) => handleNumericInputChange('taxRate', text)}
+              placeholder="Enter tax rate"
+              keyboardType="numeric"
             />
-          </View>
-        </Card3D>
-        
-        {/* Shop Status */}
-        <Card3D style={styles.section} elevation="medium">
-          <Text style={styles.sectionTitle}>Shop Status</Text>
-          
-          <View style={styles.statusContainer}>
-            <View style={styles.verificationStatus}>
-              <Ionicons 
-                name={form.isVerified ? "checkmark-circle" : "information-circle-outline"} 
-                size={24} 
-                color={form.isVerified ? theme.colors.success : theme.colors.warning} 
-              />
-              <View style={styles.statusTextContainer}>
-                <Text style={styles.statusTitle}>
-                  {form.isVerified ? "Verified Shop" : "Verification Pending"}
-                </Text>
-                <Text style={styles.statusDescription}>
-                  {form.isVerified 
-                    ? "Your shop is verified and fully operational." 
-                    : "Your shop is under review. This may take 1-2 business days."}
-                </Text>
-              </View>
-            </View>
           </View>
         </Card3D>
         
@@ -541,12 +589,8 @@ const styles = StyleSheet.create({
   formGroup: {
     marginBottom: theme.spacing.md,
   },
-  row: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  halfWidth: {
-    width: '48%',
+  inputGroup: {
+    marginBottom: theme.spacing.md,
   },
   label: {
     fontSize: 14,
@@ -565,11 +609,10 @@ const styles = StyleSheet.create({
     height: 100,
     textAlignVertical: 'top',
   },
-  switchFormGroup: {
+  switchContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: theme.spacing.md,
   },
   imageContainer: {
     alignItems: 'center',
@@ -609,30 +652,6 @@ const styles = StyleSheet.create({
   uploadButtonText: {
     color: theme.colors.white,
     fontWeight: '500',
-  },
-  statusContainer: {
-    marginBottom: theme.spacing.md,
-  },
-  verificationStatus: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: theme.colors.background,
-    padding: theme.spacing.md,
-    borderRadius: theme.borderRadius.medium,
-  },
-  statusTextContainer: {
-    marginLeft: theme.spacing.sm,
-    flex: 1,
-  },
-  statusTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: theme.colors.dark,
-    marginBottom: 4,
-  },
-  statusDescription: {
-    fontSize: 14,
-    color: theme.colors.gray,
   },
   saveButton: {
     backgroundColor: theme.colors.primary,
