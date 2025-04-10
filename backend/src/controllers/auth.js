@@ -188,13 +188,13 @@ exports.forgotPassword = async (req, res, next) => {
 
     // Create reset url - use mobile deep link format for better UX
     const mobileDeepLink = `dumpit://resetpassword/${resetToken}`;
-    const webUrl = `${req.protocol}://${req.get('host')}/api/v1/auth/resetpassword/${resetToken}`;
+    const webUrl = `https://dumpit-password-reset.vercel.app`;
 
     try {
       await sendEmail({
         email: user.email,
         subject: 'Password reset token',
-        message: emailTemplates.resetPassword(user.name, webUrl, mobileDeepLink),
+        message: emailTemplates.resetPassword(user.name, webUrl, resetToken),
       })
 
       res.status(200).json({success: true, data: 'Email sent'})
@@ -218,7 +218,8 @@ exports.forgotPassword = async (req, res, next) => {
 exports.resetPassword = async (req, res, next) => {
   try {
     // Get hashed token
-    const resetPasswordToken = crypto.createHash('sha256').update(req.params.resettoken).digest('hex')
+    const token = req.params.resettoken || req.body.reset-token; 
+    const resetPasswordToken = crypto.createHash('sha256').update(token).digest('hex')
 
     const user = await User.findOne({
       resetPasswordToken,
