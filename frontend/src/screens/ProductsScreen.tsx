@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { 
   View, 
   Text, 
@@ -17,6 +17,7 @@ import { useSelector, useDispatch } from 'react-redux';
 import { FontAwesome, Ionicons, MaterialIcons } from '@expo/vector-icons';
 import Slider from '@react-native-community/slider';
 import { RouteProp } from '@react-navigation/native';
+import debounce from 'lodash.debounce';
 
 import { RootState, AppDispatch } from '../store';
 import { theme } from '../theme';
@@ -42,26 +43,67 @@ const ProductsScreen: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>();
   const { products, loading, error } = useSelector((state: RootState) => state.product);
   const [refreshing, setRefreshing] = useState(false);
-  const [searchQuery, setSearchQuery] = useState(route.params?.searchQuery || '');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [internalSearchQuery, setInternalSearchQuery] = useState('');
   const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
   
   // Filter states
   const [filterModalVisible, setFilterModalVisible] = useState(false);
   const [categories, setCategories] = useState<string[]>([]);
-  const [selectedCategory, setSelectedCategory] = useState<string>(route.params?.category || '');
+  const [productTypes, setProductTypes] = useState<string[]>([]);
+  const [shops, setShops] = useState<{ _id: string, name: string }[]>([]);
+  const [selectedCategory, setSelectedCategory] = useState<string>('');
+  const [selectedType, setSelectedType] = useState<string>('');
+  const [selectedShop, setSelectedShop] = useState<string>('');
   const [priceRange, setPriceRange] = useState<[number, number]>([0, 10000]);
   const [currentPriceRange, setCurrentPriceRange] = useState<[number, number]>([0, 10000]);
   const [sortBy, setSortBy] = useState<string>('');
   const [inStock, setInStock] = useState<boolean>(false);
   const [loadingCategories, setLoadingCategories] = useState(false);
+  const [loadingTypes, setLoadingTypes] = useState(false);
+  const [loadingShops, setLoadingShops] = useState(false);
   const [shopId, setShopId] = useState<string | undefined>(route.params?.shopId);
+  const [isSearching, setIsSearching] = useState(false);
+
+  // Create a properly implemented debounced search function with 1-second delay
+  const debouncedSearch = useCallback(
+    debounce((text: string) => {
+      setSearchQuery(text);
+      setIsSearching(!!text.trim());
+    }, 1000), // 1000ms (1 second) delay
+    []
+  );
+
+  // Handle search text changes
+  const handleSearch = (text: string) => {
+    setInternalSearchQuery(text); // Update local state for immediate UI feedback
+    debouncedSearch(text); // Debounce the actual search query update
+  };
 
   useEffect(() => {
     // Log navigation params for debugging
     console.log("Route params:", route.params);
     
+    if (route.params?.searchQuery) {
+      const routeSearchQuery = route.params.searchQuery;
+      setInternalSearchQuery(routeSearchQuery);
+      setSearchQuery(routeSearchQuery);
+      setIsSearching(!!routeSearchQuery.trim());
+    }
+    
+    if (route.params?.category) {
+      setSelectedCategory(route.params.category);
+    }
+    
+    if (route.params?.shopId) {
+      setShopId(route.params.shopId);
+      setSelectedShop(route.params.shopId);
+    }
+    
     loadProducts();
     fetchCategories();
+    fetchProductTypes();
+    fetchShops();
   }, []);
 
   useEffect(() => {
@@ -69,19 +111,29 @@ const ProductsScreen: React.FC = () => {
     if (route.params) {
       if (route.params.shopId) {
         setShopId(route.params.shopId);
+        setSelectedShop(route.params.shopId);
+      } else {
+        setShopId(undefined);
+        setSelectedShop('');
       }
+      
       if (route.params.searchQuery) {
-        setSearchQuery(route.params.searchQuery);
+        const routeSearchQuery = route.params.searchQuery;
+        setInternalSearchQuery(routeSearchQuery);
+        setSearchQuery(routeSearchQuery);
+        setIsSearching(!!routeSearchQuery.trim());
       }
+      
       if (route.params.category) {
         setSelectedCategory(route.params.category);
       }
     }
   }, [route.params]);
 
+  // Only load products when relevant search or filter parameters change
   useEffect(() => {
     loadProducts();
-  }, [searchQuery, selectedCategory, priceRange, sortBy, inStock, shopId]);
+  }, [searchQuery, selectedCategory, selectedType, selectedShop, priceRange, sortBy, inStock, shopId]);
 
   const fetchCategories = async () => {
     try {
@@ -95,10 +147,34 @@ const ProductsScreen: React.FC = () => {
     }
   };
 
+  const fetchProductTypes = async () => {
+    try {
+      setLoadingTypes(true);
+      const response = await productApi.getProductTypes();
+      setProductTypes(response.data);
+    } catch (error) {
+      console.error('Failed to fetch product types:', error);
+    } finally {
+      setLoadingTypes(false);
+    }
+  };
+
+  const fetchShops = async () => {
+    try {
+      setLoadingShops(true);
+      const response = await productApi.getShops();
+      setShops(response.data);
+    } catch (error) {
+      console.error('Failed to fetch shops:', error);
+    } finally {
+      setLoadingShops(false);
+    }
+  };
+
   const loadProducts = async () => {
     try {
       // If search query is provided, use the dedicated search endpoint
-      if (searchQuery && searchQuery.trim() !== '') {
+      if (isSearching && searchQuery.trim() !== '') {
         const response = await productApi.searchProducts(searchQuery);
         setFilteredProducts(response.data);
         return;
@@ -108,6 +184,8 @@ const ProductsScreen: React.FC = () => {
       const queryParams: Record<string, string> = {};
       
       if (selectedCategory) queryParams.category = selectedCategory;
+      if (selectedType) queryParams.type = selectedType;
+      if (selectedShop) queryParams.shop = selectedShop;
       if (sortBy) queryParams.sort = sortBy;
       if (priceRange[0] > 0) queryParams.minPrice = priceRange[0].toString();
       if (priceRange[1] < 10000) queryParams.maxPrice = priceRange[1].toString();
@@ -138,8 +216,8 @@ const ProductsScreen: React.FC = () => {
     setRefreshing(false);
   };
 
-  const handleSearch = (text: string) => {
-    setSearchQuery(text);
+  const handleNotificationPress = () => {
+    navigation.navigate('Notifications');
   };
 
   const handleAddToCart = (productId: string, quantity: number) => {
@@ -159,11 +237,17 @@ const ProductsScreen: React.FC = () => {
 
   const resetFilters = () => {
     setSelectedCategory('');
+    setSelectedType('');
+    setSelectedShop('');
     setPriceRange([0, 10000]);
     setCurrentPriceRange([0, 10000]);
     setSortBy('');
     setInStock(false);
-    loadProducts();
+    
+    // Don't clear search if we're currently searching
+    if (!isSearching) {
+      loadProducts();
+    }
   };
 
   const renderProductItem = ({ item }: { item: Product }) => (
@@ -179,6 +263,20 @@ const ProductsScreen: React.FC = () => {
       </TouchableOpacity>
       <View style={styles.productInfo}>
         <Text style={styles.productName}>{item.name}</Text>
+        
+        {/* Shop name and info */}
+        {item.shop && !shopId && (
+          <TouchableOpacity 
+            style={styles.shopInfoContainer}
+            onPress={() => navigation.navigate('ShopDetails', { shopId: item.shop._id })}
+          >
+            <Ionicons name="storefront-outline" size={14} color={theme.colors.gray} />
+            <Text style={styles.shopName} numberOfLines={1}>
+              {item.shop.name}
+            </Text>
+          </TouchableOpacity>
+        )}
+        
         {item.category && (
           <View style={styles.categoryChip}>
             <Text style={styles.categoryChipText}>{item.category}</Text>
@@ -254,6 +352,92 @@ const ProductsScreen: React.FC = () => {
                         styles.categoryButtonText,
                         selectedCategory === category && styles.categoryButtonTextActive
                       ]}>{category}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              )}
+            </View>
+            
+            {/* Product Type Filter */}
+            <View style={styles.filterSection}>
+              <Text style={styles.filterSectionTitle}>Product Type</Text>
+              {loadingTypes ? (
+                <ActivityIndicator size="small" color={theme.colors.primary} />
+              ) : (
+                <ScrollView 
+                  horizontal 
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.productTypesContainer}
+                >
+                  <TouchableOpacity
+                    style={[
+                      styles.productTypeButton,
+                      selectedType === '' && styles.productTypeButtonActive
+                    ]}
+                    onPress={() => setSelectedType('')}
+                  >
+                    <Text style={[
+                      styles.productTypeButtonText,
+                      selectedType === '' && styles.productTypeButtonTextActive
+                    ]}>All</Text>
+                  </TouchableOpacity>
+                  
+                  {productTypes.map((type, index) => (
+                    <TouchableOpacity
+                      key={index}
+                      style={[
+                        styles.productTypeButton,
+                        selectedType === type && styles.productTypeButtonActive
+                      ]}
+                      onPress={() => setSelectedType(type)}
+                    >
+                      <Text style={[
+                        styles.productTypeButtonText,
+                        selectedType === type && styles.productTypeButtonTextActive
+                      ]}>{type}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              )}
+            </View>
+            
+            {/* Shop Filter */}
+            <View style={styles.filterSection}>
+              <Text style={styles.filterSectionTitle}>Shop</Text>
+              {loadingShops ? (
+                <ActivityIndicator size="small" color={theme.colors.primary} />
+              ) : (
+                <ScrollView 
+                  horizontal 
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.shopsContainer}
+                >
+                  <TouchableOpacity
+                    style={[
+                      styles.shopButton,
+                      selectedShop === '' && styles.shopButtonActive
+                    ]}
+                    onPress={() => setSelectedShop('')}
+                  >
+                    <Text style={[
+                      styles.shopButtonText,
+                      selectedShop === '' && styles.shopButtonTextActive
+                    ]}>All</Text>
+                  </TouchableOpacity>
+                  
+                  {shops.map((shop, index) => (
+                    <TouchableOpacity
+                      key={index}
+                      style={[
+                        styles.shopButton,
+                        selectedShop === shop._id && styles.shopButtonActive
+                      ]}
+                      onPress={() => setSelectedShop(shop._id)}
+                    >
+                      <Text style={[
+                        styles.shopButtonText,
+                        selectedShop === shop._id && styles.shopButtonTextActive
+                      ]}>{shop.name}</Text>
                     </TouchableOpacity>
                   ))}
                 </ScrollView>
@@ -353,95 +537,116 @@ const ProductsScreen: React.FC = () => {
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
-        <ScreenHeader title="Products" />
+        <ScreenHeader 
+          title={shopId ? 'Shop Products' : 'Products'}
+          showBackButton={true}
+          onNotificationPress={handleNotificationPress}
+        />
         
         <View style={styles.contentContainer}>
-          <View style={styles.searchFilterContainer}>
+          <View style={styles.searchContainer}>
             <SearchBar 
               placeholder="Search products..."
               onSearch={handleSearch}
-              value={searchQuery}
+              value={internalSearchQuery}
               style={styles.searchBar}
             />
-            <TouchableOpacity 
-              style={styles.filterButton}
-              onPress={handleFilterPress}
-            >
-              <MaterialIcons name="filter-list" size={24} color={theme.colors.primary} />
-            </TouchableOpacity>
+            
+            <View style={styles.filterRow}>
+              <TouchableOpacity 
+                style={styles.filterButton} 
+                onPress={handleFilterPress}
+              >
+                <FontAwesome name="filter" size={16} color={theme.colors.primary} />
+                <Text style={styles.filterButtonText}>Filters</Text>
+              </TouchableOpacity>
+              
+              {/* Active filters display */}
+              <View style={styles.activeFiltersContainer}>
+                {(isSearching || selectedCategory || selectedType || selectedShop || priceRange[0] > 0 || priceRange[1] < 10000 || inStock) && (
+                  <TouchableOpacity 
+                    style={styles.clearFiltersButton} 
+                    onPress={() => {
+                      if (isSearching) {
+                        setInternalSearchQuery('');
+                        setSearchQuery('');
+                        setIsSearching(false);
+                      }
+                      resetFilters();
+                    }}
+                  >
+                    <FontAwesome name="times-circle" size={14} color={theme.colors.error} />
+                    <Text style={styles.clearFiltersText}>Clear {isSearching ? 'Search & Filters' : 'Filters'}</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            </View>
           </View>
           
-          {/* Active Filters */}
-          {(selectedCategory || priceRange[0] > 0 || priceRange[1] < 10000 || inStock || sortBy || shopId) && (
-            <View style={styles.activeFiltersContainer}>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                {selectedCategory && (
-                  <View style={styles.activeFilterChip}>
-                    <Text style={styles.activeFilterText}>Category: {selectedCategory}</Text>
-                    <TouchableOpacity onPress={() => setSelectedCategory('')}>
-                      <Ionicons name="close-circle" size={16} color={theme.colors.white} />
-                    </TouchableOpacity>
-                  </View>
-                )}
-                
-                {shopId && (
-                  <View style={styles.activeFilterChip}>
-                    <Text style={styles.activeFilterText}>Shop Products</Text>
-                    <TouchableOpacity onPress={() => setShopId(undefined)}>
-                      <Ionicons name="close-circle" size={16} color={theme.colors.white} />
-                    </TouchableOpacity>
-                  </View>
-                )}
-                
-                {(priceRange[0] > 0 || priceRange[1] < 10000) && (
-                  <View style={styles.activeFilterChip}>
-                    <Text style={styles.activeFilterText}>Price: ₹{priceRange[0]} - ₹{priceRange[1]}</Text>
-                    <TouchableOpacity onPress={() => setPriceRange([0, 10000])}>
-                      <Ionicons name="close-circle" size={16} color={theme.colors.white} />
-                    </TouchableOpacity>
-                  </View>
-                )}
-                
-                {inStock && (
-                  <View style={styles.activeFilterChip}>
-                    <Text style={styles.activeFilterText}>In Stock</Text>
-                    <TouchableOpacity onPress={() => setInStock(false)}>
-                      <Ionicons name="close-circle" size={16} color={theme.colors.white} />
-                    </TouchableOpacity>
-                  </View>
-                )}
-                
-                {sortBy && (
-                  <View style={styles.activeFilterChip}>
-                    <Text style={styles.activeFilterText}>
-                      Sort: {sortOptions.find(option => option.value === sortBy)?.label.split(': ')[1]}
-                    </Text>
-                    <TouchableOpacity onPress={() => setSortBy('')}>
-                      <Ionicons name="close-circle" size={16} color={theme.colors.white} />
-                    </TouchableOpacity>
-                  </View>
-                )}
-              </ScrollView>
-            </View>
-          )}
+          {/* Sort options horizontal list */}
+          <ScrollView 
+            horizontal 
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.sortOptionsContainer}
+          >
+            {sortOptions.map((option, index) => (
+              <TouchableOpacity
+                key={index}
+                style={[
+                  styles.sortOption,
+                  sortBy === option.value && styles.sortOptionActive
+                ]}
+                onPress={() => setSortBy(option.value)}
+              >
+                <Text 
+                  style={[
+                    styles.sortOptionText,
+                    sortBy === option.value && styles.sortOptionTextActive
+                  ]}
+                >
+                  {option.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
           
-          <FlatList
-            data={filteredProducts}
-            renderItem={renderProductItem}
-            keyExtractor={(item) => item._id}
-            contentContainerStyle={styles.productsList}
-            showsVerticalScrollIndicator={false}
-            refreshControl={
-              <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
-            }
-            ListEmptyComponent={
-              <Text style={styles.emptyText}>
-                {searchQuery || selectedCategory || priceRange[0] > 0 || priceRange[1] < 10000 || inStock || shopId
-                  ? 'No products match your filters'
-                  : 'No products available'}
-              </Text>
-            }
-          />
+          {(loading && !refreshing) ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color={theme.colors.primary} />
+            </View>
+          ) : (
+            <FlatList
+              data={filteredProducts}
+              keyExtractor={(item) => item._id}
+              renderItem={renderProductItem}
+              contentContainerStyle={styles.productList}
+              showsVerticalScrollIndicator={false}
+              refreshControl={
+                <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
+              }
+              ListEmptyComponent={
+                <View style={styles.emptyContainer}>
+                  <Ionicons name="basket-outline" size={64} color={theme.colors.lightGray} />
+                  <Text style={styles.emptyText}>
+                    {isSearching ? 'No products match your search' : 'No products available'}
+                  </Text>
+                  {isSearching && (
+                    <TouchableOpacity 
+                      style={styles.clearSearchButton}
+                      onPress={() => {
+                        setInternalSearchQuery('');
+                        setSearchQuery('');
+                        setIsSearching(false);
+                        loadProducts();
+                      }}
+                    >
+                      <Text style={styles.clearSearchText}>Clear Search</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              }
+            />
+          )}
         </View>
         
         {renderFiltersModal()}
@@ -464,44 +669,68 @@ const styles = StyleSheet.create({
     padding: theme.spacing.md,
     paddingBottom: 120,
   },
-  searchFilterContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
+  searchContainer: {
+    padding: theme.spacing.md,
   },
   searchBar: {
-    flex: 1,
-    marginRight: 8,
+    marginBottom: theme.spacing.sm,
   },
-  filterButton: {
-    width: 48,
-    height: 48,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: theme.colors.white,
-    borderRadius: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  activeFiltersContainer: {
-    marginBottom: 12,
-  },
-  activeFilterChip: {
+  filterRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: theme.colors.primary,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-    marginRight: 8,
+    justifyContent: 'space-between',
   },
-  activeFilterText: {
-    color: theme.colors.white,
-    marginRight: 4,
+  filterButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: theme.colors.white,
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.sm,
+    borderRadius: theme.borderRadius.small,
+    ...theme.shadow.small,
+  },
+  filterButtonText: {
+    marginLeft: 8,
+    color: theme.colors.primary,
+    fontWeight: '600',
+  },
+  activeFiltersContainer: {
+    flex: 1,
+    alignItems: 'flex-end',
+  },
+  clearFiltersButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: 4,
+  },
+  clearFiltersText: {
+    marginLeft: 4,
+    color: theme.colors.error,
     fontSize: 12,
+    fontWeight: '500',
+  },
+  sortOptionsContainer: {
+    paddingHorizontal: theme.spacing.md,
+    paddingBottom: theme.spacing.sm,
+  },
+  sortOption: {
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.xs,
+    borderRadius: 20,
+    marginRight: theme.spacing.sm,
+    backgroundColor: theme.colors.bgLight,
+  },
+  sortOptionActive: {
+    backgroundColor: theme.colors.primary,
+  },
+  sortOptionText: {
+    fontSize: 12,
+    color: theme.colors.text,
+  },
+  sortOptionTextActive: {
+    color: theme.colors.white,
+    fontWeight: 'bold',
   },
   loadingContainer: {
     flex: 1,
@@ -536,12 +765,32 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 20,
   },
-  emptyText: {
+  emptyTitle: {
+    fontSize: 22,
+    fontWeight: 'bold',
     color: theme.colors.text,
-    fontSize: 16,
-    textAlign: 'center',
+    marginTop: 20,
+    marginBottom: 10,
   },
-  productsList: {
+  emptyText: {
+    fontSize: 16,
+    color: theme.colors.gray,
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  resetButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    backgroundColor: theme.colors.primary,
+    borderRadius: 8,
+    marginTop: 10,
+  },
+  resetButtonText: {
+    color: theme.colors.white,
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  productList: {
     paddingBottom: 100,
   },
   productCard: {
@@ -651,6 +900,46 @@ const styles = StyleSheet.create({
     color: theme.colors.white,
     fontWeight: 'bold',
   },
+  productTypesContainer: {
+    paddingBottom: 8,
+  },
+  productTypeButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: theme.colors.lightGray,
+    marginRight: 8,
+  },
+  productTypeButtonActive: {
+    backgroundColor: theme.colors.primary,
+  },
+  productTypeButtonText: {
+    color: theme.colors.text,
+  },
+  productTypeButtonTextActive: {
+    color: theme.colors.white,
+    fontWeight: 'bold',
+  },
+  shopsContainer: {
+    paddingBottom: 8,
+  },
+  shopButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: theme.colors.lightGray,
+    marginRight: 8,
+  },
+  shopButtonActive: {
+    backgroundColor: theme.colors.primary,
+  },
+  shopButtonText: {
+    color: theme.colors.text,
+  },
+  shopButtonTextActive: {
+    color: theme.colors.white,
+    fontWeight: 'bold',
+  },
   priceRangeContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -663,17 +952,6 @@ const styles = StyleSheet.create({
     width: '100%',
     height: 40,
   },
-  sortOption: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.lightGray,
-  },
-  sortOptionText: {
-    color: theme.colors.text,
-  },
   switchContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -685,17 +963,6 @@ const styles = StyleSheet.create({
     marginTop: 16,
     marginBottom: 32,
   },
-  resetButton: {
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: theme.colors.primary,
-  },
-  resetButtonText: {
-    color: theme.colors.primary,
-    fontWeight: 'bold',
-  },
   applyButton: {
     backgroundColor: theme.colors.primary,
     paddingVertical: 12,
@@ -705,6 +972,42 @@ const styles = StyleSheet.create({
   applyButtonText: {
     color: theme.colors.white,
     fontWeight: 'bold',
+  },
+  shopInfoContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 5,
+  },
+  shopName: {
+    fontSize: 14,
+    color: theme.colors.gray,
+    marginLeft: 4,
+    flex: 1,
+  },
+  distanceContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: theme.colors.lightGray,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 10,
+  },
+  distanceText: {
+    fontSize: 12,
+    color: theme.colors.primary,
+    marginLeft: 2,
+  },
+  clearSearchButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    backgroundColor: theme.colors.primary,
+    borderRadius: 8,
+    marginTop: 10,
+  },
+  clearSearchText: {
+    color: theme.colors.white,
+    fontSize: 16,
+    fontWeight: '600',
   },
 });
 

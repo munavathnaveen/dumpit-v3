@@ -1,96 +1,91 @@
-import React, { useEffect } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Image } from 'react-native';
-import { useDispatch, useSelector } from 'react-redux';
-import { RootState, AppDispatch } from '../store';
-import { getCart, removeFromCart, updateCartItem, clearCart } from '../store/cartSlice';
-import { CartItem } from '../store/cartSlice';
-import { Ionicons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
+import React, {useEffect} from 'react'
+import {View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Image} from 'react-native'
+import {useDispatch, useSelector} from 'react-redux'
+import {RootState, AppDispatch} from '../store'
+import {getCart, removeFromCart, updateCartItem, clearCart} from '../store/cartSlice'
+import {CartItem} from '../store/cartSlice'
+import {Ionicons} from '@expo/vector-icons'
+import {useNavigation} from '@react-navigation/native'
 
-import { theme } from '../theme';
-import Card3D from '../components/Card3D';
-import ScreenHeader from '../components/ScreenHeader';
-import alert from '../utils/alert';
-import { useNavigation as useAppNavigation } from '../navigation/hooks';
+import {theme} from '../theme'
+import Card3D from '../components/Card3D'
+import ScreenHeader from '../components/ScreenHeader'
+import alert from '../utils/alert'
+import {useNavigation as useAppNavigation} from '../navigation/hooks'
 
 const CartScreen = () => {
-  const dispatch = useDispatch<AppDispatch>();
-  const navigation = useAppNavigation();
-  const { items, loading, error, totalItems, totalAmount } = useSelector((state: RootState) => state.cart);
+  const dispatch = useDispatch<AppDispatch>()
+  const navigation = useAppNavigation()
+  const {items, loading, error, totalItems, totalAmount} = useSelector((state: RootState) => state.cart)
 
   useEffect(() => {
-    dispatch(getCart());
-  }, [dispatch]);
+    dispatch(getCart())
+  }, [dispatch])
 
   const handleRemoveItem = (itemId: string) => {
-    dispatch(removeFromCart(itemId));
-  };
+    dispatch(removeFromCart(itemId))
+  }
 
   const handleUpdateQuantity = (itemId: string, quantity: number) => {
     if (quantity > 0) {
-      dispatch(updateCartItem({ itemId, quantity }));
+      dispatch(updateCartItem({itemId, quantity}))
     } else {
-      handleRemoveItem(itemId);
+      handleRemoveItem(itemId)
     }
-  };
+  }
 
   const handleClearCart = () => {
-    dispatch(clearCart());
-  };
+    dispatch(clearCart())
+  }
 
   const handleCheckout = () => {
     if (items.length === 0) {
-      alert('Empty Cart', 'Please add items to your cart before checkout.');
-      return;
+      alert('Empty Cart', 'Please add items to your cart before checkout.')
+      return
     }
-    
+
     // Navigate to checkout screen with the total amount
     navigation.navigate('CheckoutScreen', {
-      totalAmount: totalAmount + (totalAmount > 0 ? 50 : 0)
-    });
-  };
+      totalAmount: totalAmount + (totalAmount > 0 ? 50 : 0),
+    })
+  }
 
   const handleShopNow = () => {
-    navigation.navigate('TabNavigator', { screen: 'ShopsTab' });
-  };
+    navigation.navigate('TabNavigator', {screen: 'ShopsTab'})
+  }
 
-  const renderItem = ({ item }: { item: CartItem }) => (
+  const renderItem = ({item}: {item: CartItem}) => (
     <View style={styles.cartItem}>
-      <Image source={{ uri: item.product?.image }} style={styles.productImage} />
+      <Image source={{uri: item.product?.image}} style={styles.productImage} />
       <View style={styles.itemDetails}>
         <Text style={styles.productName}>{item.product?.name}</Text>
-        <Text style={styles.productPrice}>${item.product.price.toFixed(2)}</Text>
+        <Text style={styles.productPrice}>${item.product?.price.toFixed(2)}</Text>
         <View style={styles.quantityContainer}>
           <TouchableOpacity
             onPress={() => handleUpdateQuantity(item.product._id, item.quantity - 1)}
-            style={styles.quantityButton}
-          >
-            <Ionicons name="remove" size={20} color="#000" />
+            style={styles.quantityButton}>
+            <Ionicons name='remove' size={20} color='#000' />
           </TouchableOpacity>
           <Text style={styles.quantity}>{item.quantity}</Text>
           <TouchableOpacity
             onPress={() => handleUpdateQuantity(item.product._id, item.quantity + 1)}
-            style={styles.quantityButton}
-          >
-            <Ionicons name="add" size={20} color="#000" />
+            style={styles.quantityButton}>
+            <Ionicons name='add' size={20} color='#000' />
           </TouchableOpacity>
         </View>
       </View>
-      <TouchableOpacity
-        onPress={() => handleRemoveItem(item.product._id)}
-        style={styles.removeButton}
-      >
-        <Ionicons name="trash-outline" size={24} color="#ff4444" />
+      <TouchableOpacity onPress={() => handleRemoveItem(item.product._id)} style={styles.removeButton}>
+        <Ionicons name='trash-outline' size={24} color='#ff4444' />
       </TouchableOpacity>
     </View>
-  );
+  )
 
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#0000ff" />
+        <ActivityIndicator size='large' color='#0000ff' />
       </View>
-    );
+    )
   }
 
   if (error) {
@@ -98,21 +93,18 @@ const CartScreen = () => {
       <View style={styles.errorContainer}>
         <Text style={styles.errorText}>{error}</Text>
       </View>
-    );
+    )
   }
 
   return (
     <View style={styles.container}>
-      <ScreenHeader title="My Cart" />
-      
+      <ScreenHeader title='My Cart' />
+
       <View style={styles.contentContainer}>
         {items.length === 0 ? (
           <View style={styles.emptyContainer}>
             <Text style={styles.emptyText}>Your cart is empty</Text>
-            <TouchableOpacity 
-              style={styles.shopNowButton}
-              onPress={handleShopNow}
-            >
+            <TouchableOpacity style={styles.shopNowButton} onPress={handleShopNow}>
               <Text style={styles.shopNowText}>Shop Now</Text>
             </TouchableOpacity>
           </View>
@@ -124,7 +116,7 @@ const CartScreen = () => {
               keyExtractor={(item) => item._id}
               contentContainerStyle={styles.listContainer}
             />
-            
+
             <Card3D style={styles.summaryCard}>
               <View style={styles.summaryRow}>
                 <Text style={styles.summaryLabel}>Total Items:</Text>
@@ -139,17 +131,11 @@ const CartScreen = () => {
                 <Text style={styles.totalLabel}>Total</Text>
                 <Text style={styles.totalValue}>${(totalAmount + (totalAmount > 0 ? 50 : 0)).toFixed(2)}</Text>
               </View>
-              
-              <TouchableOpacity
-                style={styles.checkoutButton}
-                onPress={handleCheckout}
-              >
+
+              <TouchableOpacity style={styles.checkoutButton} onPress={handleCheckout}>
                 <Text style={styles.checkoutButtonText}>Proceed to Checkout</Text>
               </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.clearButton}
-                onPress={handleClearCart}
-              >
+              <TouchableOpacity style={styles.clearButton} onPress={handleClearCart}>
                 <Text style={styles.clearButtonText}>Clear Cart</Text>
               </TouchableOpacity>
             </Card3D>
@@ -157,8 +143,8 @@ const CartScreen = () => {
         )}
       </View>
     </View>
-  );
-};
+  )
+}
 
 const styles = StyleSheet.create({
   container: {
@@ -312,6 +298,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
   },
-});
+})
 
-export default CartScreen; 
+export default CartScreen

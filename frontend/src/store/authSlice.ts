@@ -38,11 +38,15 @@ export const register = createAsyncThunk(
 
 export const login = createAsyncThunk(
   'auth/login',
-  async (userData: LoginRequest, { rejectWithValue }) => {
+  async (userData: LoginRequest, { rejectWithValue, dispatch }) => {
     try {
       const response = await authApi.login(userData);
       // Store token in AsyncStorage
       await AsyncStorage.setItem('token', response.token);
+      
+      // Immediately load user data after successful login
+      await dispatch(loadUser());
+      
       return response;
     } catch (error: any) {
       return rejectWithValue(error.response?.data?.error || 'Login failed');

@@ -17,10 +17,11 @@ import {
 import { useSelector, useDispatch } from 'react-redux';
 import { FontAwesome, Ionicons, MaterialIcons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
+import debounce from 'lodash.debounce';
 
 import { RootState, AppDispatch } from '../store';
 import { theme } from '../theme';
-import { getShops, getNearbyShops, ShopsResponse, getShopCategories, searchShops } from '../api/shopApi';
+import { getShops, getNearbyShops, ShopsResponse, getShopCategories, searchShops, Shop as ApiShop } from '../api/shopApi';
 import Card3D from '../components/Card3D';
 import SearchBar from '../components/SearchBar';
 import ScreenHeader from '../components/ScreenHeader';
@@ -33,15 +34,10 @@ type ShopAddress = string | {
   district: string;
 };
 
-type Shop = {
-  _id: string;
-  name: string;
-  description: string;
-  logo: string;
-  address: ShopAddress;
-  rating: number;
-  isOpen: boolean;
-  categories: string[];
+// Update the Shop type to properly extend ApiShop
+type Shop = Omit<ApiShop, 'logo'> & {
+  logo?: string;
+  image?: string;
 };
 
 type ShopFilters = {
@@ -58,9 +54,11 @@ const ShopsScreen: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>();
   const [shops, setShops] = useState<Shop[]>([]);
   const [filteredShops, setFilteredShops] = useState<Shop[]>([]);
-  const [searchQuery, setSearchQuery] = useState(route.params?.searchQuery || '');
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [internalSearchQuery, setInternalSearchQuery] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [isSearching, setIsSearching] = useState(false);
   
   // Filter states
   const [filterModalVisible, setFilterModalVisible] = useState(false);
@@ -76,10 +74,49 @@ const ShopsScreen: React.FC = () => {
   const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const [locationPermissionDenied, setLocationPermissionDenied] = useState(false);
 
+  // Create a properly implemented debounced search function with 1-second delay
+  const debouncedSearch = useCallback(
+    debounce((text: string) => {
+      setSearchQuery(text);
+      setIsSearching(!!text.trim());
+    }, 1000), // 1000ms (1 second) delay
+    []
+  );
+
+  // Handle search text changes
+  const handleSearch = (text: string) => {
+    setInternalSearchQuery(text); // Update local state for immediate UI feedback
+    debouncedSearch(text); // Debounce the actual search query update
+  };
+
   useEffect(() => {
-    loadShops();
     fetchShopCategories();
+    
+    // Initialize from route params
+    if (route.params?.searchQuery) {
+      const routeSearchQuery = route.params.searchQuery;
+      setInternalSearchQuery(routeSearchQuery);
+      setSearchQuery(routeSearchQuery);
+      setIsSearching(!!routeSearchQuery.trim());
+    }
+    
+    loadShops();
   }, []);
+
+  useEffect(() => {
+    // Update search query when route params change
+    if (route.params?.searchQuery) {
+      const routeSearchQuery = route.params.searchQuery;
+      setInternalSearchQuery(routeSearchQuery);
+      setSearchQuery(routeSearchQuery);
+      setIsSearching(!!routeSearchQuery.trim());
+    } else if (route.params && 'searchQuery' in route.params && route.params.searchQuery === undefined) {
+      // If searchQuery exists in route.params but is undefined, reset it
+      setInternalSearchQuery('');
+      setSearchQuery('');
+      setIsSearching(false);
+    }
+  }, [route.params]);
 
   useEffect(() => {
     if (showNearby && !userLocation && !locationPermissionDenied) {
@@ -87,11 +124,10 @@ const ShopsScreen: React.FC = () => {
     }
   }, [showNearby]);
 
+  // Load shops when search query or filters change
   useEffect(() => {
-    if (shops.length > 0) {
-      filterShops();
-    }
-  }, [searchQuery, selectedCategory, onlyOpen, minRating, sortBy, showNearby]);
+    loadShops();
+  }, [searchQuery, selectedCategory, onlyOpen, minRating, sortBy, showNearby, userLocation]);
 
   const fetchShopCategories = async () => {
     try {
@@ -128,53 +164,6 @@ const ShopsScreen: React.FC = () => {
     }
   };
 
-  const filterShops = useCallback(() => {
-    let filtered = [...shops];
-    
-    // Apply text search filter
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(
-        (shop) => 
-          shop.name.toLowerCase().includes(query) || 
-          shop.description.toLowerCase().includes(query) ||
-          (shop.address && 
-            (typeof shop.address === 'string' 
-              ? shop.address.toLowerCase().includes(query)
-              : ((shop.address.village && shop.address.village.toLowerCase().includes(query)) ||
-                 (shop.address.district && shop.address.district.toLowerCase().includes(query)))
-            )
-          )
-      );
-    }
-    
-    // Apply category filter
-    if (selectedCategory) {
-      filtered = filtered.filter(shop => 
-        shop.categories && shop.categories.includes(selectedCategory)
-      );
-    }
-    
-    // Apply open filter
-    if (onlyOpen) {
-      filtered = filtered.filter(shop => shop.isOpen);
-    }
-    
-    // Apply rating filter
-    if (minRating > 0) {
-      filtered = filtered.filter(shop => shop.rating >= minRating);
-    }
-    
-    // Apply sorting
-    if (sortBy === 'rating') {
-      filtered.sort((a, b) => b.rating - a.rating);
-    } else if (sortBy === 'name') {
-      filtered.sort((a, b) => a.name.localeCompare(b.name));
-    }
-    
-    setFilteredShops(filtered);
-  }, [shops, searchQuery, selectedCategory, onlyOpen, minRating, sortBy]);
-
   const getUserLocation = async () => {
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
@@ -188,14 +177,27 @@ const ShopsScreen: React.FC = () => {
         return;
       }
 
+      setLocationPermissionDenied(false);
+      
       const location = await Location.getCurrentPositionAsync({});
+      
       setUserLocation({
         latitude: location.coords.latitude,
         longitude: location.coords.longitude,
       });
+      
+      console.log('Got user location:', location.coords.latitude, location.coords.longitude);
+      return location.coords;
     } catch (error) {
       console.error('Error getting location:', error);
       setLocationPermissionDenied(true);
+      
+      alert(
+        'Location Error',
+        'Could not get your current location. Please check your device settings.',
+        [{ text: 'OK' }]
+      );
+      return null;
     }
   };
 
@@ -203,62 +205,106 @@ const ShopsScreen: React.FC = () => {
     try {
       setLoading(true);
       
-      // If search query is provided, use the dedicated search function
-      if (searchQuery && searchQuery.trim() !== '') {
-        const response = await searchShops(searchQuery);
-        setShops(response.data as unknown as Shop[]);
-        setFilteredShops(response.data as unknown as Shop[]);
+      let response: ShopsResponse;
+      
+      // If search query is provided, use the dedicated search endpoint
+      if (isSearching && searchQuery.trim() !== '') {
+        response = await searchShops(searchQuery);
+        const shopData = response.data.map(apiShop => ({
+          ...apiShop,
+          logo: apiShop.image, // Map image to logo for compatibility
+        }));
+        setShops(shopData);
+        setFilteredShops(applyFiltersToShops(shopData));
+        setLoading(false);
         return;
       }
       
-      let response: ShopsResponse;
-      if (showNearby && userLocation) {
-        response = await getNearbyShops(userLocation);
+      // Build query params for filtering
+      const queryParams: Record<string, string> = {};
+      
+      if (selectedCategory) queryParams.category = selectedCategory;
+      if (onlyOpen) queryParams.isOpen = 'true';
+      if (minRating > 0) queryParams.minRating = minRating.toString();
+      if (sortBy) queryParams.sort = sortBy;
+      
+      // Convert to query string
+      const queryString = Object.entries(queryParams)
+        .map(([key, value]) => `${key}=${encodeURIComponent(value)}`)
+        .join('&');
+      
+      // Handle nearby shops filter
+      if (showNearby) {
+        if (userLocation) {
+          response = await getNearbyShops(userLocation);
+        } else {
+          // If user location is not available but nearby filter is selected,
+          // try to get user location first
+          const locationCoords = await getUserLocation();
+          if (locationCoords) {
+            response = await getNearbyShops({
+              latitude: locationCoords.latitude,
+              longitude: locationCoords.longitude
+            });
+          } else {
+            // Fallback to regular shops if location not available
+            response = await getShops(queryString);
+          }
+        }
       } else {
-        // Build query string based on filters
-        const queryParams: Record<string, string> = {};
-        if (selectedCategory) queryParams.category = selectedCategory;
-        if (onlyOpen) queryParams.isOpen = 'true';
-        if (minRating > 0) queryParams.minRating = minRating.toString();
-        if (sortBy) queryParams.sortBy = sortBy;
-        
-        const queryString = Object.entries(queryParams)
-          .map(([key, value]) => `${key}=${encodeURIComponent(value)}`)
-          .join('&');
-          
+        // Normal shops query with filters
         response = await getShops(queryString);
       }
       
-      if (response.success) {
-        setShops(response.data as unknown as Shop[]);
-        setFilteredShops(response.data as unknown as Shop[]);
-        
-        // Extract categories after loading shops
-        if (response.data.length > 0) {
-          const categoriesSet = new Set<string>();
-          response.data.forEach((shop: any) => {
-            if (shop.categories && shop.categories.length > 0) {
-              shop.categories.forEach((category: string) => categoriesSet.add(category));
-            }
-          });
-          setShopCategories(Array.from(categoriesSet).sort());
-        }
-      }
+      const shopData = response.data.map(apiShop => ({
+        ...apiShop,
+        logo: apiShop.image, // Map image to logo for compatibility
+      }));
+      setShops(shopData);
+      setFilteredShops(applyFiltersToShops(shopData));
     } catch (error) {
       console.error('Failed to load shops:', error);
+      alert('Error', 'Failed to load shops. Please try again.');
     } finally {
       setLoading(false);
     }
+  };
+
+  // Apply client-side filters to shops
+  const applyFiltersToShops = (shopsData: Shop[]) => {
+    let filtered = [...shopsData];
+    
+    // Apply category filter if not already applied in API call
+    if (selectedCategory) {
+      filtered = filtered.filter(shop => 
+        shop.categories && shop.categories.includes(selectedCategory)
+      );
+    }
+    
+    // Apply open filter if not already applied in API call
+    if (onlyOpen) {
+      filtered = filtered.filter(shop => shop.isOpen);
+    }
+    
+    // Apply rating filter if not already applied in API call
+    if (minRating > 0) {
+      filtered = filtered.filter(shop => shop.rating >= minRating);
+    }
+    
+    // Apply sorting if not already applied in API call
+    if (sortBy === 'rating') {
+      filtered.sort((a, b) => b.rating - a.rating);
+    } else if (sortBy === 'name') {
+      filtered.sort((a, b) => a.name.localeCompare(b.name));
+    }
+    
+    return filtered;
   };
 
   const handleRefresh = async () => {
     setRefreshing(true);
     await loadShops();
     setRefreshing(false);
-  };
-
-  const handleSearch = (text: string) => {
-    setSearchQuery(text);
   };
 
   const handleFilterPress = () => {
@@ -276,68 +322,84 @@ const ShopsScreen: React.FC = () => {
     setMinRating(0);
     setSortBy('');
     setShowNearby(false);
-    setUserLocation(null);
-    setLocationPermissionDenied(false);
+    
+    if (!isSearching) {
+      loadShops();
+    }
+    
+    setFilterModalVisible(false);
+  };
+
+  const clearAllFiltersAndSearch = () => {
+    setInternalSearchQuery('');
+    setSearchQuery('');
+    setIsSearching(false);
+    resetFilters();
     loadShops();
   };
 
+  // Shop item renderer
   const renderShopItem = ({ item }: { item: Shop }) => (
-    <TouchableOpacity 
-      onPress={() => navigation.navigate('ShopDetails', { shopId: item._id })}
-      activeOpacity={0.9}
-    >
-      <Card3D style={styles.shopCard}>
+    <Card3D style={styles.shopCard}>
+      <TouchableOpacity 
+        onPress={() => navigation.navigate('ShopDetails', { shopId: item._id })}
+        activeOpacity={0.9}
+      >
         <Image 
-          source={{ uri: item.logo || 'https://via.placeholder.com/150' }} 
-          style={styles.shopLogo} 
+          source={{ uri: item.logo || item.image || 'https://via.placeholder.com/150' }} 
+          style={styles.shopImage} 
         />
+        
         <View style={styles.shopInfo}>
-          <View style={styles.shopHeader}>
-            <Text style={styles.shopName}>{item.name}</Text>
-            <View style={styles.ratingContainer}>
-              <FontAwesome name="star" size={14} color="#FFD700" />
-              <Text style={styles.ratingText}>{item.rating.toFixed(1)}</Text>
-            </View>
+          <View style={styles.shopNameContainer}>
+            <Text style={styles.shopName} numberOfLines={2}>
+              {item.name}
+            </Text>
+            {item.isOpen ? (
+              <View style={styles.openBadge}>
+                <Text style={styles.openBadgeText}>Open</Text>
+              </View>
+            ) : (
+              <View style={[styles.openBadge, styles.closedBadge]}>
+                <Text style={styles.closedBadgeText}>Closed</Text>
+              </View>
+            )}
           </View>
+          
+          <View style={styles.ratingContainer}>
+            <Ionicons name="star" size={16} color="#FFD700" />
+            <Text style={styles.ratingText}>{item.rating.toFixed(1)}</Text>
+          </View>
+          
           <Text style={styles.shopDescription} numberOfLines={2}>
             {item.description}
           </Text>
-          <Text style={styles.shopAddress} numberOfLines={1}>
-            {typeof item.address === 'string' 
-              ? item.address 
-              : `${item.address?.village || ''}, ${item.address?.district || ''}`
-            }
-          </Text>
-          <View style={styles.shopFooter}>
-            <View style={styles.shopStatusContainer}>
-              <View style={[styles.statusDot, { backgroundColor: item.isOpen ? theme.colors.success : theme.colors.error }]} />
-              <Text style={styles.statusText}>
-                {item.isOpen ? 'Open Now' : 'Closed'}
-              </Text>
+          
+          {item.categories && item.categories.length > 0 && (
+            <View style={styles.categoriesContainer}>
+              {item.categories.slice(0, 3).map((category, index) => (
+                <TouchableOpacity
+                  key={index}
+                  style={styles.categoryTag}
+                  onPress={() => {
+                    setSelectedCategory(category);
+                    loadShops(); // Use loadShops instead of filterShops
+                  }}
+                >
+                  <Text style={styles.categoryTagText}>{category}</Text>
+                </TouchableOpacity>
+              ))}
+              {item.categories.length > 3 && (
+                <Text style={styles.categoryTag}>+{item.categories.length - 3}</Text>
+              )}
             </View>
-            
-            {item.categories && item.categories.length > 0 && (
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoriesContainer}>
-                {item.categories.map((category, index) => (
-                  <TouchableOpacity 
-                    key={index}
-                    style={styles.categoryChip}
-                    onPress={() => {
-                      setSelectedCategory(category);
-                      filterShops();
-                    }}
-                  >
-                    <Text style={styles.categoryChipText}>{category}</Text>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-            )}
-          </View>
+          )}
         </View>
-      </Card3D>
-    </TouchableOpacity>
+      </TouchableOpacity>
+    </Card3D>
   );
 
+  // Render the filters modal
   const renderFiltersModal = () => (
     <Modal
       visible={filterModalVisible}
@@ -355,7 +417,7 @@ const ShopsScreen: React.FC = () => {
           </View>
           
           <ScrollView showsVerticalScrollIndicator={false}>
-            {/* Category Filter */}
+            {/* Categories filter */}
             <View style={styles.filterSection}>
               <Text style={styles.filterSectionTitle}>Categories</Text>
               {loadingCategories ? (
@@ -364,7 +426,7 @@ const ShopsScreen: React.FC = () => {
                 <ScrollView 
                   horizontal 
                   showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={styles.modalCategoriesContainer}
+                  contentContainerStyle={styles.categoriesScrollContainer}
                 >
                   <TouchableOpacity
                     style={[
@@ -398,75 +460,131 @@ const ShopsScreen: React.FC = () => {
               )}
             </View>
             
-            {/* Other Filters */}
+            {/* Open Only filter */}
             <View style={styles.filterSection}>
-              <Text style={styles.filterSectionTitle}>Availability</Text>
-              <TouchableOpacity 
-                style={styles.filterOption}
-                onPress={() => setOnlyOpen(!onlyOpen)}
-              >
-                <Text style={styles.filterOptionText}>Only Show Open Shops</Text>
-                {onlyOpen && <Ionicons name="checkmark" size={20} color={theme.colors.primary} />}
-              </TouchableOpacity>
+              <View style={styles.filterRow}>
+                <Text style={styles.filterSectionTitle}>Open Shops Only</Text>
+                <TouchableOpacity
+                  style={[
+                    styles.toggleButton,
+                    onlyOpen && styles.toggleButtonActive
+                  ]}
+                  onPress={() => setOnlyOpen(!onlyOpen)}
+                >
+                  {onlyOpen && <Ionicons name="checkmark" size={18} color="#fff" />}
+                </TouchableOpacity>
+              </View>
             </View>
             
+            {/* Min Rating filter */}
             <View style={styles.filterSection}>
-              <Text style={styles.filterSectionTitle}>Rating</Text>
-              <View style={styles.ratingOptions}>
-                {[0, 3, 3.5, 4, 4.5].map((rating, index) => (
+              <Text style={styles.filterSectionTitle}>Minimum Rating</Text>
+              <View style={styles.ratingButtonsContainer}>
+                {[0, 1, 2, 3, 4, 5].map((rating) => (
                   <TouchableOpacity
-                    key={index}
+                    key={rating}
                     style={[
                       styles.ratingButton,
                       minRating === rating && styles.ratingButtonActive
                     ]}
                     onPress={() => setMinRating(rating)}
                   >
-                    <Text style={[
-                      styles.ratingButtonText,
-                      minRating === rating && styles.ratingButtonTextActive
-                    ]}>
-                      {rating === 0 ? 'All' : `${rating}+`}
-                    </Text>
+                    {rating > 0 ? (
+                      <View style={styles.ratingButtonContent}>
+                        <Text style={[
+                          styles.ratingButtonText,
+                          minRating === rating && styles.ratingButtonTextActive
+                        ]}>{rating}</Text>
+                        <Ionicons
+                          name="star"
+                          size={12}
+                          color={minRating === rating ? "#fff" : "#FFD700"}
+                        />
+                      </View>
+                    ) : (
+                      <Text style={[
+                        styles.ratingButtonText,
+                        minRating === rating && styles.ratingButtonTextActive
+                      ]}>Any</Text>
+                    )}
                   </TouchableOpacity>
                 ))}
               </View>
             </View>
             
+            {/* Sort By filter */}
             <View style={styles.filterSection}>
               <Text style={styles.filterSectionTitle}>Sort By</Text>
-              <TouchableOpacity 
-                style={styles.filterOption}
-                onPress={() => setSortBy('rating')}
-              >
-                <Text style={styles.filterOptionText}>Rating (High to Low)</Text>
-                {sortBy === 'rating' && <Ionicons name="checkmark" size={20} color={theme.colors.primary} />}
-              </TouchableOpacity>
-              <TouchableOpacity 
-                style={styles.filterOption}
-                onPress={() => setSortBy('name')}
-              >
-                <Text style={styles.filterOptionText}>Name (A to Z)</Text>
-                {sortBy === 'name' && <Ionicons name="checkmark" size={20} color={theme.colors.primary} />}
-              </TouchableOpacity>
+              <View style={styles.sortButtonsContainer}>
+                <TouchableOpacity
+                  style={[
+                    styles.sortButton,
+                    sortBy === '' && styles.sortButtonActive
+                  ]}
+                  onPress={() => setSortBy('')}
+                >
+                  <Text style={[
+                    styles.sortButtonText,
+                    sortBy === '' && styles.sortButtonTextActive
+                  ]}>Default</Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity
+                  style={[
+                    styles.sortButton,
+                    sortBy === 'rating' && styles.sortButtonActive
+                  ]}
+                  onPress={() => setSortBy('rating')}
+                >
+                  <Text style={[
+                    styles.sortButtonText,
+                    sortBy === 'rating' && styles.sortButtonTextActive
+                  ]}>Rating</Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity
+                  style={[
+                    styles.sortButton,
+                    sortBy === 'name' && styles.sortButtonActive
+                  ]}
+                  onPress={() => setSortBy('name')}
+                >
+                  <Text style={[
+                    styles.sortButtonText,
+                    sortBy === 'name' && styles.sortButtonTextActive
+                  ]}>Name</Text>
+                </TouchableOpacity>
+              </View>
             </View>
             
+            {/* Nearby filter */}
             <View style={styles.filterSection}>
-              <Text style={styles.filterSectionTitle}>Location</Text>
-              <TouchableOpacity 
-                style={styles.filterOption}
-                onPress={() => setShowNearby(!showNearby)}
-              >
-                <Text style={styles.filterOptionText}>Show Nearby Shops</Text>
-                {showNearby && <Ionicons name="checkmark" size={20} color={theme.colors.primary} />}
-              </TouchableOpacity>
+              <View style={styles.filterRow}>
+                <Text style={styles.filterSectionTitle}>Show Nearby Shops</Text>
+                <TouchableOpacity
+                  style={[
+                    styles.toggleButton,
+                    showNearby && styles.toggleButtonActive
+                  ]}
+                  onPress={() => setShowNearby(!showNearby)}
+                >
+                  {showNearby && <Ionicons name="checkmark" size={18} color="#fff" />}
+                </TouchableOpacity>
+              </View>
             </View>
             
             <View style={styles.filterActions}>
-              <TouchableOpacity style={styles.resetButton} onPress={resetFilters}>
+              <TouchableOpacity
+                style={styles.resetButton}
+                onPress={resetFilters}
+              >
                 <Text style={styles.resetButtonText}>Reset</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.applyButton} onPress={applyFilters}>
+              
+              <TouchableOpacity
+                style={styles.applyButton}
+                onPress={applyFilters}
+              >
                 <Text style={styles.applyButtonText}>Apply</Text>
               </TouchableOpacity>
             </View>
@@ -476,106 +594,88 @@ const ShopsScreen: React.FC = () => {
     </Modal>
   );
 
-  if (loading && !refreshing) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={theme.colors.primary} />
-      </View>
-    );
-  }
-
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
-        <ScreenHeader title="Shops" />
+        <ScreenHeader 
+          title="Shops" 
+          showBackButton={true}
+          onNotificationPress={() => navigation.navigate('Notifications')}
+        />
         
         <View style={styles.contentContainer}>
-          <View style={styles.searchFilterContainer}>
+          <View style={styles.searchContainer}>
             <SearchBar 
               placeholder="Search shops..."
               onSearch={handleSearch}
-              value={searchQuery}
+              value={internalSearchQuery}
               style={styles.searchBar}
             />
-            <TouchableOpacity 
-              style={styles.filterButton}
-              onPress={handleFilterPress}
-            >
-              <MaterialIcons name="filter-list" size={24} color={theme.colors.primary} />
-            </TouchableOpacity>
+            
+            <View style={styles.filterRow}>
+              <TouchableOpacity 
+                style={styles.filterButton} 
+                onPress={handleFilterPress}
+              >
+                <FontAwesome name="filter" size={16} color={theme.colors.primary} />
+                <Text style={styles.filterButtonText}>Filters</Text>
+              </TouchableOpacity>
+              
+              {/* Active filters display */}
+              <View style={styles.activeFiltersContainer}>
+                {(isSearching || selectedCategory || onlyOpen || minRating > 0 || sortBy || showNearby) && (
+                  <TouchableOpacity 
+                    style={styles.clearFiltersButton} 
+                    onPress={clearAllFiltersAndSearch}
+                  >
+                    <FontAwesome name="times-circle" size={14} color={theme.colors.error} />
+                    <Text style={styles.clearFiltersText}>
+                      Clear {isSearching ? 'Search & Filters' : 'Filters'}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            </View>
           </View>
           
-          {/* Active Filters */}
-          {(selectedCategory || onlyOpen || minRating > 0 || sortBy || showNearby) && (
-            <View style={styles.activeFiltersContainer}>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                {selectedCategory && (
-                  <View style={styles.activeFilterChip}>
-                    <Text style={styles.activeFilterText}>Category: {selectedCategory}</Text>
-                    <TouchableOpacity onPress={() => setSelectedCategory('')}>
-                      <Ionicons name="close-circle" size={16} color={theme.colors.white} />
-                    </TouchableOpacity>
-                  </View>
-                )}
-                
-                {onlyOpen && (
-                  <View style={styles.activeFilterChip}>
-                    <Text style={styles.activeFilterText}>Open Only</Text>
-                    <TouchableOpacity onPress={() => setOnlyOpen(false)}>
-                      <Ionicons name="close-circle" size={16} color={theme.colors.white} />
-                    </TouchableOpacity>
-                  </View>
-                )}
-                
-                {minRating > 0 && (
-                  <View style={styles.activeFilterChip}>
-                    <Text style={styles.activeFilterText}>Rating: {minRating}+</Text>
-                    <TouchableOpacity onPress={() => setMinRating(0)}>
-                      <Ionicons name="close-circle" size={16} color={theme.colors.white} />
-                    </TouchableOpacity>
-                  </View>
-                )}
-                
-                {sortBy && (
-                  <View style={styles.activeFilterChip}>
-                    <Text style={styles.activeFilterText}>
-                      Sort: {sortBy === 'rating' ? 'Rating' : 'Name'}
-                    </Text>
-                    <TouchableOpacity onPress={() => setSortBy('')}>
-                      <Ionicons name="close-circle" size={16} color={theme.colors.white} />
-                    </TouchableOpacity>
-                  </View>
-                )}
-                
-                {showNearby && (
-                  <View style={styles.activeFilterChip}>
-                    <Text style={styles.activeFilterText}>Nearby</Text>
-                    <TouchableOpacity onPress={() => setShowNearby(false)}>
-                      <Ionicons name="close-circle" size={16} color={theme.colors.white} />
-                    </TouchableOpacity>
-                  </View>
-                )}
-              </ScrollView>
+          {loading && !refreshing ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color={theme.colors.primary} />
             </View>
+          ) : (
+            <FlatList
+              data={filteredShops}
+              renderItem={renderShopItem}
+              keyExtractor={(item) => item._id}
+              contentContainerStyle={styles.shopsList}
+              showsVerticalScrollIndicator={false}
+              refreshControl={
+                <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
+              }
+              ListEmptyComponent={
+                <View style={styles.emptyContainer}>
+                  <Ionicons name="storefront-outline" size={64} color={theme.colors.lightGray} />
+                  <Text style={styles.emptyText}>
+                    {isSearching 
+                      ? 'No shops match your search'
+                      : (selectedCategory || onlyOpen || minRating > 0 || sortBy || showNearby)
+                        ? 'No shops match your filters' 
+                        : 'No shops available'}
+                  </Text>
+                  {(isSearching || selectedCategory || onlyOpen || minRating > 0 || sortBy || showNearby) && (
+                    <TouchableOpacity 
+                      style={styles.clearButton}
+                      onPress={clearAllFiltersAndSearch}
+                    >
+                      <Text style={styles.clearButtonText}>
+                        Clear {isSearching ? 'Search & Filters' : 'Filters'}
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              }
+            />
           )}
-          
-          <FlatList
-            data={filteredShops}
-            renderItem={renderShopItem}
-            keyExtractor={(item) => item._id}
-            contentContainerStyle={styles.shopsList}
-            showsVerticalScrollIndicator={false}
-            refreshControl={
-              <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
-            }
-            ListEmptyComponent={
-              <Text style={styles.emptyText}>
-                {searchQuery || selectedCategory || onlyOpen || minRating > 0
-                  ? 'No shops match your filters'
-                  : 'No shops available'}
-              </Text>
-            }
-          />
         </View>
         
         {renderFiltersModal()}
@@ -596,46 +696,47 @@ const styles = StyleSheet.create({
   contentContainer: {
     flex: 1,
     padding: theme.spacing.md,
-    paddingBottom: 120,
   },
-  searchFilterContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
+  searchContainer: {
+    padding: theme.spacing.md,
   },
   searchBar: {
-    flex: 1,
-    marginRight: 8,
+    marginBottom: theme.spacing.sm,
   },
-  filterButton: {
-    width: 48,
-    height: 48,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: theme.colors.white,
-    borderRadius: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  activeFiltersContainer: {
-    marginBottom: 12,
-  },
-  activeFilterChip: {
+  filterRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: theme.colors.primary,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-    marginRight: 8,
+    justifyContent: 'space-between',
   },
-  activeFilterText: {
-    color: theme.colors.white,
-    marginRight: 4,
+  filterButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: theme.colors.white,
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.sm,
+    borderRadius: theme.borderRadius.small,
+    ...theme.shadow.small,
+  },
+  filterButtonText: {
+    marginLeft: 8,
+    color: theme.colors.primary,
+    fontWeight: '600',
+  },
+  activeFiltersContainer: {
+    flex: 1,
+    alignItems: 'flex-end',
+  },
+  clearFiltersButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: 4,
+  },
+  clearFiltersText: {
+    marginLeft: 4,
+    color: theme.colors.error,
     fontSize: 12,
+    fontWeight: '500',
   },
   loadingContainer: {
     flex: 1,
@@ -645,97 +746,110 @@ const styles = StyleSheet.create({
   shopsList: {
     paddingBottom: 100,
   },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+    marginTop: 40,
+  },
+  emptyText: {
+    fontSize: 16,
+    color: theme.colors.gray,
+    textAlign: 'center',
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  clearButton: {
+    backgroundColor: theme.colors.primary,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 8,
+    marginTop: 10,
+  },
+  clearButtonText: {
+    color: theme.colors.white,
+    fontSize: 16,
+    fontWeight: '600',
+  },
   shopCard: {
     marginBottom: 16,
     borderRadius: 12,
     overflow: 'hidden',
     backgroundColor: theme.colors.white,
-    flexDirection: 'row',
-    alignItems: 'center',
   },
-  shopLogo: {
-    width: 100,
-    height: 100,
-    resizeMode: 'cover',
+  shopImage: {
+    width: '100%',
+    height: 150,
+    resizeMode: 'cover'
   },
   shopInfo: {
-    flex: 1,
     padding: 12,
   },
-  shopHeader: {
+  shopNameContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     marginBottom: 4,
   },
   shopName: {
-    fontSize: 16,
+    flex: 1,
+    fontSize: 18,
     fontWeight: 'bold',
     color: theme.colors.text,
-    flex: 1,
+    marginRight: 8,
+  },
+  openBadge: {
+    backgroundColor: theme.colors.success,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 12,
+  },
+  openBadgeText: {
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: 'bold',
+  },
+  closedBadge: {
+    backgroundColor: theme.colors.error,
+  },
+  closedBadgeText: {
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: 'bold',
   },
   ratingContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255, 215, 0, 0.1)',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 12,
+    marginBottom: 6,
   },
   ratingText: {
-    fontSize: 12,
-    fontWeight: 'bold',
+    marginLeft: 4,
     color: theme.colors.text,
-    marginLeft: 2,
+    fontWeight: '600',
   },
   shopDescription: {
     fontSize: 14,
     color: theme.colors.textLight,
-    marginBottom: 4,
-  },
-  shopAddress: {
-    fontSize: 12,
-    color: theme.colors.gray,
     marginBottom: 8,
   },
-  shopFooter: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  shopStatusContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  statusDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    marginRight: 4,
-  },
-  statusText: {
-    fontSize: 12,
-    color: theme.colors.textLight,
-  },
   categoriesContainer: {
-    flex: 1,
-    maxWidth: '70%',
+    flexDirection: 'row',
+    flexWrap: 'wrap',
   },
-  categoryChip: {
-    backgroundColor: theme.colors.accent,
+  categoryTag: {
+    backgroundColor: theme.colors.bgLight,
     paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 12,
-    marginRight: 4,
+    paddingVertical: 4,
+    borderRadius: 16,
+    marginRight: 6,
+    marginBottom: 6,
+    fontSize: 12,
+    color: theme.colors.primary,
   },
-  categoryChipText: {
-    color: theme.colors.white,
-    fontSize: 10,
-  },
-  emptyText: {
-    textAlign: 'center',
-    color: theme.colors.gray,
-    marginTop: 40,
+  categoryTagText: {
+    fontSize: 14,
+    color: theme.colors.text,
   },
   modalContainer: {
     flex: 1,
@@ -747,7 +861,7 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     padding: 16,
-    maxHeight: '90%',
+    maxHeight: '80%',
   },
   modalHeader: {
     flexDirection: 'row',
@@ -761,7 +875,7 @@ const styles = StyleSheet.create({
     color: theme.colors.text,
   },
   filterSection: {
-    marginBottom: 24,
+    marginBottom: 20,
   },
   filterSectionTitle: {
     fontSize: 16,
@@ -769,85 +883,121 @@ const styles = StyleSheet.create({
     color: theme.colors.text,
     marginBottom: 12,
   },
-  modalCategoriesContainer: {
+  categoriesScrollContainer: {
     paddingBottom: 8,
   },
   categoryButton: {
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 20,
-    backgroundColor: theme.colors.lightGray,
+    backgroundColor: theme.colors.bgLight,
     marginRight: 8,
   },
   categoryButtonActive: {
     backgroundColor: theme.colors.primary,
   },
   categoryButtonText: {
+    fontSize: 14,
     color: theme.colors.text,
   },
   categoryButtonTextActive: {
     color: theme.colors.white,
     fontWeight: 'bold',
   },
-  filterOption: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  toggleButton: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    borderWidth: 2,
+    borderColor: theme.colors.primary,
+    justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.lightGray,
   },
-  filterOptionText: {
-    color: theme.colors.text,
+  toggleButtonActive: {
+    backgroundColor: theme.colors.primary,
   },
-  ratingOptions: {
+  ratingButtonsContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
   },
   ratingButton: {
-    paddingHorizontal: 12,
+    width: '15%',
     paddingVertical: 8,
-    borderRadius: 16,
-    backgroundColor: theme.colors.lightGray,
+    borderRadius: 20,
+    backgroundColor: theme.colors.bgLight,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   ratingButtonActive: {
     backgroundColor: theme.colors.primary,
   },
+  ratingButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
   ratingButtonText: {
+    fontSize: 14,
     color: theme.colors.text,
-    fontSize: 12,
+    marginRight: 2,
   },
   ratingButtonTextActive: {
+    color: theme.colors.white,
+    fontWeight: 'bold',
+  },
+  sortButtonsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  sortButton: {
+    width: '30%',
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: theme.colors.bgLight,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  sortButtonActive: {
+    backgroundColor: theme.colors.primary,
+  },
+  sortButtonText: {
+    fontSize: 14,
+    color: theme.colors.text,
+  },
+  sortButtonTextActive: {
     color: theme.colors.white,
     fontWeight: 'bold',
   },
   filterActions: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginTop: 16,
-    marginBottom: 32,
+    marginTop: 20,
+    marginBottom: 30,
   },
   resetButton: {
+    width: '48%',
     paddingVertical: 12,
-    paddingHorizontal: 24,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: theme.colors.primary,
+    alignItems: 'center',
   },
   resetButtonText: {
     color: theme.colors.primary,
+    fontSize: 16,
     fontWeight: 'bold',
   },
   applyButton: {
-    backgroundColor: theme.colors.primary,
+    width: '48%',
     paddingVertical: 12,
-    paddingHorizontal: 24,
     borderRadius: 8,
+    backgroundColor: theme.colors.primary,
+    alignItems: 'center',
   },
   applyButtonText: {
     color: theme.colors.white,
+    fontSize: 16,
     fontWeight: 'bold',
-  },
+  }
 });
 
 export default ShopsScreen; 

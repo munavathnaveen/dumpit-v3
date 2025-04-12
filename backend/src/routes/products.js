@@ -30,6 +30,9 @@ router.get('/search/:query', searchProducts)
 // Get all product categories
 router.get('/categories', getProductCategories)
 
+// Get all product types
+router.get('/types', getProductTypes)
+
 // Vendor products route
 router.get('/vendor', protect, authorize(config.constants.userRoles.VENDOR), getVendorProducts)
 

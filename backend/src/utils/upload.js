@@ -1,65 +1,24 @@
-const cloudinary = require('cloudinary').v2
-const multer = require('multer')
-const path = require('path')
-const config = require('../config')
+// This file has been simplified to remove image upload functionality
+
 const ErrorResponse = require('./errorResponse')
 
-// Configure cloudinary
-cloudinary.config({
-  cloud_name: config.cloudinary.cloudName,
-  api_key: config.cloudinary.apiKey,
-  api_secret: config.cloudinary.apiSecret,
-})
-
-// Configure multer for memory storage
-const storage = multer.memoryStorage()
-
-// File filter function for multer
-const fileFilter = (req, file, cb) => {
-  // Check file type
-  const filetypes = /jpeg|jpg|png|gif/
-  const mimetype = filetypes.test(file.mimetype)
-  const extname = filetypes.test(path.extname(file.originalname).toLowerCase())
-
-  if (mimetype && extname) {
-    return cb(null, true)
-  }
-
-  cb(new ErrorResponse('Only image files are allowed!', 400), false)
+// Create dummy functions to maintain compatibility
+const upload = {
+  single: () => (req, res, next) => next(),
+  array: () => (req, res, next) => next()
 }
 
-// Create multer upload object
-const upload = multer({
-  storage: storage,
-  limits: {fileSize: 1024 * 1024 * 5}, // 5MB
-  fileFilter: fileFilter,
-})
-
-// Function to upload file to cloudinary
+// Function for compatibility - no actual upload happens
 const uploadToCloudinary = async (file, folder) => {
-  try {
-    const result = await cloudinary.uploader.upload(file.path, {
-      folder: folder || 'dumpit',
-      resource_type: 'auto',
-    })
-
-    return {
-      public_id: result.public_id,
-      url: result.secure_url,
-    }
-  } catch (error) {
-    throw new ErrorResponse('Error uploading to Cloudinary', 500)
+  return {
+    public_id: 'no_upload',
+    url: file?.path || '',
   }
 }
 
-// Function to delete file from cloudinary
+// Function for compatibility - no actual deletion happens
 const deleteFromCloudinary = async (publicId) => {
-  try {
-    const result = await cloudinary.uploader.destroy(publicId)
-    return result
-  } catch (error) {
-    throw new ErrorResponse('Error deleting from Cloudinary', 500)
-  }
+  return { result: 'ok' }
 }
 
 module.exports = {

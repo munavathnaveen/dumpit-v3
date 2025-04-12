@@ -10,35 +10,25 @@ const config = require('../config')
 exports.register = async (req, res, next) => {
   try {
     const {name, email, password, phone, role, shopName, shopDescription, shopAddress} = req.body
-
     // Create user
-    const user = await User.create({
-      name,
-      email,
-      password,
-      phone,
-      role,
-    })
+    const user = await User.create({name, email, password, phone, role})
 
     // If registering as a vendor, create a shop
     if (role === config.constants.userRoles.VENDOR) {
       const Shop = require('../models/Shop')
-      
       if (!shopName || !shopDescription || !shopAddress) {
-        await User.findByIdAndDelete(user._id);
-        return next(new ErrorResponse('Shop details are required for vendor registration', 400));
+        await User.findByIdAndDelete(user._id)
+        return next(new ErrorResponse('Shop details are required for vendor registration', 400))
       }
-      
       // Create shop associated with the vendor
       const shop = await Shop.create({
         name: shopName,
         description: shopDescription,
         owner: user._id,
         address: shopAddress,
-      });
-      const updatedUser = await User.findByIdAndUpdate(user._id, { shop_id: shop._id }, { new: true });
-      console.log(updatedUser);
-
+      })
+      const updatedUser = await User.findByIdAndUpdate(user._id, {shop_id: shop._id}, {new: true})
+      console.log(updatedUser)
     }
 
     // Send welcome email
@@ -186,9 +176,7 @@ exports.forgotPassword = async (req, res, next) => {
 
     await user.save({validateBeforeSave: false})
 
-    // Create reset url - use mobile deep link format for better UX
-    const mobileDeepLink = `dumpit://resetpassword/${resetToken}`;
-    const webUrl = `https://dumpit-password-reset.vercel.app`;
+    const webUrl = `https://dumpit-password-reset.vercel.app/${resetToken}`
 
     try {
       await sendEmail({
@@ -218,7 +206,7 @@ exports.forgotPassword = async (req, res, next) => {
 exports.resetPassword = async (req, res, next) => {
   try {
     // Get hashed token
-    const token = req.params.resettoken || req.body.reset-token; 
+    const token = req.params.resettoken || req.body.reset - token
     const resetPasswordToken = crypto.createHash('sha256').update(token).digest('hex')
 
     const user = await User.findOne({
@@ -248,20 +236,20 @@ const sendTokenResponse = (user, statusCode, res) => {
   const token = user.getSignedJwtToken()
 
   // Parse the JWT expire time from config
-  const jwtExpire = config.jwt.expire || '30d';
-  let expireTime;
-  
+  const jwtExpire = config.jwt.expire || '30d'
+  let expireTime
+
   if (jwtExpire.endsWith('d')) {
     // If expire time is in days, convert to milliseconds
-    const days = parseInt(jwtExpire.replace('d', ''));
-    expireTime = days * 24 * 60 * 60 * 1000;
+    const days = parseInt(jwtExpire.replace('d', ''))
+    expireTime = days * 24 * 60 * 60 * 1000
   } else if (jwtExpire.endsWith('h')) {
     // If expire time is in hours, convert to milliseconds
-    const hours = parseInt(jwtExpire.replace('h', ''));
-    expireTime = hours * 60 * 60 * 1000;
+    const hours = parseInt(jwtExpire.replace('h', ''))
+    expireTime = hours * 60 * 60 * 1000
   } else {
     // Default to 30 days if format is not recognized
-    expireTime = 30 * 24 * 60 * 60 * 1000;
+    expireTime = 30 * 24 * 60 * 60 * 1000
   }
 
   const options = {

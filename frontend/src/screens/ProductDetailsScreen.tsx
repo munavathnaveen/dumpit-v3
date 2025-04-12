@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Dimensions,
+  RefreshControl,
 } from 'react-native';
 import { FontAwesome } from '@expo/vector-icons';
 import { useSelector, useDispatch } from 'react-redux';
@@ -28,12 +29,20 @@ const ProductDetailsScreen: React.FC = () => {
   
   const { productId } = route.params;
   const [quantity, setQuantity] = useState(1);
+  const [refreshing, setRefreshing] = useState(false);
   
   const { product, loading, error } = useSelector((state: RootState) => state.product);
   
   useEffect(() => {
     dispatch(getProduct(productId));
   }, [dispatch, productId]);
+  
+  const handleRefresh = () => {
+    setRefreshing(true);
+    dispatch(getProduct(productId)).then(() => {
+      setRefreshing(false);
+    });
+  };
   
   const handleAddToCart = () => {
     if (product) {
@@ -84,7 +93,12 @@ const ProductDetailsScreen: React.FC = () => {
         <FontAwesome name="arrow-left" size={20} color={theme.colors.dark} />
       </TouchableOpacity>
       
-      <ScrollView showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
+        }
+      >
         <Image 
           source={{ uri: product.image || 'https://via.placeholder.com/400' }}
           style={styles.productImage}

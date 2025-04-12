@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { 
   View, 
   Text, 
@@ -11,12 +11,14 @@ import {
 import { useSelector, useDispatch } from 'react-redux';
 import { FontAwesome } from '@expo/vector-icons';
 import { format } from 'date-fns';
+import debounce from 'lodash.debounce';
 
 import { RootState, AppDispatch } from '../store';
 import { theme } from '../theme';
 import { getOrders } from '../api/orderApi';
 import Card3D from '../components/Card3D';
 import ScreenHeader from '../components/ScreenHeader';
+import SearchBar from '../components/SearchBar';
 import { useNavigation } from '../navigation/hooks';
 
 type OrderStatus = 'pending' | 'processing' | 'shipped' | 'delivered' | 'cancelled';
@@ -41,6 +43,9 @@ const OrdersScreen: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>();
   const navigation = useNavigation();
   const [orders, setOrders] = useState<Order[]>([]);
+  const [filteredOrders, setFilteredOrders] = useState<Order[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [internalSearchQuery, setInternalSearchQuery] = useState('');
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -48,12 +53,27 @@ const OrdersScreen: React.FC = () => {
     loadOrders();
   }, []);
 
+  // Apply filtering when orders or search query change
+  useEffect(() => {
+    if (searchQuery.trim() === '') {
+      setFilteredOrders(orders);
+    } else {
+      const query = searchQuery.toLowerCase();
+      const filtered = orders.filter(order => 
+        order.orderNumber.toLowerCase().includes(query) ||
+        order.items.some(item => item.product.name.toLowerCase().includes(query))
+      );
+      setFilteredOrders(filtered);
+    }
+  }, [orders, searchQuery]);
+
   const loadOrders = async () => {
     try {
       setLoading(true);
       const response = await getOrders();
       if (response.success) {
         setOrders(response.data);
+        setFilteredOrders(response.data);
       }
     } catch (error) {
       console.error('Failed to load orders:', error);
@@ -66,6 +86,20 @@ const OrdersScreen: React.FC = () => {
     setRefreshing(true);
     await loadOrders();
     setRefreshing(false);
+  };
+
+  // Debounced search function with 1-second delay
+  const debouncedSearch = useCallback(
+    debounce((text: string) => {
+      setSearchQuery(text);
+    }, 1000), // 1000ms delay
+    []
+  );
+
+  // Handle search input changes
+  const handleSearch = (text: string) => {
+    setInternalSearchQuery(text); // Update local state for immediate UI feedback
+    debouncedSearch(text); // Debounce the actual search
   };
 
   const getStatusColor = (status: OrderStatus) => {
@@ -147,8 +181,17 @@ const OrdersScreen: React.FC = () => {
       <ScreenHeader title="My Orders" />
       
       <View style={styles.contentContainer}>
+        <View style={styles.searchContainer}>
+          <SearchBar
+            placeholder="Search orders..."
+            onSearch={handleSearch}
+            value={internalSearchQuery}
+            style={styles.searchBar}
+          />
+        </View>
+        
         <FlatList
-          data={orders}
+          data={filteredOrders}
           renderItem={renderOrderItem}
           keyExtractor={(item) => item._id}
           contentContainerStyle={styles.ordersList}
@@ -159,13 +202,27 @@ const OrdersScreen: React.FC = () => {
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
               <FontAwesome name="shopping-bag" size={64} color={theme.colors.lightGray} />
-              <Text style={styles.emptyText}>No orders yet</Text>
-              <TouchableOpacity 
-                style={styles.shopNowButton}
-                onPress={handleShopNow}
-              >
-                <Text style={styles.shopNowText}>Shop Now</Text>
-              </TouchableOpacity>
+              <Text style={styles.emptyText}>
+                {searchQuery ? 'No orders match your search' : 'No orders yet'}
+              </Text>
+              {searchQuery ? (
+                <TouchableOpacity 
+                  style={styles.clearSearchButton}
+                  onPress={() => {
+                    setInternalSearchQuery('');
+                    setSearchQuery('');
+                  }}
+                >
+                  <Text style={styles.clearSearchText}>Clear Search</Text>
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity 
+                  style={styles.shopNowButton}
+                  onPress={handleShopNow}
+                >
+                  <Text style={styles.shopNowText}>Shop Now</Text>
+                </TouchableOpacity>
+              )}
             </View>
           }
         />
@@ -182,6 +239,14 @@ const styles = StyleSheet.create({
   contentContainer: {
     flex: 1,
     padding: theme.spacing.md,
+  },
+  searchContainer: {
+    marginBottom: theme.spacing.md,
+  },
+  searchBar: {
+    backgroundColor: theme.colors.white,
+    borderRadius: theme.borderRadius.medium,
+    ...theme.shadow.small,
   },
   loadingContainer: {
     flex: 1,
@@ -274,24 +339,37 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: 60,
+    padding: theme.spacing.xl,
+    marginTop: theme.spacing.xl,
   },
   emptyText: {
+    marginTop: theme.spacing.md,
+    color: theme.colors.gray,
     fontSize: 16,
-    color: theme.colors.textLight,
-    marginTop: 12,
-    marginBottom: 20,
+    textAlign: 'center',
   },
   shopNowButton: {
+    marginTop: theme.spacing.md,
+    paddingHorizontal: theme.spacing.lg,
+    paddingVertical: theme.spacing.sm,
     backgroundColor: theme.colors.primary,
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 8,
+    borderRadius: theme.borderRadius.medium,
+    ...theme.shadow.small,
   },
   shopNowText: {
     color: theme.colors.white,
     fontWeight: 'bold',
-    fontSize: 16,
+  },
+  clearSearchButton: {
+    marginTop: theme.spacing.md,
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.sm,
+    backgroundColor: theme.colors.primary,
+    borderRadius: theme.borderRadius.small,
+  },
+  clearSearchText: {
+    color: theme.colors.white,
+    fontWeight: 'bold',
   },
 });
 

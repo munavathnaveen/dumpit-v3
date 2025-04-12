@@ -88,19 +88,22 @@ export const deleteProduct = async (productId: string): Promise<{ success: boole
   return response.data;
 };
 
-export const uploadProductImage = async (productId: string, file: File): Promise<{
+export const uploadProductImage = async (productId: string, imageUrl: string): Promise<{
   success: boolean;
   data: {
     image: string;
   };
 }> => {
-  const formData = new FormData();
-  formData.append('image', file);
+  const response = await apiClient.put(`/products/${productId}/image`, { image: imageUrl });
+  return response.data;
+};
 
-  const response = await apiClient.put(`/products/${productId}/image`, formData, {
-    headers: {
-      'Content-Type': 'multipart/form-data',
-    },
-  });
+export const getProductTypes = async (): Promise<{success: boolean, count: number, data: string[]}> => {
+  const response = await apiClient.get('/products/types');
+  return response.data;
+};
+
+export const getShops = async (): Promise<{success: boolean, count: number, data: { _id: string, name: string }[]}> => {
+  const response = await apiClient.get('/shops?select=name');
   return response.data;
 }; 

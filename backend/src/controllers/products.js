@@ -232,31 +232,26 @@ exports.uploadProductImage = async (req, res, next) => {
       return next(new ErrorResponse(`User ${req.user.id} is not authorized to update this product`, 401));
     }
 
-    // Delete old image if it exists
-    if (product.image) {
-      // Extract public_id from Cloudinary URL
-      const publicId = product.image.split('/').pop().split('.')[0];
-      await cloudinary.uploader.destroy(publicId);
+    // Get the image URL from request body
+    const imageUrl = req.body.image;
+    
+    if (!imageUrl) {
+      return next(new ErrorResponse('Please provide an image URL', 400));
     }
 
-    // Upload new image
-    const result = await cloudinary.uploader.upload(req.files.image.tempFilePath, {
-      folder: 'products',
-    });
-
     // Update product image
-    product.image = result.secure_url;
+    product.image = imageUrl;
     await product.save();
 
     res.status(200).json({
       success: true,
       data: {
-        image: result.secure_url
+        image: imageUrl
       }
     });
   } catch (err) {
     console.error(err);
-    return next(new ErrorResponse('Error uploading product image', 500));
+    return next(new ErrorResponse('Error updating product image', 500));
   }
 };
 
@@ -308,8 +303,14 @@ exports.searchProducts = async (req, res, next) => {
   try {
     const {query} = req.params
 
+    // Use regex for pattern matching instead of exact text search
     const products = await Product.find({
-      $text: {$search: query},
+      $or: [
+        { name: { $regex: query, $options: 'i' } },
+        { description: { $regex: query, $options: 'i' } },
+        { category: { $regex: query, $options: 'i' } },
+        { type: { $regex: query, $options: 'i' } }
+      ]
     }).populate([
       {path: 'vendor', select: 'name'},
       {path: 'shop', select: 'name'},
@@ -359,6 +360,24 @@ exports.getProductCategories = async (req, res, next) => {
       success: true,
       count: categories.length,
       data: categories.sort(),
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// @desc    Get all product types
+// @route   GET /api/v1/products/types
+// @access  Public
+exports.getProductTypes = async (req, res, next) => {
+  try {
+    // Find all distinct type values in Product collection
+    const types = await Product.distinct('type');
+    
+    res.status(200).json({
+      success: true,
+      count: types.length,
+      data: types.sort(),
     });
   } catch (err) {
     next(err);
