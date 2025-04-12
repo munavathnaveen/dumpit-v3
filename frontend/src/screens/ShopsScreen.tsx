@@ -17,6 +17,7 @@ import {
 import { useSelector, useDispatch } from 'react-redux';
 import { FontAwesome, Ionicons, MaterialIcons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
+import debounce from 'lodash.debounce';
 
 import { RootState, AppDispatch } from '../store';
 import { theme } from '../theme';
@@ -58,7 +59,7 @@ const ShopsScreen: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>();
   const [shops, setShops] = useState<Shop[]>([]);
   const [filteredShops, setFilteredShops] = useState<Shop[]>([]);
-  const [searchQuery, setSearchQuery] = useState(route.params?.searchQuery || '');
+  const [searchQuery, setSearchQuery] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   
@@ -76,10 +77,29 @@ const ShopsScreen: React.FC = () => {
   const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const [locationPermissionDenied, setLocationPermissionDenied] = useState(false);
 
+  // Create a debounced search function with proper type cast
+  const debouncedSearch = useCallback(
+    (debounce as any)((text: string) => {
+      setSearchQuery(text);
+      loadShops();
+    }, 500), // 500ms delay
+    [] // Remove loadShops from dependencies to avoid circular reference
+  );
+
   useEffect(() => {
     loadShops();
     fetchShopCategories();
   }, []);
+
+  useEffect(() => {
+    // Update search query when route params change
+    if (route.params?.searchQuery) {
+      setSearchQuery(route.params.searchQuery);
+    } else if (route.params && 'searchQuery' in route.params && route.params.searchQuery === undefined) {
+      // If searchQuery exists in route.params but is undefined, reset it
+      setSearchQuery('');
+    }
+  }, [route.params]);
 
   useEffect(() => {
     if (showNearby && !userLocation && !locationPermissionDenied) {
@@ -188,14 +208,27 @@ const ShopsScreen: React.FC = () => {
         return;
       }
 
+      setLocationPermissionDenied(false);
+      
       const location = await Location.getCurrentPositionAsync({});
+      
       setUserLocation({
         latitude: location.coords.latitude,
         longitude: location.coords.longitude,
       });
+      
+      console.log('Got user location:', location.coords.latitude, location.coords.longitude);
+      return location.coords;
     } catch (error) {
       console.error('Error getting location:', error);
       setLocationPermissionDenied(true);
+      
+      alert(
+        'Location Error',
+        'Could not get your current location. Please check your device settings.',
+        [{ text: 'OK' }]
+      );
+      return null;
     }
   };
 
@@ -212,22 +245,50 @@ const ShopsScreen: React.FC = () => {
       }
       
       let response: ShopsResponse;
-      if (showNearby && userLocation) {
-        response = await getNearbyShops(userLocation);
-      } else {
-        // Build query string based on filters
-        const queryParams: Record<string, string> = {};
-        if (selectedCategory) queryParams.category = selectedCategory;
-        if (onlyOpen) queryParams.isOpen = 'true';
-        if (minRating > 0) queryParams.minRating = minRating.toString();
-        if (sortBy) queryParams.sortBy = sortBy;
+      
+      // Handle nearby shops filter
+      if (showNearby) {
+        // Get location if not already available
+        if (!userLocation && !locationPermissionDenied) {
+          await getUserLocation();
+        }
         
-        const queryString = Object.entries(queryParams)
-          .map(([key, value]) => `${key}=${encodeURIComponent(value)}`)
-          .join('&');
-          
-        response = await getShops(queryString);
+        // Only make nearby request if we have location data
+        if (userLocation) {
+          response = await getNearbyShops(userLocation);
+          setShops(response.data as unknown as Shop[]);
+          setFilteredShops(response.data as unknown as Shop[]);
+          return;
+        } else if (locationPermissionDenied) {
+          // If location permission was denied but nearby filter is on,
+          // show an alert and reset the filter
+          alert(
+            'Location Required',
+            'Please enable location permissions to use the nearby shops feature.',
+            [
+              { 
+                text: 'OK', 
+                onPress: () => setShowNearby(false) 
+              }
+            ]
+          );
+          // Reset to regular shop loading
+          setShowNearby(false);
+        }
       }
+      
+      // Build query string based on filters
+      const queryParams: Record<string, string> = {};
+      if (selectedCategory) queryParams.category = selectedCategory;
+      if (onlyOpen) queryParams.isOpen = 'true';
+      if (minRating > 0) queryParams.minRating = minRating.toString();
+      if (sortBy) queryParams.sortBy = sortBy;
+      
+      const queryString = Object.entries(queryParams)
+        .map(([key, value]) => `${key}=${encodeURIComponent(value)}`)
+        .join('&');
+        
+      response = await getShops(queryString);
       
       if (response.success) {
         setShops(response.data as unknown as Shop[]);
@@ -259,6 +320,7 @@ const ShopsScreen: React.FC = () => {
 
   const handleSearch = (text: string) => {
     setSearchQuery(text);
+    debouncedSearch(text);
   };
 
   const handleFilterPress = () => {

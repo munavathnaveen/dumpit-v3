@@ -6,6 +6,7 @@ import {
   ScrollView,
   TouchableOpacity,
   ActivityIndicator,
+  RefreshControl,
 } from 'react-native';
 import { FontAwesome } from '@expo/vector-icons';
 import { format } from 'date-fns';
@@ -58,6 +59,7 @@ const OrderDetailsScreen: React.FC = () => {
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
   
   useEffect(() => {
     loadOrderDetails();
@@ -74,6 +76,15 @@ const OrderDetailsScreen: React.FC = () => {
     } catch (err: any) {
       setError(err.message || 'Failed to load order details');
       setLoading(false);
+    }
+  };
+  
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await loadOrderDetails();
+    } finally {
+      setRefreshing(false);
     }
   };
   
@@ -169,7 +180,13 @@ const OrderDetailsScreen: React.FC = () => {
         <View style={styles.placeholder} />
       </View>
       
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
+      <ScrollView 
+        showsVerticalScrollIndicator={false} 
+        contentContainerStyle={styles.content}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
+        }
+      >
         <Card3D style={styles.orderSummaryCard}>
           <View style={styles.orderNumberRow}>
             <Text style={styles.orderNumber}>Order #{order.orderNumber}</Text>

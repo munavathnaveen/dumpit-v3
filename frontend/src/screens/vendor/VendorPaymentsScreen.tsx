@@ -369,8 +369,7 @@ const VendorPaymentsScreen: React.FC = () => {
     <View style={styles.container}>
       <ScreenHeader 
         title="Payments" 
-        onRightPress={handleNotificationPress}
-        rightIcon="notifications-outline"
+        showBackButton={true}
       />
       
       <Card3D style={styles.summaryCard} elevation="medium">
@@ -446,11 +445,6 @@ const getStatusColor = (status: string): string => {
     default:
       return theme.colors.gray;
   }
-};
-
-// Helper function for notifications
-const handleNotificationPress = () => {
-  // Handle notification icon press
 };
 
 const styles = StyleSheet.create({

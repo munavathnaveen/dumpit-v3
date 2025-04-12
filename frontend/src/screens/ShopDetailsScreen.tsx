@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   FlatList,
   Dimensions,
+  RefreshControl,
 } from 'react-native';
 import { FontAwesome } from '@expo/vector-icons';
 import { useDispatch } from 'react-redux';
@@ -35,6 +36,7 @@ const ShopDetailsScreen: React.FC = () => {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
   
   useEffect(() => {
     loadShopDetails();
@@ -53,6 +55,15 @@ const ShopDetailsScreen: React.FC = () => {
     } catch (err: any) {
       setError(err.message || 'Failed to load shop details');
       setLoading(false);
+    }
+  };
+  
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await loadShopDetails();
+    } finally {
+      setRefreshing(false);
     }
   };
   
@@ -126,7 +137,12 @@ const ShopDetailsScreen: React.FC = () => {
         <FontAwesome name="arrow-left" size={20} color={theme.colors.dark} />
       </TouchableOpacity>
       
-      <ScrollView showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
+        }
+      >
         <Image 
           source={{ uri: shop.image || 'https://via.placeholder.com/400' }}
           style={styles.coverImage}
@@ -200,23 +216,33 @@ const ShopDetailsScreen: React.FC = () => {
           <View style={styles.divider} />
           
           <Text style={styles.sectionTitle}>Products</Text>
-          
-          {products.length === 0 ? (
-            <View style={styles.emptyProductsContainer}>
-              <Text style={styles.emptyProductsText}>No products available</Text>
+          {loading ? (
+            <ActivityIndicator size="small" color={theme.colors.primary} style={styles.productsLoading} />
+          ) : products.length > 0 ? (
+            <View>
+              <FlatList
+                data={products.slice(0, 4)}
+                keyExtractor={(item) => item._id}
+                renderItem={renderProductItem}
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.productsList}
+              />
+              
+              <TouchableOpacity 
+                style={styles.viewAllButton}
+                onPress={() => navigation.navigate('TabNavigator', { 
+                  screen: 'ProductsTab', 
+                  params: { shopId } 
+                })}
+              >
+                <Text style={styles.viewAllButtonText}>View All Products</Text>
+                <FontAwesome name="arrow-right" size={16} color={theme.colors.primary} />
+              </TouchableOpacity>
             </View>
           ) : (
-            <FlatList
-              data={products}
-              renderItem={renderProductItem}
-              keyExtractor={(item) => item._id}
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.productsList}
-            />
+            <Text style={styles.noProductsText}>This shop doesn't have any products yet.</Text>
           )}
-          
- 
           
           <View style={styles.divider} />
           
@@ -473,24 +499,30 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   viewAllButton: {
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     padding: 12,
-    marginTop: 8,
+    marginTop: 16,
+    borderWidth: 1,
+    borderColor: theme.colors.primary,
+    borderRadius: theme.borderRadius.medium,
+    backgroundColor: 'transparent',
   },
-  viewAllText: {
+  viewAllButtonText: {
     fontSize: 16,
     color: theme.colors.primary,
     fontWeight: 'bold',
+    marginRight: 8,
   },
-  emptyProductsContainer: {
-    padding: 20,
-    alignItems: 'center',
-    backgroundColor: theme.colors.bgLight,
-    borderRadius: 8,
-  },
-  emptyProductsText: {
+  noProductsText: {
     color: theme.colors.textLight,
     fontSize: 16,
+    textAlign: 'center',
+    marginTop: 20,
+  },
+  productsLoading: {
+    marginTop: 20,
   },
   reviewItem: {
     marginBottom: 12,

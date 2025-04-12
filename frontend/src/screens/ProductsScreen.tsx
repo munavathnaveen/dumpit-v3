@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { 
   View, 
   Text, 
@@ -17,6 +17,7 @@ import { useSelector, useDispatch } from 'react-redux';
 import { FontAwesome, Ionicons, MaterialIcons } from '@expo/vector-icons';
 import Slider from '@react-native-community/slider';
 import { RouteProp } from '@react-navigation/native';
+import debounce from 'lodash.debounce';
 
 import { RootState, AppDispatch } from '../store';
 import { theme } from '../theme';
@@ -42,19 +43,40 @@ const ProductsScreen: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>();
   const { products, loading, error } = useSelector((state: RootState) => state.product);
   const [refreshing, setRefreshing] = useState(false);
-  const [searchQuery, setSearchQuery] = useState(route.params?.searchQuery || '');
+  const [searchQuery, setSearchQuery] = useState('');
   const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
   
   // Filter states
   const [filterModalVisible, setFilterModalVisible] = useState(false);
   const [categories, setCategories] = useState<string[]>([]);
-  const [selectedCategory, setSelectedCategory] = useState<string>(route.params?.category || '');
+  const [productTypes, setProductTypes] = useState<string[]>([]);
+  const [shops, setShops] = useState<{ _id: string, name: string }[]>([]);
+  const [selectedCategory, setSelectedCategory] = useState<string>('');
+  const [selectedType, setSelectedType] = useState<string>('');
+  const [selectedShop, setSelectedShop] = useState<string>('');
   const [priceRange, setPriceRange] = useState<[number, number]>([0, 10000]);
   const [currentPriceRange, setCurrentPriceRange] = useState<[number, number]>([0, 10000]);
   const [sortBy, setSortBy] = useState<string>('');
   const [inStock, setInStock] = useState<boolean>(false);
   const [loadingCategories, setLoadingCategories] = useState(false);
+  const [loadingTypes, setLoadingTypes] = useState(false);
+  const [loadingShops, setLoadingShops] = useState(false);
   const [shopId, setShopId] = useState<string | undefined>(route.params?.shopId);
+
+  // Create a debounced search function that directly triggers the product search
+  const debouncedSearch = useCallback(
+    debounce((text: string) => {
+      setSearchQuery(text);
+      // Don't need to explicitly call loadProducts here as the useEffect will handle it
+    }, 500), // 500ms delay
+    []
+  );
+
+  // Handle search text changes
+  const handleSearch = (text: string) => {
+    setSearchQuery(text); // Update immediately for UI feedback
+    debouncedSearch(text); // Debounce the actual search
+  };
 
   useEffect(() => {
     // Log navigation params for debugging
@@ -62,6 +84,8 @@ const ProductsScreen: React.FC = () => {
     
     loadProducts();
     fetchCategories();
+    fetchProductTypes();
+    fetchShops();
   }, []);
 
   useEffect(() => {
@@ -69,10 +93,16 @@ const ProductsScreen: React.FC = () => {
     if (route.params) {
       if (route.params.shopId) {
         setShopId(route.params.shopId);
+        setSelectedShop(route.params.shopId);
+      } else {
+        setShopId(undefined);
+        setSelectedShop('');
       }
+      
       if (route.params.searchQuery) {
         setSearchQuery(route.params.searchQuery);
       }
+      
       if (route.params.category) {
         setSelectedCategory(route.params.category);
       }
@@ -81,7 +111,7 @@ const ProductsScreen: React.FC = () => {
 
   useEffect(() => {
     loadProducts();
-  }, [searchQuery, selectedCategory, priceRange, sortBy, inStock, shopId]);
+  }, [searchQuery, selectedCategory, selectedType, selectedShop, priceRange, sortBy, inStock, shopId]);
 
   const fetchCategories = async () => {
     try {
@@ -92,6 +122,30 @@ const ProductsScreen: React.FC = () => {
       console.error('Failed to fetch categories:', error);
     } finally {
       setLoadingCategories(false);
+    }
+  };
+
+  const fetchProductTypes = async () => {
+    try {
+      setLoadingTypes(true);
+      const response = await productApi.getProductTypes();
+      setProductTypes(response.data);
+    } catch (error) {
+      console.error('Failed to fetch product types:', error);
+    } finally {
+      setLoadingTypes(false);
+    }
+  };
+
+  const fetchShops = async () => {
+    try {
+      setLoadingShops(true);
+      const response = await productApi.getShops();
+      setShops(response.data);
+    } catch (error) {
+      console.error('Failed to fetch shops:', error);
+    } finally {
+      setLoadingShops(false);
     }
   };
 
@@ -108,6 +162,8 @@ const ProductsScreen: React.FC = () => {
       const queryParams: Record<string, string> = {};
       
       if (selectedCategory) queryParams.category = selectedCategory;
+      if (selectedType) queryParams.type = selectedType;
+      if (selectedShop) queryParams.shop = selectedShop;
       if (sortBy) queryParams.sort = sortBy;
       if (priceRange[0] > 0) queryParams.minPrice = priceRange[0].toString();
       if (priceRange[1] < 10000) queryParams.maxPrice = priceRange[1].toString();
@@ -138,8 +194,9 @@ const ProductsScreen: React.FC = () => {
     setRefreshing(false);
   };
 
-  const handleSearch = (text: string) => {
-    setSearchQuery(text);
+
+  const handleNotificationPress = () => {
+    navigation.navigate('Notifications');
   };
 
   const handleAddToCart = (productId: string, quantity: number) => {
@@ -159,6 +216,8 @@ const ProductsScreen: React.FC = () => {
 
   const resetFilters = () => {
     setSelectedCategory('');
+    setSelectedType('');
+    setSelectedShop('');
     setPriceRange([0, 10000]);
     setCurrentPriceRange([0, 10000]);
     setSortBy('');
@@ -179,6 +238,20 @@ const ProductsScreen: React.FC = () => {
       </TouchableOpacity>
       <View style={styles.productInfo}>
         <Text style={styles.productName}>{item.name}</Text>
+        
+        {/* Shop name and info */}
+        {item.shop && !shopId && (
+          <TouchableOpacity 
+            style={styles.shopInfoContainer}
+            onPress={() => navigation.navigate('ShopDetails', { shopId: item.shop._id })}
+          >
+            <Ionicons name="storefront-outline" size={14} color={theme.colors.gray} />
+            <Text style={styles.shopName} numberOfLines={1}>
+              {item.shop.name}
+            </Text>
+          </TouchableOpacity>
+        )}
+        
         {item.category && (
           <View style={styles.categoryChip}>
             <Text style={styles.categoryChipText}>{item.category}</Text>
@@ -254,6 +327,92 @@ const ProductsScreen: React.FC = () => {
                         styles.categoryButtonText,
                         selectedCategory === category && styles.categoryButtonTextActive
                       ]}>{category}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              )}
+            </View>
+            
+            {/* Product Type Filter */}
+            <View style={styles.filterSection}>
+              <Text style={styles.filterSectionTitle}>Product Type</Text>
+              {loadingTypes ? (
+                <ActivityIndicator size="small" color={theme.colors.primary} />
+              ) : (
+                <ScrollView 
+                  horizontal 
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.productTypesContainer}
+                >
+                  <TouchableOpacity
+                    style={[
+                      styles.productTypeButton,
+                      selectedType === '' && styles.productTypeButtonActive
+                    ]}
+                    onPress={() => setSelectedType('')}
+                  >
+                    <Text style={[
+                      styles.productTypeButtonText,
+                      selectedType === '' && styles.productTypeButtonTextActive
+                    ]}>All</Text>
+                  </TouchableOpacity>
+                  
+                  {productTypes.map((type, index) => (
+                    <TouchableOpacity
+                      key={index}
+                      style={[
+                        styles.productTypeButton,
+                        selectedType === type && styles.productTypeButtonActive
+                      ]}
+                      onPress={() => setSelectedType(type)}
+                    >
+                      <Text style={[
+                        styles.productTypeButtonText,
+                        selectedType === type && styles.productTypeButtonTextActive
+                      ]}>{type}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              )}
+            </View>
+            
+            {/* Shop Filter */}
+            <View style={styles.filterSection}>
+              <Text style={styles.filterSectionTitle}>Shop</Text>
+              {loadingShops ? (
+                <ActivityIndicator size="small" color={theme.colors.primary} />
+              ) : (
+                <ScrollView 
+                  horizontal 
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.shopsContainer}
+                >
+                  <TouchableOpacity
+                    style={[
+                      styles.shopButton,
+                      selectedShop === '' && styles.shopButtonActive
+                    ]}
+                    onPress={() => setSelectedShop('')}
+                  >
+                    <Text style={[
+                      styles.shopButtonText,
+                      selectedShop === '' && styles.shopButtonTextActive
+                    ]}>All</Text>
+                  </TouchableOpacity>
+                  
+                  {shops.map((shop, index) => (
+                    <TouchableOpacity
+                      key={index}
+                      style={[
+                        styles.shopButton,
+                        selectedShop === shop._id && styles.shopButtonActive
+                      ]}
+                      onPress={() => setSelectedShop(shop._id)}
+                    >
+                      <Text style={[
+                        styles.shopButtonText,
+                        selectedShop === shop._id && styles.shopButtonTextActive
+                      ]}>{shop.name}</Text>
                     </TouchableOpacity>
                   ))}
                 </ScrollView>
@@ -353,7 +512,11 @@ const ProductsScreen: React.FC = () => {
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
-        <ScreenHeader title="Products" />
+        <ScreenHeader 
+          title={shopId ? 'Shop Products' : 'Products'}
+          showBackButton={true}
+          onNotificationPress={handleNotificationPress}
+        />
         
         <View style={styles.contentContainer}>
           <View style={styles.searchFilterContainer}>
@@ -372,7 +535,7 @@ const ProductsScreen: React.FC = () => {
           </View>
           
           {/* Active Filters */}
-          {(selectedCategory || priceRange[0] > 0 || priceRange[1] < 10000 || inStock || sortBy || shopId) && (
+          {(selectedCategory || selectedType || selectedShop || priceRange[0] > 0 || priceRange[1] < 10000 || inStock || sortBy || shopId) && (
             <View style={styles.activeFiltersContainer}>
               <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                 {selectedCategory && (
@@ -384,10 +547,19 @@ const ProductsScreen: React.FC = () => {
                   </View>
                 )}
                 
-                {shopId && (
+                {selectedType && (
                   <View style={styles.activeFilterChip}>
-                    <Text style={styles.activeFilterText}>Shop Products</Text>
-                    <TouchableOpacity onPress={() => setShopId(undefined)}>
+                    <Text style={styles.activeFilterText}>Type: {selectedType}</Text>
+                    <TouchableOpacity onPress={() => setSelectedType('')}>
+                      <Ionicons name="close-circle" size={16} color={theme.colors.white} />
+                    </TouchableOpacity>
+                  </View>
+                )}
+                
+                {selectedShop && (
+                  <View style={styles.activeFilterChip}>
+                    <Text style={styles.activeFilterText}>Shop: {shops.find(shop => shop._id === selectedShop)?.name || selectedShop}</Text>
+                    <TouchableOpacity onPress={() => setSelectedShop('')}>
                       <Ionicons name="close-circle" size={16} color={theme.colors.white} />
                     </TouchableOpacity>
                   </View>
@@ -427,16 +599,16 @@ const ProductsScreen: React.FC = () => {
           
           <FlatList
             data={filteredProducts}
-            renderItem={renderProductItem}
             keyExtractor={(item) => item._id}
-            contentContainerStyle={styles.productsList}
+            renderItem={renderProductItem}
+            contentContainerStyle={styles.productList}
             showsVerticalScrollIndicator={false}
             refreshControl={
               <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
             }
             ListEmptyComponent={
               <Text style={styles.emptyText}>
-                {searchQuery || selectedCategory || priceRange[0] > 0 || priceRange[1] < 10000 || inStock || shopId
+                {searchQuery || selectedCategory || selectedType || selectedShop || priceRange[0] > 0 || priceRange[1] < 10000 || inStock || shopId
                   ? 'No products match your filters'
                   : 'No products available'}
               </Text>
@@ -536,12 +708,32 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 20,
   },
-  emptyText: {
+  emptyTitle: {
+    fontSize: 22,
+    fontWeight: 'bold',
     color: theme.colors.text,
-    fontSize: 16,
-    textAlign: 'center',
+    marginTop: 20,
+    marginBottom: 10,
   },
-  productsList: {
+  emptyText: {
+    fontSize: 16,
+    color: theme.colors.gray,
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  resetButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    backgroundColor: theme.colors.primary,
+    borderRadius: 8,
+    marginTop: 10,
+  },
+  resetButtonText: {
+    color: theme.colors.white,
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  productList: {
     paddingBottom: 100,
   },
   productCard: {
@@ -651,6 +843,46 @@ const styles = StyleSheet.create({
     color: theme.colors.white,
     fontWeight: 'bold',
   },
+  productTypesContainer: {
+    paddingBottom: 8,
+  },
+  productTypeButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: theme.colors.lightGray,
+    marginRight: 8,
+  },
+  productTypeButtonActive: {
+    backgroundColor: theme.colors.primary,
+  },
+  productTypeButtonText: {
+    color: theme.colors.text,
+  },
+  productTypeButtonTextActive: {
+    color: theme.colors.white,
+    fontWeight: 'bold',
+  },
+  shopsContainer: {
+    paddingBottom: 8,
+  },
+  shopButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: theme.colors.lightGray,
+    marginRight: 8,
+  },
+  shopButtonActive: {
+    backgroundColor: theme.colors.primary,
+  },
+  shopButtonText: {
+    color: theme.colors.text,
+  },
+  shopButtonTextActive: {
+    color: theme.colors.white,
+    fontWeight: 'bold',
+  },
   priceRangeContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -685,17 +917,6 @@ const styles = StyleSheet.create({
     marginTop: 16,
     marginBottom: 32,
   },
-  resetButton: {
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: theme.colors.primary,
-  },
-  resetButtonText: {
-    color: theme.colors.primary,
-    fontWeight: 'bold',
-  },
   applyButton: {
     backgroundColor: theme.colors.primary,
     paddingVertical: 12,
@@ -705,6 +926,30 @@ const styles = StyleSheet.create({
   applyButtonText: {
     color: theme.colors.white,
     fontWeight: 'bold',
+  },
+  shopInfoContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 5,
+  },
+  shopName: {
+    fontSize: 14,
+    color: theme.colors.gray,
+    marginLeft: 4,
+    flex: 1,
+  },
+  distanceContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: theme.colors.lightGray,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 10,
+  },
+  distanceText: {
+    fontSize: 12,
+    color: theme.colors.primary,
+    marginLeft: 2,
   },
 });
 

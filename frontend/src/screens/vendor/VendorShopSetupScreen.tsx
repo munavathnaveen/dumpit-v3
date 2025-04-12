@@ -135,10 +135,10 @@ const VendorShopSetupScreen: React.FC = () => {
     field: keyof ShopFormState,
     value: string | boolean | LocationType
   ) => {
-    setForm(prev => ({
-      ...prev,
-      [field]: value
-    }));
+    setForm({
+      ...form,
+      [field]: value,
+    });
   };
 
   const handleNumericInputChange = (field: keyof ShopFormState, value: string) => {
@@ -148,29 +148,11 @@ const VendorShopSetupScreen: React.FC = () => {
     }
   };
 
-  const pickImage = async () => {
-    try {
-      const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      
-      if (!permissionResult.granted) {
-        alert('Permission Required', 'We need permission to access your photos');
-        return;
-      }
-      
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        aspect: [1, 1],
-        quality: 0.8,
-      });
-      
-      if (!result.canceled && result.assets && result.assets.length > 0) {
-        handleInputChange('image', result.assets[0].uri);
-      }
-    } catch (error) {
-      console.error('Error picking image:', error);
-      alert('Error', 'Failed to pick image');
-    }
+  const handleImageUrlChange = (url: string) => {
+    setForm({
+      ...form,
+      image: url,
+    });
   };
 
   const handleSave = async () => {
@@ -294,52 +276,51 @@ const VendorShopSetupScreen: React.FC = () => {
         {/* Basic Information */}
         <Card3D style={styles.section} elevation="medium">
           <Text style={styles.sectionTitle}>Basic Information</Text>
-          
-          <View style={styles.formGroup}>
+          <View style={styles.inputGroup}>
             <Text style={styles.label}>Shop Name</Text>
             <TextInput
               style={styles.input}
               value={form.name}
               onChangeText={(text) => handleInputChange('name', text)}
-              placeholder="Your shop name"
+              placeholder="Enter shop name"
             />
           </View>
-          
-          <View style={styles.formGroup}>
+          <View style={styles.inputGroup}>
             <Text style={styles.label}>Description</Text>
             <TextInput
               style={[styles.input, styles.textArea]}
               value={form.description}
               onChangeText={(text) => handleInputChange('description', text)}
-              placeholder="Describe your shop"
+              placeholder="Enter shop description"
               multiline
               numberOfLines={4}
             />
           </View>
-        </Card3D>
-        
-        {/* Shop Images */}
-        <Card3D style={styles.section} elevation="medium">
-          <Text style={styles.sectionTitle}>Shop Images</Text>
-          
-          <View style={styles.formGroup}>
-            <Text style={styles.label}>Shop Image</Text>
-            <View style={styles.imageContainer}>
-              {form.image ? (
-                <Image source={{ uri: form.image }} style={styles.imagePreview} />
-              ) : (
-                <View style={styles.imagePlaceholder}>
-                  <Ionicons name="image-outline" size={40} color={theme.colors.gray} />
-                </View>
-              )}
-              <TouchableOpacity 
-                style={styles.uploadButton}
-                onPress={pickImage}
-              >
-                <Text style={styles.uploadButtonText}>
-                  {form.image ? 'Change Image' : 'Upload Image'}
-                </Text>
-              </TouchableOpacity>
+          <View style={styles.imageSection}>
+            <Text style={styles.label}>Shop Image (Optional)</Text>
+            {form.image ? (
+              <View style={styles.imageContainer}>
+                <Image source={{ uri: form.image }} style={styles.image} />
+                <TouchableOpacity
+                  style={styles.removeImageButton}
+                  onPress={() => handleImageUrlChange('')}
+                >
+                  <Ionicons name="close-circle" size={24} color={theme.colors.error} />
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <View style={styles.imagePlaceholder}>
+                <Ionicons name="image-outline" size={40} color={theme.colors.gray} />
+              </View>
+            )}
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Image URL</Text>
+              <TextInput
+                style={styles.input}
+                value={form.image}
+                onChangeText={(text) => handleImageUrlChange(text)}
+                placeholder="Enter image URL (optional)"
+              />
             </View>
           </View>
         </Card3D>
@@ -530,19 +511,20 @@ const styles = StyleSheet.create({
     padding: theme.spacing.lg,
   },
   errorText: {
-    fontSize: 16,
     color: theme.colors.error,
-    marginBottom: theme.spacing.md,
+    fontSize: 16,
     textAlign: 'center',
+    marginBottom: theme.spacing.md,
   },
   retryButton: {
     backgroundColor: theme.colors.primary,
-    paddingVertical: theme.spacing.sm,
     paddingHorizontal: theme.spacing.lg,
+    paddingVertical: theme.spacing.md,
     borderRadius: theme.borderRadius.medium,
   },
   retryButtonText: {
     color: theme.colors.white,
+    fontSize: 16,
     fontWeight: 'bold',
   },
   scrollView: {
@@ -553,52 +535,40 @@ const styles = StyleSheet.create({
     paddingBottom: theme.spacing.xl * 2,
   },
   section: {
-    marginBottom: theme.spacing.lg,
-    padding: theme.spacing.md,
-    backgroundColor: theme.colors.white,
+    marginHorizontal: theme.spacing.md,
+    marginVertical: theme.spacing.sm,
+    padding: theme.spacing.lg,
   },
   sectionTitle: {
     fontSize: 18,
     fontWeight: 'bold',
+    marginBottom: theme.spacing.md,
     color: theme.colors.dark,
-    marginBottom: theme.spacing.md,
-  },
-  formGroup: {
-    marginBottom: theme.spacing.md,
   },
   inputGroup: {
     marginBottom: theme.spacing.md,
   },
   label: {
     fontSize: 14,
-    color: theme.colors.gray,
     marginBottom: theme.spacing.xs,
+    color: theme.colors.gray,
   },
   input: {
-    backgroundColor: theme.colors.background,
-    borderRadius: theme.borderRadius.small,
-    padding: theme.spacing.sm,
-    borderColor: theme.colors.lightGray,
     borderWidth: 1,
-    color: theme.colors.dark,
+    borderColor: theme.colors.lightGray,
+    borderRadius: theme.borderRadius.small,
+    padding: theme.spacing.md,
+    fontSize: 16,
+    backgroundColor: theme.colors.white,
   },
   textArea: {
-    height: 100,
+    minHeight: 100,
     textAlignVertical: 'top',
-  },
-  switchContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
   },
   imageContainer: {
     alignItems: 'center',
-  },
-  imagePreview: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    marginBottom: theme.spacing.sm,
+    marginBottom: theme.spacing.md,
+    position: 'relative',
   },
   imagePlaceholder: {
     width: 120,
@@ -607,31 +577,46 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.lightGray,
     justifyContent: 'center',
     alignItems: 'center',
+    marginBottom: theme.spacing.md,
+  },
+  image: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
     marginBottom: theme.spacing.sm,
   },
-  uploadButton: {
-    backgroundColor: theme.colors.primary,
-    paddingVertical: theme.spacing.xs,
-    paddingHorizontal: theme.spacing.md,
-    borderRadius: theme.borderRadius.small,
+  removeImageButton: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    padding: theme.spacing.xs,
   },
-  uploadButtonText: {
-    color: theme.colors.white,
-    fontWeight: '500',
+  imageSection: {
+    marginBottom: theme.spacing.lg,
+  },
+  switchContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: theme.spacing.md,
+  },
+  formGroup: {
+    marginBottom: theme.spacing.md,
   },
   saveButton: {
     backgroundColor: theme.colors.primary,
+    marginHorizontal: theme.spacing.md,
+    marginVertical: theme.spacing.lg,
+    padding: theme.spacing.md,
+    borderRadius: theme.borderRadius.medium,
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: theme.spacing.md,
-    borderRadius: theme.borderRadius.medium,
-    marginTop: theme.spacing.md,
   },
   saveButtonText: {
     color: theme.colors.white,
-    fontWeight: 'bold',
     fontSize: 16,
+    fontWeight: 'bold',
     marginLeft: theme.spacing.xs,
   },
 });

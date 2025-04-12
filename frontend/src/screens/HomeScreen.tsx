@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Image, ActivityIndicator, Dimensions, ImageBackground, Linking, Alert } from 'react-native';
 import { useSelector, useDispatch } from 'react-redux';
 import { useNavigation } from '@react-navigation/native';
@@ -7,6 +7,7 @@ import * as Location from 'expo-location';
 import axios from 'axios';
 import { Feather, Ionicons, MaterialIcons, FontAwesome5 } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import debounce from 'lodash.debounce';
 
 import Header from '../components/Header';
 import Button from '../components/Button';
@@ -103,11 +104,33 @@ const HomeScreen: React.FC = () => {
   });
   const [currentAdIndex, setCurrentAdIndex] = useState(0);
 
+  // Create a debounced search function
+  const debouncedSearch = useCallback(
+    debounce((text: string, type: SearchType) => {
+      // Only navigate if user has typed at least 3 characters
+      if (text.length > 2) {
+        if (type === 'products' || type === 'all') {
+          navigation.navigate('ProductsTab', { searchQuery: text });
+          // Clear search query after navigation
+          setSearchQuery('');
+        } else if (type === 'shops') {
+          navigation.navigate('ShopsTab', { searchQuery: text });
+          // Clear search query after navigation
+          setSearchQuery('');
+        }
+      }
+    }, 500), // 500ms delay
+    [navigation]
+  );
+
   useEffect(() => {
     getLocation();
     fetchFeaturedProducts();
     fetchNearbyShops();
     fetchCategories();
+    
+    // Clear search query on mount
+    setSearchQuery('');
     
     // Auto rotate ads
     const adInterval = setInterval(() => {
@@ -202,7 +225,13 @@ const HomeScreen: React.FC = () => {
         return;
       }
 
-      const currentLocation = await Location.getCurrentPositionAsync({});
+      // Use high accuracy and increase timeout for better location results
+      const currentLocation = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Highest,
+        timeInterval: 1000,
+        mayShowUserSettingsDialog: true
+      });
+      
       const { latitude, longitude } = currentLocation.coords;
       setLocationData({ latitude, longitude });
 
@@ -268,16 +297,7 @@ const HomeScreen: React.FC = () => {
 
   const handleSearch = (text: string) => {
     setSearchQuery(text);
-    // Here you can implement the search functionality
-    // For example, redirect to Products screen with search query
-    if (text.length > 2) {
-      // Only navigate if user has typed at least 3 characters
-      if (searchType === 'products' || searchType === 'all') {
-        navigation.navigate('Products', { searchQuery: text });
-      } else if (searchType === 'shops') {
-        navigation.navigate('Shops', { searchQuery: text });
-      }
-    }
+    debouncedSearch(text, searchType);
   };
 
   const handleSearchTypeChange = (type: SearchType) => {

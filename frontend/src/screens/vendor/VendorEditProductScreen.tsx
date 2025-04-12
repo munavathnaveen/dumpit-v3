@@ -136,53 +136,11 @@ const VendorEditProductScreen: React.FC = () => {
     }));
   };
 
-  const handleImagePicker = async () => {
-    // Request permission if needed
-    if (Platform.OS !== 'web') {
-      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (status !== 'granted') {
-        alert('Permission Denied', 'Sorry, we need camera roll permissions to upload images.');
-        return;
-      }
-    }
-
-    // Launch image picker
-    let result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.7,
-    });
-
-    if (!result.canceled && result.assets && result.assets.length > 0) {
-      const selectedAsset = result.assets[0];
-      const uri = selectedAsset.uri;
-      
-      try {
-        // Create a File from URI for web
-        const file = Platform.OS === 'web' 
-          ? await fetch(uri).then(r => r.blob()) as File
-          : {
-              uri,
-              type: 'image/jpeg',
-              name: 'product_image.jpg',
-            } as unknown as File;
-        
-        const response = await uploadProductImage(productId, file);
-        
-        if (response.success) {
-          setFormData(prev => ({
-            ...prev,
-            image: response.data.image
-          }));
-        } else {
-          alert('Error', 'Failed to upload image. Please try again.');
-        }
-      } catch (error) {
-        console.error('Failed to upload image:', error);
-        alert('Error', 'Failed to upload image. Please try again.');
-      }
-    }
+  const handleImageChange = (url: string) => {
+    setFormData(prev => ({
+      ...prev,
+      image: url
+    }));
   };
 
   const handleRemoveImage = () => {
@@ -442,7 +400,7 @@ const VendorEditProductScreen: React.FC = () => {
           <Text style={styles.sectionTitle}>Product Image</Text>
           
           {formData.image && (
-            <View>
+            <View style={styles.imageContainer}>
               <Image source={{ uri: formData.image }} style={styles.productImage} />
               <TouchableOpacity 
                 style={styles.removeImageButton}
@@ -453,13 +411,19 @@ const VendorEditProductScreen: React.FC = () => {
             </View>
           )}
 
-          <TouchableOpacity 
-            style={styles.addImageButton}
-            onPress={handleImagePicker}
-          >
-            <Ionicons name="add-circle-outline" size={24} color={theme.colors.primary} />
-            <Text style={styles.addImageButtonText}>Add Image</Text>
-          </TouchableOpacity>
+          <View style={styles.formField}>
+            <Text style={styles.label}>Image URL (Optional)</Text>
+            <TextInput
+              style={styles.input}
+              value={formData.image}
+              onChangeText={(text) => handleImageChange(text)}
+              placeholder="Enter image URL"
+              placeholderTextColor={theme.colors.lightGray}
+            />
+            <Text style={styles.helperText}>
+              If not provided, a similar product type image will be used if available.
+            </Text>
+          </View>
         </Card3D>
 
         {/* Submit Button */}
@@ -616,22 +580,13 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     padding: 0,
   },
-  addImageButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: theme.spacing.md,
-    borderWidth: 1,
-    borderStyle: 'dashed',
-    borderColor: theme.colors.lightGray,
-    borderRadius: theme.borderRadius.small,
-    marginTop: theme.spacing.sm,
+  imageContainer: {
+    position: 'relative',
   },
-  addImageButtonText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: theme.colors.primary,
-    marginLeft: theme.spacing.xs,
+  helperText: {
+    fontSize: 12,
+    color: theme.colors.lightGray,
+    marginTop: theme.spacing.xs,
   },
   submitButton: {
     backgroundColor: theme.colors.primary,

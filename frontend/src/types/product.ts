@@ -17,6 +17,7 @@ export interface Product {
   shop: {
     _id: string;
     name: string;
+    distance?: number | string;
   };
   reviews: Array<{
     user: {

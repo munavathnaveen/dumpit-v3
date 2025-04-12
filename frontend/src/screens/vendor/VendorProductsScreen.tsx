@@ -14,6 +14,7 @@ import { useNavigation } from '@react-navigation/native';
 import { useFocusEffect } from '@react-navigation/core';
 import { Ionicons } from '@expo/vector-icons';
 import { useSelector } from 'react-redux';
+import debounce from 'lodash.debounce';
 
 import Card3D from '../../components/Card3D';
 import ScreenHeader from '../../components/ScreenHeader';
@@ -94,19 +95,27 @@ const VendorProductsScreen: React.FC = () => {
     loadProducts();
   };
 
+  // Create a debounced search function
+  const debouncedSearchProducts = useCallback(
+    (debounce as any)((text: string) => {
+      if (text.trim() === '') {
+        setFilteredProducts(products);
+      } else {
+        const filtered = products.filter(
+          product => 
+            product.name.toLowerCase().includes(text.toLowerCase()) ||
+            product.category.toLowerCase().includes(text.toLowerCase()) ||
+            product.description.toLowerCase().includes(text.toLowerCase())
+        );
+        setFilteredProducts(filtered);
+      }
+    }, 500), // 500ms delay
+    [products]
+  );
+
   const handleSearch = (text: string) => {
     setSearchQuery(text);
-    if (text.trim() === '') {
-      setFilteredProducts(products);
-    } else {
-      const filtered = products.filter(
-        product => 
-          product.name.toLowerCase().includes(text.toLowerCase()) ||
-          product.category.toLowerCase().includes(text.toLowerCase()) ||
-          product.description.toLowerCase().includes(text.toLowerCase())
-      );
-      setFilteredProducts(filtered);
-    }
+    debouncedSearchProducts(text);
   };
 
   const handleDeleteProduct = (productId: string, productName: string) => {
@@ -156,8 +165,13 @@ const VendorProductsScreen: React.FC = () => {
     <Card3D style={styles.productCard} elevation="small">
       <View style={styles.productContent}>
         <Image 
-          source={{ uri: item.images[0] || 'https://via.placeholder.com/150' }} 
-          style={styles.productImage} 
+          source={{ 
+            uri: item.images && item.images.length > 0 
+              ? item.images[0] 
+              : 'https://via.placeholder.com/150' 
+          }} 
+          style={styles.productImage}
+          defaultSource={require('../../../assets/logo.png')}
         />
         <View style={styles.productDetails}>
           <Text style={styles.productName} numberOfLines={1}>{item.name}</Text>
@@ -198,6 +212,29 @@ const VendorProductsScreen: React.FC = () => {
         </TouchableOpacity>
       </View>
     </Card3D>
+  );
+
+  const renderEmptyState = () => (
+    <View style={styles.emptyContainer}>
+      <Ionicons 
+        name="cube-outline" 
+        size={80} 
+        color={theme.colors.lightGray} 
+      />
+      <Text style={styles.emptyTitle}>No Products Added</Text>
+      <Text style={styles.emptyText}>
+        {searchQuery 
+          ? `No products matching "${searchQuery}"`
+          : "You haven't added any products to your shop yet"}
+      </Text>
+      <TouchableOpacity 
+        style={styles.addProductButton} 
+        onPress={() => navigation.navigate('VendorAddProduct')}
+      >
+        <Ionicons name="add-circle-outline" size={20} color={theme.colors.white} />
+        <Text style={styles.addProductButtonText}>Add Your First Product</Text>
+      </TouchableOpacity>
+    </View>
   );
 
   if (loading && !refreshing) {
@@ -246,44 +283,29 @@ const VendorProductsScreen: React.FC = () => {
             <Text style={styles.retryButtonText}>Retry</Text>
           </TouchableOpacity>
         </View>
-      ) : filteredProducts.length === 0 ? (
-        <View style={styles.emptyContainer}>
-          <Ionicons name="cube-outline" size={80} color={theme.colors.primary} style={styles.emptyIcon} />
-          <Text style={styles.emptyTextMain}>No products found</Text>
-          <Text style={styles.emptyTextSub}>
-            {searchQuery ? `No results for "${searchQuery}"` : "You haven't added any products yet."}
-          </Text>
-          {!searchQuery && (
-            <TouchableOpacity 
-              style={styles.addProductButton}
-              onPress={() => navigation.navigate('VendorAddProduct')}
-            >
-              <Text style={styles.addProductButtonText}>Add Product</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-      ) : (
+      ) : filteredProducts.length > 0 ? (
         <FlatList
           data={filteredProducts}
-          renderItem={renderProductItem}
           keyExtractor={(item) => item._id}
-          contentContainerStyle={styles.productsList}
-          showsVerticalScrollIndicator={false}
+          renderItem={renderProductItem}
+          contentContainerStyle={styles.productList}
           refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={handleRefresh}
-              colors={[theme.colors.primary]}
-            />
+            <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
           }
         />
+      ) : loading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={theme.colors.primary} />
+        </View>
+      ) : (
+        renderEmptyState()
       )}
-
+      
       <TouchableOpacity 
         style={styles.floatingButton}
         onPress={() => navigation.navigate('VendorAddProduct')}
       >
-        <Ionicons name="add" size={24} color={theme.colors.white} />
+        <Ionicons name="add" size={30} color={theme.colors.white} />
       </TouchableOpacity>
     </View>
   );
@@ -363,36 +385,36 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: theme.spacing.xl,
+    padding: 20,
   },
-  emptyIcon: {
-    marginBottom: theme.spacing.md,
-    opacity: 0.7,
-  },
-  emptyTextMain: {
-    fontSize: 18,
+  emptyTitle: {
+    fontSize: 22,
     fontWeight: 'bold',
-    color: theme.colors.dark,
-    marginBottom: theme.spacing.sm,
+    color: theme.colors.text,
+    marginTop: 20,
+    marginBottom: 10,
   },
-  emptyTextSub: {
+  emptyText: {
     fontSize: 16,
     color: theme.colors.gray,
     textAlign: 'center',
-    marginBottom: theme.spacing.lg,
+    marginBottom: 25,
   },
   addProductButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
     backgroundColor: theme.colors.primary,
-    paddingVertical: theme.spacing.sm,
-    paddingHorizontal: theme.spacing.lg,
-    borderRadius: theme.borderRadius.medium,
+    borderRadius: 8,
   },
   addProductButtonText: {
     color: theme.colors.white,
-    fontWeight: 'bold',
+    fontWeight: '600',
     fontSize: 16,
+    marginLeft: 8,
   },
-  productsList: {
+  productList: {
     paddingBottom: theme.spacing.lg,
   },
   productCard: {

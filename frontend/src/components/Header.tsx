@@ -15,6 +15,7 @@ export interface HeaderProps {
   onProfilePress?: () => void;
   onLogoutPress?: () => void;
   rightComponent?: ReactNode;
+  onLogoPress?: () => void;
 }
 
 const Header: React.FC<HeaderProps> = ({
@@ -24,6 +25,7 @@ const Header: React.FC<HeaderProps> = ({
   onProfilePress,
   onLogoutPress,
   rightComponent,
+  onLogoPress,
 }) => {
   const navigation = useNavigation();
   const dispatch = useDispatch<AppDispatch>();
@@ -60,6 +62,15 @@ const Header: React.FC<HeaderProps> = ({
     }
   };
 
+  const handleLogoPress = () => {
+    if (onLogoPress) {
+      onLogoPress();
+    } else {
+      // Navigate to HomeTab or reset navigation to home
+      navigation.navigate('TabNavigator', { screen: 'HomeTab' });
+    }
+  };
+
   return (
     <View style={styles.container}>
       {/* Left: Back button or Location */}
@@ -82,10 +93,10 @@ const Header: React.FC<HeaderProps> = ({
       </View>
 
       {/* Center: Logo */}
-      <View style={styles.logoContainer}>
+      <TouchableOpacity style={styles.logoContainer} onPress={handleLogoPress}>
         <LogoImage size="tiny" style={styles.logoImage} />
         <Text style={styles.logoText}>Dumpit</Text>
-      </View>
+      </TouchableOpacity>
 
       {/* Right: Custom component or default icons */}
       {rightComponent ? (
@@ -123,6 +134,8 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: theme.spacing.md,
     paddingVertical: theme.spacing.sm,
+    paddingTop: theme.spacing.lg,
+    marginTop: 8,
     backgroundColor: theme.colors.white,
     borderBottomWidth: 1,
     borderBottomColor: theme.colors.lightGray,

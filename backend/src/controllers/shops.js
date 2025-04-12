@@ -13,6 +13,22 @@ exports.getShops = async (req, res, next) => {
     // Copy req.query
     const reqQuery = {...req.query}
 
+    // Handle search query
+    let searchQuery = {};
+    if (req.query.search) {
+      const searchTerm = req.query.search;
+      searchQuery = {
+        $or: [
+          { name: { $regex: searchTerm, $options: 'i' } },
+          { description: { $regex: searchTerm, $options: 'i' } },
+          { 'address.village': { $regex: searchTerm, $options: 'i' } },
+          { 'address.district': { $regex: searchTerm, $options: 'i' } },
+          { categories: { $regex: searchTerm, $options: 'i' } }
+        ]
+      };
+      delete reqQuery.search;
+    }
+
     // Fields to exclude
     const removeFields = ['select', 'sort', 'page', 'limit']
 
@@ -26,7 +42,7 @@ exports.getShops = async (req, res, next) => {
     queryStr = queryStr.replace(/\b(gt|gte|lt|lte|in)\b/g, (match) => `$${match}`)
 
     // Finding resource
-    let query = Shop.find(JSON.parse(queryStr)).populate('owner', 'name email phone')
+    let query = Shop.find({ ...JSON.parse(queryStr), ...searchQuery }).populate('owner', 'name email phone')
 
     // Select fields
     if (req.query.select) {
@@ -212,31 +228,26 @@ exports.uploadShopImage = async (req, res, next) => {
       return next(new ErrorResponse(`User ${req.user.id} is not authorized to update this shop`, 401));
     }
 
-    // Delete old image if it exists
-    if (shop.image) {
-      // Extract public_id from Cloudinary URL
-      const publicId = shop.image.split('/').pop().split('.')[0];
-      await cloudinary.uploader.destroy(publicId);
+    // Get the image URL from request body
+    const imageUrl = req.body.image;
+    
+    if (!imageUrl) {
+      return next(new ErrorResponse('Please provide an image URL', 400));
     }
 
-    // Upload new image
-    const result = await cloudinary.uploader.upload(req.files.image.tempFilePath, {
-      folder: 'shops',
-    });
-
     // Update shop image
-    shop.image = result.secure_url;
+    shop.image = imageUrl;
     await shop.save();
 
     res.status(200).json({
       success: true,
       data: {
-        image: result.secure_url
+        image: imageUrl
       }
     });
   } catch (err) {
     console.error(err);
-    return next(new ErrorResponse('Error uploading shop image', 500));
+    return next(new ErrorResponse('Error updating shop image', 500));
   }
 };
 
@@ -278,9 +289,26 @@ exports.getShopsInRadius = async (req, res, next) => {
 exports.getNearbyShops = async (req, res, next) => {
   try {
     // Get coordinates from query or use defaults
-    const latitude = parseFloat(req.query.latitude) || 12.9716;
-    const longitude = parseFloat(req.query.longitude) || 77.5946;
+    const latitude = parseFloat(req.query.latitude);
+    const longitude = parseFloat(req.query.longitude);
     const distance = parseInt(req.query.distance) || 10000; // Default 10km
+    
+    // If coordinates are missing or invalid, return error or fallback
+    if (isNaN(latitude) || isNaN(longitude)) {
+      console.log('Using default location as coordinates are missing or invalid');
+      // Either fall back to default coordinates or return all shops
+      const shops = await Shop.find({ isActive: true })
+        .populate('owner', 'name')
+        .select('name description address location rating images categories isOpen')
+        .limit(10);
+      
+      return res.status(200).json({
+        success: true,
+        count: shops.length,
+        data: shops,
+        usingDefault: true,
+      });
+    }
     
     // Find shops near the specified location using geospatial query
     const shops = await Shop.find({
@@ -298,13 +326,33 @@ exports.getNearbyShops = async (req, res, next) => {
     .populate('owner', 'name')
     .select('name description address location rating images categories isOpen')
     .limit(10);
-    
     res.status(200).json({
       success: true,
       count: shops.length,
       data: shops,
     });
   } catch (err) {
+    console.error('Error in getNearbyShops:', err);
+    
+    // If there's an issue with the geospatial query, fallback to regular find
+    if (err.name === 'MongoServerError' && (err.code === 2 || err.code === 16755)) {
+      try {
+        const shops = await Shop.find({ isActive: true })
+          .populate('owner', 'name')
+          .select('name description address location rating images categories isOpen')
+          .limit(10);
+        
+        return res.status(200).json({
+          success: true,
+          count: shops.length,
+          data: shops,
+          fallback: true,
+        });
+      } catch (fallbackErr) {
+        return next(fallbackErr);
+      }
+    }
+    
     next(err);
   }
 };

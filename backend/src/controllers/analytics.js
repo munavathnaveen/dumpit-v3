@@ -420,18 +420,16 @@ exports.importProducts = asyncHandler(async (req, res, next) => {
         category: row.category || 'Uncategorized',
         isActive: true,
         shop: req.user.shop_id,
-        images: row.images,
+        image: row.images,
         vendor: req.user.id,
       });
 
       // Save the new product
-      console.log("PRODUCT Before Save ", product)
       try {
         await product.save();
       } catch (error) {
         console.log("ERROR ", error)
       }
-      console.log("PRODUCT After Save ", product)
       return { action: 'created', product };
 
     });

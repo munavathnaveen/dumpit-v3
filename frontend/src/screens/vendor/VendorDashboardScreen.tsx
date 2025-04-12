@@ -16,28 +16,45 @@ import { AppDispatch } from '../../store';
 const VendorDashboardScreen: React.FC = () => {
   const navigation = useNavigation<MainStackNavigationProp<'VendorDashboard'>>();
   const dispatch = useDispatch<AppDispatch>();
-  const { user } = useSelector((state: RootState) => state.auth);
+  const { user, isAuthenticated } = useSelector((state: RootState) => state.auth);
   const [loading, setLoading] = useState(true);
   const [analytics, setAnalytics] = useState<Analytics | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    let isMounted = true;
+    
     const loadAnalytics = async () => {
+      // Only proceed if the user is authenticated
+      if (!isAuthenticated || !user) return;
+      
       try {
         setLoading(true);
         const data = await fetchAnalytics();
-        setAnalytics(data);
-        setError(null);
+        // Only update state if component is still mounted and user is authenticated
+        if (isMounted && isAuthenticated) {
+          setAnalytics(data);
+          setError(null);
+        }
       } catch (error) {
         console.error('Failed to load analytics:', error);
-        setError('Failed to load dashboard data');
+        if (isMounted && isAuthenticated) {
+          setError('Failed to load dashboard data');
+        }
       } finally {
-        setLoading(false);
+        if (isMounted && isAuthenticated) {
+          setLoading(false);
+        }
       }
     };
 
     loadAnalytics();
-  }, []);
+    
+    // Cleanup function to prevent state updates after component unmount or logout
+    return () => {
+      isMounted = false;
+    };
+  }, [isAuthenticated, user]);
 
   const handleNotificationPress = () => {
     navigation.navigate('Notifications');

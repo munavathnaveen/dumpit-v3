@@ -115,81 +115,17 @@ const VendorAddProductScreen: React.FC = () => {
     }
   };
 
-  const handleImagePick = async () => {
-    try {
-      // Request permission
-      const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      
-      if (!permissionResult.granted) {
-        alert('Permission Required', 'Please allow access to your photo library to add product images.');
-        return;
-      }
-      
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        aspect: [4, 3],
-        quality: 0.8,
-      });
-      
-      if (!result.canceled && result.assets && result.assets.length > 0) {
-        const selectedAsset = result.assets[0];
-        const uri = selectedAsset.uri;
-        
-        // Upload the image to the server
-        setUploading(true);
-        try {
-          // Create a File from URI for web
-          const file = Platform.OS === 'web' 
-            ? await fetch(uri).then(r => r.blob()) as File
-            : {
-                uri,
-                type: 'image/jpeg',
-                name: 'product_image.jpg',
-              } as unknown as File;
-          
-          // First create the product to get its ID
-          const productResponse = await createProduct({
-            name: 'Temporary Product',
-            description: 'Temporary product for image upload',
-            category: formData.category,
-            image: ''
-          });
-          
-          if (!productResponse.success) {
-            throw new Error('Failed to create temporary product');
-          }
-          
-          const productId = productResponse.data._id;
-          const response = await uploadProductImage(productId, file);
-          
-          if (response.success) {
-            // Add the image URL
-            setFormData({
-              ...formData,
-              image: response.data.image,
-            });
-            
-            // Clear any image error
-            if (errors.image) {
-              const newErrors = { ...errors };
-              delete newErrors.image;
-              setErrors(newErrors);
-            }
-          } else {
-            alert('Upload Failed', 'Failed to upload image. Please try again.');
-          }
-        } catch (error) {
-          console.error('Image upload error:', error);
-          alert('Upload Error', 'An error occurred while uploading the image.');
-        } finally {
-          setUploading(false);
-        }
-      }
-    } catch (error) {
-      console.error('Image picker error:', error);
-      alert('Error', 'Failed to open image picker');
-      setUploading(false);
+  const handleImageChange = (url: string) => {
+    setFormData({
+      ...formData,
+      image: url,
+    });
+
+    // Clear any image error
+    if (errors.image) {
+      const newErrors = { ...errors };
+      delete newErrors.image;
+      setErrors(newErrors);
     }
   };
 
@@ -393,10 +329,10 @@ const VendorAddProductScreen: React.FC = () => {
             {errors.discount && <Text style={styles.errorText}>{errors.discount}</Text>}
           </View>
 
-          {/* Images */}
+          {/* Product Image */}
           <View style={styles.formGroup}>
-            <Text style={styles.label}>Product Image</Text>
-            <View style={styles.imagesContainer}>
+            <Text style={styles.label}>Product Image (Optional)</Text>
+            <View style={styles.imageSection}>
               {formData.image ? (
                 <View style={styles.imagePreviewContainer}>
                   <Image source={{ uri: formData.image }} style={styles.imagePreview} />
@@ -404,28 +340,32 @@ const VendorAddProductScreen: React.FC = () => {
                     style={styles.removeImageButton}
                     onPress={handleRemoveImage}
                   >
-                    <Ionicons name="close-circle" size={24} color={theme.colors.error} />
+                    <Ionicons name="close-circle" size={20} color={theme.colors.error} />
                   </TouchableOpacity>
                 </View>
-              ) : null}
-              {!formData.image && (
-                <TouchableOpacity
-                  style={styles.addImageButton}
-                  onPress={handleImagePick}
-                  disabled={uploading}
-                >
-                  {uploading ? (
-                    <ActivityIndicator size="small" color={theme.colors.primary} />
-                  ) : (
-                    <>
-                      <Ionicons name="add" size={24} color={theme.colors.primary} />
-                      <Text style={styles.addImageText}>Add Image</Text>
-                    </>
-                  )}
-                </TouchableOpacity>
+              ) : (
+                <View style={styles.placeholderContainer}>
+                  <Ionicons name="image-outline" size={40} color={theme.colors.gray} />
+                  <Text style={styles.placeholderText}>No Image</Text>
+                </View>
               )}
             </View>
-            {errors.image && <Text style={styles.errorText}>{errors.image}</Text>}
+            
+            <View style={styles.formGroup}>
+              <Text style={styles.label}>Image URL</Text>
+              <TextInput
+                style={styles.input}
+                value={formData.image}
+                onChangeText={(text) => handleImageChange(text)}
+                placeholder="Enter image URL (optional)"
+                placeholderTextColor={theme.colors.gray}
+              />
+              {errors.image && <Text style={styles.errorText}>{errors.image}</Text>}
+              
+              <Text style={styles.helperText}>
+                If not provided, a similar product type image will be used if available.
+              </Text>
+            </View>
           </View>
 
           {/* Submit Button */}
@@ -581,6 +521,30 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
     color: theme.colors.dark,
+  },
+  imageSection: {
+    alignItems: 'center',
+    marginVertical: theme.spacing.md,
+  },
+  placeholderContainer: {
+    width: 150,
+    height: 150,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: theme.colors.lightGray,
+    borderRadius: theme.borderRadius.medium,
+    marginBottom: theme.spacing.sm,
+  },
+  placeholderText: {
+    marginTop: theme.spacing.xs,
+    fontSize: 14,
+    color: theme.colors.gray,
+  },
+  helperText: {
+    marginTop: theme.spacing.xs,
+    fontSize: 12,
+    color: theme.colors.gray,
+    fontStyle: 'italic',
   },
 });
 

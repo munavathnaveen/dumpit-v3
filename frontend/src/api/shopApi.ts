@@ -148,19 +148,12 @@ export const getShopDetails = async (userId: string): Promise<SingleShopResponse
     return getVendorShop(userId);
 };
 
-export const uploadShopImage = async (shopId: string, file: File): Promise<{
+export const uploadShopImage = async (shopId: string, imageUrl: string): Promise<{
   success: boolean;
   data: {
     image: string;
   };
 }> => {
-  const formData = new FormData();
-  formData.append('image', file);
-
-  const response = await apiClient.put(`/shops/${shopId}/image`, formData, {
-    headers: {
-      'Content-Type': 'multipart/form-data',
-    },
-  });
+  const response = await apiClient.put(`/shops/${shopId}/image`, { image: imageUrl });
   return response.data;
 }; 

@@ -34,8 +34,17 @@ const TabNavigator: React.FC = () => {
   const { user } = useSelector((state: RootState) => state.auth);
   const isVendor = user?.role === USER_ROLES.VENDOR;
 
+  // Force refresh when user role changes
+  const [key, setKey] = React.useState(Date.now());
+  
+  React.useEffect(() => {
+    // When user or role changes, update key to force re-render
+    setKey(Date.now());
+  }, [user?.role]);
+
   return (
     <Tab.Navigator
+      key={key}
       screenOptions={({ route }: { route: RouteProp<BottomTabParamList, keyof BottomTabParamList> }) => ({
         tabBarIcon: ({ focused, color, size }: TabBarIconProps) => {
           let iconName: any = 'help-circle-outline';
