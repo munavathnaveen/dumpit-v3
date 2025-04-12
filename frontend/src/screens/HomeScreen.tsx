@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Image, ActivityIndicator, Dimensions, ImageBackground, Linking, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Image, ActivityIndicator, Dimensions, ImageBackground, Linking, Alert, useWindowDimensions } from 'react-native';
 import { useSelector, useDispatch } from 'react-redux';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -7,12 +7,9 @@ import * as Location from 'expo-location';
 import axios from 'axios';
 import { Feather, Ionicons, MaterialIcons, FontAwesome5 } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import debounce from 'lodash.debounce';
-
 import Header from '../components/Header';
 import Button from '../components/Button';
 import Card3D from '../components/Card3D';
-import SearchBar from '../components/SearchBar';
 import alert from '../utils/alert';
 import { theme } from '../theme';
 import { RootState, AppDispatch } from '../store';
@@ -22,14 +19,13 @@ import * as locationApi from '../api/locationApi';
 import * as productApi from '../api/productApi';
 import * as shopApi from '../api/shopApi';
 import { GOOGLE_MAPS_API_KEY } from '../utils/config';
+import { Product as ApiProduct } from '../types/product';
 
 const { width } = Dimensions.get('window');
 const CARD_WIDTH = width * 0.7;
 const SHOP_CARD_WIDTH = width * 0.8;
 
 type HomeScreenNavigationProp = NativeStackNavigationProp<MainStackParamList, 'Home'>;
-
-type SearchType = 'all' | 'products' | 'shops';
 
 // Product and Shop type definitions
 interface Product {
@@ -70,14 +66,14 @@ interface AdBanner {
 const adBanners: AdBanner[] = [
   {
     id: '1',
-    imageUrl: 'https://i.ibb.co/MndGRfB/construction-materials.jpg',
+    imageUrl: 'https://i.ibb.co/QFXzk2Dg/image.png',
     title: 'Summer Sale',
     description: 'Up to 40% off on selected materials',
     action: 'Shop Now'
   },
   {
     id: '2',
-    imageUrl: 'https://i.ibb.co/NWNzfQL/renovation-tools.jpg',
+    imageUrl: 'https://i.ibb.co/QFXzk2Dg/image.png',
     title: 'New Arrivals',
     description: 'Check out our latest tools collection',
     action: 'Explore'
@@ -88,10 +84,9 @@ const HomeScreen: React.FC = () => {
   const navigation = useNavigation<HomeScreenNavigationProp>();
   const dispatch = useDispatch<AppDispatch>();
   const { user } = useSelector((state: RootState) => state.auth);
+  const dimensions = useWindowDimensions(); // Get dynamic window dimensions
   const [location, setLocation] = useState<string>('Fetching location...');
   const [locationData, setLocationData] = useState<{ latitude: number; longitude: number } | null>(null);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [searchType, setSearchType] = useState<SearchType>('all');
   
   // State for products and shops
   const [featuredProducts, setFeaturedProducts] = useState<Product[]>([]);
@@ -104,33 +99,16 @@ const HomeScreen: React.FC = () => {
   });
   const [currentAdIndex, setCurrentAdIndex] = useState(0);
 
-  // Create a debounced search function
-  const debouncedSearch = useCallback(
-    debounce((text: string, type: SearchType) => {
-      // Only navigate if user has typed at least 3 characters
-      if (text.length > 2) {
-        if (type === 'products' || type === 'all') {
-          navigation.navigate('ProductsTab', { searchQuery: text });
-          // Clear search query after navigation
-          setSearchQuery('');
-        } else if (type === 'shops') {
-          navigation.navigate('ShopsTab', { searchQuery: text });
-          // Clear search query after navigation
-          setSearchQuery('');
-        }
-      }
-    }, 500), // 500ms delay
-    [navigation]
-  );
+  // Responsive width calculations
+  const cardWidth = dimensions.width < 380 ? dimensions.width * 0.85 : dimensions.width * 0.7;
+  const shopCardWidth = dimensions.width < 380 ? dimensions.width * 0.9 : dimensions.width * 0.8;
+  const categoryCardWidth = dimensions.width < 380 ? dimensions.width * 0.3 : dimensions.width * 0.28;
 
   useEffect(() => {
     getLocation();
     fetchFeaturedProducts();
     fetchNearbyShops();
     fetchCategories();
-    
-    // Clear search query on mount
-    setSearchQuery('');
     
     // Auto rotate ads
     const adInterval = setInterval(() => {
@@ -143,11 +121,30 @@ const HomeScreen: React.FC = () => {
   const fetchFeaturedProducts = async () => {
     try {
       setLoading(prev => ({ ...prev, products: true }));
-      const response = await productApi.getProducts('featured=true&limit=10');
-      const productsData = response.data as unknown as Product[];
-      setFeaturedProducts(productsData);
+      // Use a more specific query to get featured products with limit
+      const response = await productApi.getProducts('featured=true&limit=10&sort=-createdAt');
+      
+      // Ensure we have valid data and handle potential API response structure issues
+      if (response && response.data && Array.isArray(response.data)) {
+        // Map API products to our local Product interface
+        const mappedProducts: Product[] = response.data.map((item: any) => ({
+          _id: item._id,
+          name: item.name,
+          description: item.description || '',
+          rate: item.price || 0,
+          discount: item.discount || 0,
+          images: item.image ? [item.image] : [],
+          rating: item.rating || 0,
+          shop: item.shop || null
+        }));
+        setFeaturedProducts(mappedProducts);
+      } else {
+        console.warn('Invalid featured products data structure:', response);
+        setFeaturedProducts([]);
+      }
     } catch (error) {
       console.error('Failed to fetch featured products:', error);
+      setFeaturedProducts([]);
     } finally {
       setLoading(prev => ({ ...prev, products: false }));
     }
@@ -295,15 +292,6 @@ const HomeScreen: React.FC = () => {
     navigation.navigate('Notifications');
   };
 
-  const handleSearch = (text: string) => {
-    setSearchQuery(text);
-    debouncedSearch(text, searchType);
-  };
-
-  const handleSearchTypeChange = (type: SearchType) => {
-    setSearchType(type);
-  };
-
   const navigateToProductDetails = (productId: string) => {
     navigation.navigate('ProductDetails', { productId });
   };
@@ -355,54 +343,53 @@ const HomeScreen: React.FC = () => {
   };
 
   const renderProductCard = (product: Product) => {
-    const discountedPrice = product.discount 
-      ? product.rate * (1 - product.discount / 100) 
-      : null;
+    if (!product) return null;
+
+    // Get image URL with fallback
+    const imageUrl = product.images && product.images.length > 0 
+      ? product.images[0] 
+      : 'https://via.placeholder.com/150';
     
+    // Calculate discounted price if applicable
+    const originalPrice = product.rate || 0;
+    const discountPercent = product.discount || 0;
+    const discountedPrice = originalPrice - (originalPrice * (discountPercent / 100));
+
     return (
-      <TouchableOpacity 
-        key={product._id} 
+      <TouchableOpacity
+        key={product._id}
+        style={[styles.productCardWrapper, { width: cardWidth }]}
         onPress={() => navigateToProductDetails(product._id)}
-        style={styles.productCardWrapper}
+        activeOpacity={0.8}
       >
-        <Card3D style={styles.productCard} elevation="medium">
+        <Card3D style={styles.productCard}>
           <View style={styles.productImageContainer}>
             <Image 
-              source={{ 
-                uri: product.images && product.images.length > 0 
-                  ? product.images[0] 
-                  : 'https://i.ibb.co/X3Cq1qM/placeholder.jpg'
-              }} 
-              style={styles.productImage} 
+              source={{ uri: imageUrl }}
+              style={styles.productImage}
               resizeMode="cover"
             />
-            {product.discount > 0 && (
+            {discountPercent > 0 && (
               <View style={styles.discountBadge}>
-                <Text style={styles.discountText}>{product.discount}% OFF</Text>
+                <Text style={styles.discountText}>{discountPercent}% OFF</Text>
               </View>
             )}
           </View>
-          <View style={styles.productContent}>
+          
+          <View style={styles.productInfo}>
             <Text style={styles.productName} numberOfLines={1}>{product.name}</Text>
-            <View style={styles.productRatingContainer}>
-              <Ionicons name="star" size={16} color={theme.colors.warning} />
-              <Text style={styles.productRating}>{product.rating.toFixed(1)}</Text>
-            </View>
-            <View style={styles.productShopContainer}>
-              <Text style={styles.productShopLabel}>By </Text>
-              <Text style={styles.productShopName} numberOfLines={1}>
-                {typeof product.shop === 'object' ? product.shop.name : 'Unknown Shop'}
-              </Text>
-            </View>
+            
+            {product.shop && (
+              <View style={styles.shopInfo}>
+                <Ionicons name="storefront-outline" size={12} color={theme.colors.gray} />
+                <Text style={styles.shopName} numberOfLines={1}>{product.shop.name}</Text>
+              </View>
+            )}
+            
             <View style={styles.productPriceContainer}>
-              {discountedPrice && (
-                <>
-                  <Text style={styles.productDiscountedPrice}>₹{discountedPrice.toFixed(2)}</Text>
-                  <Text style={styles.productOriginalPrice}>₹{product.rate.toFixed(2)}</Text>
-                </>
-              )}
-              {!discountedPrice && (
-                <Text style={styles.productPrice}>₹{product.rate.toFixed(2)}</Text>
+              <Text style={styles.productPrice}>₹{discountedPrice.toFixed(2)}</Text>
+              {discountPercent > 0 && (
+                <Text style={styles.originalPrice}>₹{originalPrice.toFixed(2)}</Text>
               )}
             </View>
           </View>
@@ -413,12 +400,13 @@ const HomeScreen: React.FC = () => {
 
   const renderShopCard = (shop: Shop) => {
     return (
-      <TouchableOpacity 
-        key={shop._id} 
+      <TouchableOpacity
+        key={shop._id}
+        style={[styles.shopCardWrapper, { width: shopCardWidth }]}
         onPress={() => navigateToShopDetails(shop._id)}
-        style={styles.shopCardWrapper}
+        activeOpacity={0.8}
       >
-        <Card3D style={styles.shopCard} elevation="medium">
+        <Card3D style={styles.shopCard}>
           <LinearGradient
             colors={['rgba(255,107,53,0.8)', 'rgba(14,47,88,0.9)']}
             start={{ x: 0, y: 0 }}
@@ -527,111 +515,101 @@ const HomeScreen: React.FC = () => {
     );
   };
 
+  // Render category item with modern design
+  const renderCategoryItem = (category: string, index: number) => {
+    // Define a set of colors to cycle through for visual variety
+    const colorSets = [
+      { bg: '#FFE1D1', text: '#FF6B35', icon: 'cube-outline' },
+      { bg: '#E6F7FF', text: '#0CB0D3', icon: 'construct-outline' },
+      { bg: '#EEFBEF', text: '#53B175', icon: 'layers-outline' },
+      { bg: '#FFF6E6', text: '#FFA726', icon: 'hammer-outline' },
+      { bg: '#F4E8FF', text: '#9C27B0', icon: 'grid-outline' },
+      { bg: '#E8F5E9', text: '#4CAF50', icon: 'analytics-outline' },
+    ];
+    
+    // Cycle through colors based on index
+    const colorSet = colorSets[index % colorSets.length];
+    
+    return (
+      <TouchableOpacity
+        key={index}
+        style={[
+          styles.categoryCard, 
+          { backgroundColor: colorSet.bg, width: categoryCardWidth }
+        ]}
+        onPress={() => navigateToProductsByCategory(category)}
+      >
+        <View style={styles.categoryIconContainer}>
+          <Ionicons name={colorSet.icon as any} size={24} color={colorSet.text} />
+        </View>
+        <Text style={[styles.categoryName, { color: colorSet.text }]} numberOfLines={2}>
+          {category}
+        </Text>
+      </TouchableOpacity>
+    );
+  };
+
   return (
     <View style={styles.container}>
       <Header 
         location={location}
-        onNotificationPress={handleNotificationPress}
         onProfilePress={handleProfilePress}
-        onLogoutPress={handleLogout}
+        onNotificationPress={handleNotificationPress}
       />
       
-      <View style={styles.searchContainer}>
-        <SearchBar 
-          placeholder={`Search ${searchType === 'all' ? 'products and shops' : searchType}...`}
-          onSearch={handleSearch}
-          value={searchQuery}
-          style={styles.searchBar}
-        />
-        <View style={styles.searchTypeContainer}>
-          <TouchableOpacity 
-            style={[
-              styles.searchTypeButton, 
-              searchType === 'all' && styles.searchTypeButtonActive
-            ]}
-            onPress={() => handleSearchTypeChange('all')}
-          >
-            <Text style={[
-              styles.searchTypeText,
-              searchType === 'all' && styles.searchTypeTextActive
-            ]}>All</Text>
-          </TouchableOpacity>
-          <TouchableOpacity 
-            style={[
-              styles.searchTypeButton, 
-              searchType === 'products' && styles.searchTypeButtonActive
-            ]}
-            onPress={() => handleSearchTypeChange('products')}
-          >
-            <Text style={[
-              styles.searchTypeText,
-              searchType === 'products' && styles.searchTypeTextActive
-            ]}>Products</Text>
-          </TouchableOpacity>
-          <TouchableOpacity 
-            style={[
-              styles.searchTypeButton, 
-              searchType === 'shops' && styles.searchTypeButtonActive
-            ]}
-            onPress={() => handleSearchTypeChange('shops')}
-          >
-            <Text style={[
-              styles.searchTypeText,
-              searchType === 'shops' && styles.searchTypeTextActive
-            ]}>Shops</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-      
-      <ScrollView 
-        style={styles.scrollView}
+      <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollViewContent}
+        contentContainerStyle={styles.scrollContent}
       >
-        {/* Welcome message */}
-        <View style={styles.welcomeContainer}>
-        <Text style={styles.welcomeText}>
-            Welcome
-            <Text style={styles.welcomeHighlight}>
-              {user?.name ? ` ${user.name}!` : ' to Dumpit!'}
-            </Text>
-        </Text>
-          <Text style={styles.welcomeSubtext}>
-            Find construction materials from trusted vendors
-          </Text>
-        </View>
+        {/* Banner spacing */}
+        <View style={styles.headerSpacing} />
         
-        {/* Ad Banners */}
+        {/* Current Ad Banner */}
         {renderAdBanner()}
+        
+        {/* Categories Section - Show before featured products */}
+        <View style={styles.sectionContainer}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Browse Categories</Text>
+            <TouchableOpacity onPress={() => navigation.navigate('ProductsTab')}>
+              <Text style={styles.seeAllText}>See All</Text>
+            </TouchableOpacity>
+          </View>
+          
+          {loading.categories ? (
+            <ActivityIndicator size="large" color={theme.colors.primary} />
+          ) : (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.categoriesScrollContent}
+            >
+              {categories.slice(0, 8).map((category, index) => renderCategoryItem(category, index))}
+            </ScrollView>
+          )}
+        </View>
         
         {/* Featured Products Section */}
         <View style={styles.sectionContainer}>
           <View style={styles.sectionHeader}>
-            <View style={styles.sectionTitleContainer}>
-              <Ionicons name="star" size={24} color={theme.colors.primary} />
-              <Text style={styles.sectionTitle}>Featured Products</Text>
-            </View>
+            <Text style={styles.sectionTitle}>Featured Products</Text>
             <TouchableOpacity onPress={() => navigation.navigate('ProductsTab')}>
               <Text style={styles.seeAllText}>See All</Text>
             </TouchableOpacity>
           </View>
           
           {loading.products ? (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color={theme.colors.primary} />
-            </View>
+            <ActivityIndicator size="large" color={theme.colors.primary} />
           ) : (
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.productsScrollContainer}
+              contentContainerStyle={styles.horizontalScrollContent}
             >
               {featuredProducts.length > 0 ? (
-                featuredProducts.map((product: Product) => renderProductCard(product))
+                featuredProducts.map(product => renderProductCard(product))
               ) : (
-                <View style={styles.emptyStateContainer}>
-                  <Text style={styles.emptyStateText}>No featured products available</Text>
-                </View>
+                <Text style={styles.noDataText}>No products available</Text>
               )}
             </ScrollView>
           )}
@@ -640,77 +618,31 @@ const HomeScreen: React.FC = () => {
         {/* Nearby Shops Section */}
         <View style={styles.sectionContainer}>
           <View style={styles.sectionHeader}>
-            <View style={styles.sectionTitleContainer}>
-              <Ionicons name="storefront" size={24} color={theme.colors.primary} />
-              <Text style={styles.sectionTitle}>Nearby Shops</Text>
-            </View>
+            <Text style={styles.sectionTitle}>Nearby Shops</Text>
             <TouchableOpacity onPress={() => navigation.navigate('ShopsTab')}>
               <Text style={styles.seeAllText}>See All</Text>
             </TouchableOpacity>
           </View>
           
           {loading.shops ? (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color={theme.colors.primary} />
-            </View>
+            <ActivityIndicator size="large" color={theme.colors.primary} />
           ) : (
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.shopsScrollContainer}
+              contentContainerStyle={styles.horizontalScrollContent}
             >
               {nearbyShops.length > 0 ? (
-                nearbyShops.map((shop: Shop) => renderShopCard(shop))
+                nearbyShops.map(shop => renderShopCard(shop))
               ) : (
-                <View style={styles.emptyStateContainer}>
-                  <Text style={styles.emptyStateText}>No shops available in your area</Text>
-                </View>
+                <Text style={styles.noDataText}>No shops available nearby</Text>
               )}
             </ScrollView>
           )}
         </View>
         
-        {/* App Info Section */}
+        {/* App Information Section */}
         {renderAppInfoSection()}
-        
-        {/* Categories Section */}
-        <View style={styles.categoriesContainer}>
-          <Text style={styles.categoriesTitle}>Popular Categories</Text>
-          {loading.categories ? (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator size="small" color={theme.colors.primary} />
-            </View>
-          ) : (
-            <View style={styles.categoriesGrid}>
-              {categories.slice(0, 6).map((category, index) => (
-                <TouchableOpacity 
-                  key={index} 
-                  style={styles.categoryCard}
-                  onPress={() => navigateToProductsByCategory(category)}
-                >
-                  <LinearGradient
-                    colors={['rgba(255,107,53,0.8)', 'rgba(14,47,88,0.9)']}
-                    style={styles.categoryCardGradient}
-                  >
-                    <MaterialIcons 
-                      name={
-                        category.toLowerCase().includes('cement') ? 'business' :
-                        category.toLowerCase().includes('brick') ? 'grid-on' :
-                        category.toLowerCase().includes('sand') ? 'grain' :
-                        category.toLowerCase().includes('steel') ? 'straighten' :
-                        category.toLowerCase().includes('paint') ? 'format-paint' :
-                        'build'
-                      } 
-                      size={28} 
-                      color="#FFFFFF" 
-                    />
-                    <Text style={styles.categoryCardText}>{category}</Text>
-                  </LinearGradient>
-                </TouchableOpacity>
-              ))}
-            </View>
-          )}
-        </View>
       </ScrollView>
     </View>
   );
@@ -721,58 +653,11 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: theme.colors.background,
   },
-  scrollView: {
-    flex: 1,
+  scrollContent: {
+    paddingBottom: 120,
   },
-  scrollViewContent: {
-    paddingBottom: 120, // Increased padding to account for tab bar
-  },
-  searchContainer: {
-    marginHorizontal: theme.spacing.lg,
-    marginTop: theme.spacing.md,
-  },
-  searchBar: {
-    marginBottom: theme.spacing.xs,
-  },
-  searchTypeContainer: {
-    flexDirection: 'row',
-    marginBottom: theme.spacing.sm,
-  },
-  searchTypeButton: {
-    paddingVertical: theme.spacing.xs,
-    paddingHorizontal: theme.spacing.sm,
-    borderRadius: theme.borderRadius.small,
-    marginRight: theme.spacing.xs,
-  },
-  searchTypeButtonActive: {
-    backgroundColor: theme.colors.primary,
-  },
-  searchTypeText: {
-    fontSize: 12,
-    color: theme.colors.text,
-  },
-  searchTypeTextActive: {
-    color: theme.colors.white,
-    fontWeight: 'bold',
-  },
-  welcomeContainer: {
-    paddingHorizontal: theme.spacing.lg,
-    marginTop: theme.spacing.md,
-    marginBottom: theme.spacing.md,
-  },
-  welcomeText: {
-    fontSize: 24,
-    fontWeight: '600',
-    color: theme.colors.text,
-  },
-  welcomeHighlight: {
-    color: theme.colors.primary,
-    fontWeight: 'bold',
-  },
-  welcomeSubtext: {
-    fontSize: 14,
-    color: theme.colors.gray,
-    marginTop: 4,
+  headerSpacing: {
+    height: 16, // Add spacing after header
   },
   adBannerContainer: {
     marginHorizontal: theme.spacing.lg,
@@ -855,27 +740,22 @@ const styles = StyleSheet.create({
     paddingHorizontal: theme.spacing.lg,
     marginBottom: theme.spacing.md,
   },
-  sectionTitleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
   sectionTitle: {
     fontSize: 18,
     fontWeight: 'bold',
     color: theme.colors.text,
-    marginLeft: 8,
   },
   seeAllText: {
     fontSize: 14,
     color: theme.colors.primary,
     fontWeight: '600',
   },
-  productsScrollContainer: {
+  horizontalScrollContent: {
     paddingLeft: theme.spacing.lg,
     paddingRight: theme.spacing.sm,
+    paddingVertical: theme.spacing.md,
   },
   productCardWrapper: {
-    width: CARD_WIDTH,
     marginRight: theme.spacing.md,
   },
   productCard: {
@@ -909,7 +789,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     fontSize: 12,
   },
-  productContent: {
+  productInfo: {
     padding: theme.spacing.md,
   },
   productName: {
@@ -918,27 +798,12 @@ const styles = StyleSheet.create({
     color: theme.colors.text,
     marginBottom: 6,
   },
-  productRatingContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 4,
-  },
-  productRating: {
-    fontSize: 14,
-    color: theme.colors.text,
-    marginLeft: 4,
-    fontWeight: '600',
-  },
-  productShopContainer: {
+  shopInfo: {
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 8,
   },
-  productShopLabel: {
-    fontSize: 12,
-    color: theme.colors.gray,
-  },
-  productShopName: {
+  shopName: {
     fontSize: 12,
     color: theme.colors.accent,
     fontWeight: '500',
@@ -952,23 +817,13 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: theme.colors.primary,
   },
-  productDiscountedPrice: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: theme.colors.primary,
-  },
-  productOriginalPrice: {
+  originalPrice: {
     fontSize: 14,
     color: theme.colors.gray,
     textDecorationLine: 'line-through',
     marginLeft: 8,
   },
-  shopsScrollContainer: {
-    paddingLeft: theme.spacing.lg,
-    paddingRight: theme.spacing.sm,
-  },
   shopCardWrapper: {
-    width: SHOP_CARD_WIDTH,
     marginRight: theme.spacing.md,
   },
   shopCard: {
@@ -996,12 +851,6 @@ const styles = StyleSheet.create({
   shopContent: {
     flex: 1,
     justifyContent: 'center',
-  },
-  shopName: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-    marginBottom: 8,
   },
   shopRatingContainer: {
     flexDirection: 'row',
@@ -1135,40 +984,38 @@ const styles = StyleSheet.create({
     color: 'rgba(255, 255, 255, 0.8)',
     textAlign: 'center',
   },
-  categoriesContainer: {
-    marginHorizontal: theme.spacing.lg,
-    marginBottom: theme.spacing.xl,
-  },
-  categoriesTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: theme.colors.text,
-    marginBottom: theme.spacing.md,
-  },
-  categoriesGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
+  categoriesScrollContent: {
+    paddingLeft: theme.spacing.lg,
+    paddingRight: theme.spacing.sm,
+    paddingVertical: theme.spacing.md,
   },
   categoryCard: {
-    width: '31%',
-    aspectRatio: 1,
-    marginBottom: 10,
-    borderRadius: theme.borderRadius.medium,
-    overflow: 'hidden',
+    width: 20,
+    aspectRatio: 0.9,
+    borderRadius: theme.borderRadius.large,
+    padding: theme.spacing.sm,
+    marginRight: theme.spacing.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...theme.shadow.small,
   },
-  categoryCardGradient: {
-    width: '100%',
-    height: '100%',
+  categoryIconContainer: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: 'rgba(255, 255, 255, 0.8)',
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 10,
+    marginBottom: 10,
   },
-  categoryCardText: {
+  categoryName: {
+    fontSize: 12,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  noDataText: {
     fontSize: 14,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-    marginTop: 8,
+    color: theme.colors.gray,
     textAlign: 'center',
   },
 });

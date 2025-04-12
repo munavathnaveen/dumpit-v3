@@ -250,27 +250,13 @@ const VendorAddProductScreen: React.FC = () => {
           {/* Product Category */}
           <View style={styles.formGroup}>
             <Text style={styles.label}>Category*</Text>
-            <View style={styles.categoryContainer}>
-              {CATEGORIES.map((category) => (
-                <TouchableOpacity
-                  key={category}
-                  style={[
-                    styles.categoryButton,
-                    formData.category === category && styles.categoryButtonSelected
-                  ]}
-                  onPress={() => handleInputChange('category', category)}
-                >
-                  <Text 
-                    style={[
-                      styles.categoryButtonText,
-                      formData.category === category && styles.categoryButtonTextSelected
-                    ]}
-                  >
-                    {category}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
+            <TextInput
+              style={styles.input}
+              value={formData.category}
+              onChangeText={(text) => handleInputChange('category', text)}
+              placeholder="Enter product category (e.g., Electronics, Cement)"
+              placeholderTextColor={theme.colors.gray}
+            />
             {errors.category && <Text style={styles.errorText}>{errors.category}</Text>}
           </View>
 

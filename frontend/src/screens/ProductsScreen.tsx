@@ -44,6 +44,7 @@ const ProductsScreen: React.FC = () => {
   const { products, loading, error } = useSelector((state: RootState) => state.product);
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [internalSearchQuery, setInternalSearchQuery] = useState('');
   const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
   
   // Filter states
@@ -62,25 +63,42 @@ const ProductsScreen: React.FC = () => {
   const [loadingTypes, setLoadingTypes] = useState(false);
   const [loadingShops, setLoadingShops] = useState(false);
   const [shopId, setShopId] = useState<string | undefined>(route.params?.shopId);
+  const [isSearching, setIsSearching] = useState(false);
 
-  // Create a debounced search function that directly triggers the product search
+  // Create a properly implemented debounced search function with 1-second delay
   const debouncedSearch = useCallback(
     debounce((text: string) => {
       setSearchQuery(text);
-      // Don't need to explicitly call loadProducts here as the useEffect will handle it
-    }, 500), // 500ms delay
+      setIsSearching(!!text.trim());
+    }, 1000), // 1000ms (1 second) delay
     []
   );
 
   // Handle search text changes
   const handleSearch = (text: string) => {
-    setSearchQuery(text); // Update immediately for UI feedback
-    debouncedSearch(text); // Debounce the actual search
+    setInternalSearchQuery(text); // Update local state for immediate UI feedback
+    debouncedSearch(text); // Debounce the actual search query update
   };
 
   useEffect(() => {
     // Log navigation params for debugging
     console.log("Route params:", route.params);
+    
+    if (route.params?.searchQuery) {
+      const routeSearchQuery = route.params.searchQuery;
+      setInternalSearchQuery(routeSearchQuery);
+      setSearchQuery(routeSearchQuery);
+      setIsSearching(!!routeSearchQuery.trim());
+    }
+    
+    if (route.params?.category) {
+      setSelectedCategory(route.params.category);
+    }
+    
+    if (route.params?.shopId) {
+      setShopId(route.params.shopId);
+      setSelectedShop(route.params.shopId);
+    }
     
     loadProducts();
     fetchCategories();
@@ -100,7 +118,10 @@ const ProductsScreen: React.FC = () => {
       }
       
       if (route.params.searchQuery) {
-        setSearchQuery(route.params.searchQuery);
+        const routeSearchQuery = route.params.searchQuery;
+        setInternalSearchQuery(routeSearchQuery);
+        setSearchQuery(routeSearchQuery);
+        setIsSearching(!!routeSearchQuery.trim());
       }
       
       if (route.params.category) {
@@ -109,6 +130,7 @@ const ProductsScreen: React.FC = () => {
     }
   }, [route.params]);
 
+  // Only load products when relevant search or filter parameters change
   useEffect(() => {
     loadProducts();
   }, [searchQuery, selectedCategory, selectedType, selectedShop, priceRange, sortBy, inStock, shopId]);
@@ -152,7 +174,7 @@ const ProductsScreen: React.FC = () => {
   const loadProducts = async () => {
     try {
       // If search query is provided, use the dedicated search endpoint
-      if (searchQuery && searchQuery.trim() !== '') {
+      if (isSearching && searchQuery.trim() !== '') {
         const response = await productApi.searchProducts(searchQuery);
         setFilteredProducts(response.data);
         return;
@@ -194,7 +216,6 @@ const ProductsScreen: React.FC = () => {
     setRefreshing(false);
   };
 
-
   const handleNotificationPress = () => {
     navigation.navigate('Notifications');
   };
@@ -222,7 +243,11 @@ const ProductsScreen: React.FC = () => {
     setCurrentPriceRange([0, 10000]);
     setSortBy('');
     setInStock(false);
-    loadProducts();
+    
+    // Don't clear search if we're currently searching
+    if (!isSearching) {
+      loadProducts();
+    }
   };
 
   const renderProductItem = ({ item }: { item: Product }) => (
@@ -519,101 +544,109 @@ const ProductsScreen: React.FC = () => {
         />
         
         <View style={styles.contentContainer}>
-          <View style={styles.searchFilterContainer}>
+          <View style={styles.searchContainer}>
             <SearchBar 
               placeholder="Search products..."
               onSearch={handleSearch}
-              value={searchQuery}
+              value={internalSearchQuery}
               style={styles.searchBar}
             />
-            <TouchableOpacity 
-              style={styles.filterButton}
-              onPress={handleFilterPress}
-            >
-              <MaterialIcons name="filter-list" size={24} color={theme.colors.primary} />
-            </TouchableOpacity>
+            
+            <View style={styles.filterRow}>
+              <TouchableOpacity 
+                style={styles.filterButton} 
+                onPress={handleFilterPress}
+              >
+                <FontAwesome name="filter" size={16} color={theme.colors.primary} />
+                <Text style={styles.filterButtonText}>Filters</Text>
+              </TouchableOpacity>
+              
+              {/* Active filters display */}
+              <View style={styles.activeFiltersContainer}>
+                {(isSearching || selectedCategory || selectedType || selectedShop || priceRange[0] > 0 || priceRange[1] < 10000 || inStock) && (
+                  <TouchableOpacity 
+                    style={styles.clearFiltersButton} 
+                    onPress={() => {
+                      if (isSearching) {
+                        setInternalSearchQuery('');
+                        setSearchQuery('');
+                        setIsSearching(false);
+                      }
+                      resetFilters();
+                    }}
+                  >
+                    <FontAwesome name="times-circle" size={14} color={theme.colors.error} />
+                    <Text style={styles.clearFiltersText}>Clear {isSearching ? 'Search & Filters' : 'Filters'}</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            </View>
           </View>
           
-          {/* Active Filters */}
-          {(selectedCategory || selectedType || selectedShop || priceRange[0] > 0 || priceRange[1] < 10000 || inStock || sortBy || shopId) && (
-            <View style={styles.activeFiltersContainer}>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                {selectedCategory && (
-                  <View style={styles.activeFilterChip}>
-                    <Text style={styles.activeFilterText}>Category: {selectedCategory}</Text>
-                    <TouchableOpacity onPress={() => setSelectedCategory('')}>
-                      <Ionicons name="close-circle" size={16} color={theme.colors.white} />
-                    </TouchableOpacity>
-                  </View>
-                )}
-                
-                {selectedType && (
-                  <View style={styles.activeFilterChip}>
-                    <Text style={styles.activeFilterText}>Type: {selectedType}</Text>
-                    <TouchableOpacity onPress={() => setSelectedType('')}>
-                      <Ionicons name="close-circle" size={16} color={theme.colors.white} />
-                    </TouchableOpacity>
-                  </View>
-                )}
-                
-                {selectedShop && (
-                  <View style={styles.activeFilterChip}>
-                    <Text style={styles.activeFilterText}>Shop: {shops.find(shop => shop._id === selectedShop)?.name || selectedShop}</Text>
-                    <TouchableOpacity onPress={() => setSelectedShop('')}>
-                      <Ionicons name="close-circle" size={16} color={theme.colors.white} />
-                    </TouchableOpacity>
-                  </View>
-                )}
-                
-                {(priceRange[0] > 0 || priceRange[1] < 10000) && (
-                  <View style={styles.activeFilterChip}>
-                    <Text style={styles.activeFilterText}>Price: ₹{priceRange[0]} - ₹{priceRange[1]}</Text>
-                    <TouchableOpacity onPress={() => setPriceRange([0, 10000])}>
-                      <Ionicons name="close-circle" size={16} color={theme.colors.white} />
-                    </TouchableOpacity>
-                  </View>
-                )}
-                
-                {inStock && (
-                  <View style={styles.activeFilterChip}>
-                    <Text style={styles.activeFilterText}>In Stock</Text>
-                    <TouchableOpacity onPress={() => setInStock(false)}>
-                      <Ionicons name="close-circle" size={16} color={theme.colors.white} />
-                    </TouchableOpacity>
-                  </View>
-                )}
-                
-                {sortBy && (
-                  <View style={styles.activeFilterChip}>
-                    <Text style={styles.activeFilterText}>
-                      Sort: {sortOptions.find(option => option.value === sortBy)?.label.split(': ')[1]}
-                    </Text>
-                    <TouchableOpacity onPress={() => setSortBy('')}>
-                      <Ionicons name="close-circle" size={16} color={theme.colors.white} />
-                    </TouchableOpacity>
-                  </View>
-                )}
-              </ScrollView>
-            </View>
-          )}
+          {/* Sort options horizontal list */}
+          <ScrollView 
+            horizontal 
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.sortOptionsContainer}
+          >
+            {sortOptions.map((option, index) => (
+              <TouchableOpacity
+                key={index}
+                style={[
+                  styles.sortOption,
+                  sortBy === option.value && styles.sortOptionActive
+                ]}
+                onPress={() => setSortBy(option.value)}
+              >
+                <Text 
+                  style={[
+                    styles.sortOptionText,
+                    sortBy === option.value && styles.sortOptionTextActive
+                  ]}
+                >
+                  {option.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
           
-          <FlatList
-            data={filteredProducts}
-            keyExtractor={(item) => item._id}
-            renderItem={renderProductItem}
-            contentContainerStyle={styles.productList}
-            showsVerticalScrollIndicator={false}
-            refreshControl={
-              <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
-            }
-            ListEmptyComponent={
-              <Text style={styles.emptyText}>
-                {searchQuery || selectedCategory || selectedType || selectedShop || priceRange[0] > 0 || priceRange[1] < 10000 || inStock || shopId
-                  ? 'No products match your filters'
-                  : 'No products available'}
-              </Text>
-            }
-          />
+          {(loading && !refreshing) ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color={theme.colors.primary} />
+            </View>
+          ) : (
+            <FlatList
+              data={filteredProducts}
+              keyExtractor={(item) => item._id}
+              renderItem={renderProductItem}
+              contentContainerStyle={styles.productList}
+              showsVerticalScrollIndicator={false}
+              refreshControl={
+                <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
+              }
+              ListEmptyComponent={
+                <View style={styles.emptyContainer}>
+                  <Ionicons name="basket-outline" size={64} color={theme.colors.lightGray} />
+                  <Text style={styles.emptyText}>
+                    {isSearching ? 'No products match your search' : 'No products available'}
+                  </Text>
+                  {isSearching && (
+                    <TouchableOpacity 
+                      style={styles.clearSearchButton}
+                      onPress={() => {
+                        setInternalSearchQuery('');
+                        setSearchQuery('');
+                        setIsSearching(false);
+                        loadProducts();
+                      }}
+                    >
+                      <Text style={styles.clearSearchText}>Clear Search</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              }
+            />
+          )}
         </View>
         
         {renderFiltersModal()}
@@ -636,44 +669,68 @@ const styles = StyleSheet.create({
     padding: theme.spacing.md,
     paddingBottom: 120,
   },
-  searchFilterContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
+  searchContainer: {
+    padding: theme.spacing.md,
   },
   searchBar: {
-    flex: 1,
-    marginRight: 8,
+    marginBottom: theme.spacing.sm,
   },
-  filterButton: {
-    width: 48,
-    height: 48,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: theme.colors.white,
-    borderRadius: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  activeFiltersContainer: {
-    marginBottom: 12,
-  },
-  activeFilterChip: {
+  filterRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: theme.colors.primary,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-    marginRight: 8,
+    justifyContent: 'space-between',
   },
-  activeFilterText: {
-    color: theme.colors.white,
-    marginRight: 4,
+  filterButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: theme.colors.white,
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.sm,
+    borderRadius: theme.borderRadius.small,
+    ...theme.shadow.small,
+  },
+  filterButtonText: {
+    marginLeft: 8,
+    color: theme.colors.primary,
+    fontWeight: '600',
+  },
+  activeFiltersContainer: {
+    flex: 1,
+    alignItems: 'flex-end',
+  },
+  clearFiltersButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: 4,
+  },
+  clearFiltersText: {
+    marginLeft: 4,
+    color: theme.colors.error,
     fontSize: 12,
+    fontWeight: '500',
+  },
+  sortOptionsContainer: {
+    paddingHorizontal: theme.spacing.md,
+    paddingBottom: theme.spacing.sm,
+  },
+  sortOption: {
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.xs,
+    borderRadius: 20,
+    marginRight: theme.spacing.sm,
+    backgroundColor: theme.colors.bgLight,
+  },
+  sortOptionActive: {
+    backgroundColor: theme.colors.primary,
+  },
+  sortOptionText: {
+    fontSize: 12,
+    color: theme.colors.text,
+  },
+  sortOptionTextActive: {
+    color: theme.colors.white,
+    fontWeight: 'bold',
   },
   loadingContainer: {
     flex: 1,
@@ -895,17 +952,6 @@ const styles = StyleSheet.create({
     width: '100%',
     height: 40,
   },
-  sortOption: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.lightGray,
-  },
-  sortOptionText: {
-    color: theme.colors.text,
-  },
   switchContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -950,6 +996,18 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: theme.colors.primary,
     marginLeft: 2,
+  },
+  clearSearchButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    backgroundColor: theme.colors.primary,
+    borderRadius: 8,
+    marginTop: 10,
+  },
+  clearSearchText: {
+    color: theme.colors.white,
+    fontSize: 16,
+    fontWeight: '600',
   },
 });
 
