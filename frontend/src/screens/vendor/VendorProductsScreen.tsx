@@ -8,7 +8,8 @@ import {
   Image,
   ActivityIndicator,
   TextInput,
-  RefreshControl
+  RefreshControl,
+  Platform
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useFocusEffect } from '@react-navigation/core';
@@ -317,6 +318,8 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: theme.colors.background,
     padding: theme.spacing.md,
+    paddingTop: Platform.OS === 'android' ? 25 : 0,
+    paddingBottom: 80,
   },
   header: {
     flexDirection: 'row',
@@ -416,7 +419,7 @@ const styles = StyleSheet.create({
     marginLeft: 8,
   },
   productList: {
-    paddingBottom: theme.spacing.lg,
+    paddingBottom: 100,
   },
   productCard: {
     marginBottom: theme.spacing.md,
@@ -516,7 +519,7 @@ const styles = StyleSheet.create({
   },
   floatingButton: {
     position: 'absolute',
-    bottom: theme.spacing.lg,
+    bottom: Platform.OS === 'ios' ? theme.spacing.xxl : theme.spacing.xxl + 50,
     right: theme.spacing.lg,
     width: 56,
     height: 56,
@@ -524,6 +527,7 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.primary,
     justifyContent: 'center',
     alignItems: 'center',
+    zIndex: 1000,
     ...theme.shadow.medium,
   },
 });

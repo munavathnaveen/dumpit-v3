@@ -2,6 +2,7 @@ import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as authApi from '../api/authApi';
 import { User, LoginRequest, RegisterRequest, ForgotPasswordRequest } from '../api/types';
+import { resetAuthHeader } from '../api/apiClient';
 
 // Define the auth state type
 interface AuthState {
@@ -61,6 +62,8 @@ export const logout = createAsyncThunk(
       await authApi.logout();
       // Remove token from AsyncStorage
       await AsyncStorage.removeItem('token');
+      // Reset auth header to prevent unauthorized API calls
+      resetAuthHeader();
       return null;
     } catch (error: any) {
       return rejectWithValue(error.response?.data?.error || 'Logout failed');

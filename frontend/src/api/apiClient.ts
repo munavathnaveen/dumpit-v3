@@ -32,4 +32,9 @@ apiClient.interceptors.request.use(
   }
 );
 
+// Function to reset the authorization header (used on logout)
+export const resetAuthHeader = () => {
+  delete apiClient.defaults.headers.common['Authorization'];
+};
+
 export default apiClient; 

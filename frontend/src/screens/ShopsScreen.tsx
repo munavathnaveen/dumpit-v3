@@ -27,6 +27,7 @@ import SearchBar from '../components/SearchBar';
 import ScreenHeader from '../components/ScreenHeader';
 import { useRoute, useNavigation } from '../navigation/hooks';
 import alert from '../utils/alert';
+import { LocationService, Coordinates } from '../services/LocationService';
 
 // Define a flexible address type that can handle both string and object formats
 type ShopAddress = string | {
@@ -71,8 +72,9 @@ const ShopsScreen: React.FC = () => {
   const [loadingCategories, setLoadingCategories] = useState(false);
 
   // Add location state
-  const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [userLocation, setUserLocation] = useState<Coordinates | null>(null);
   const [locationPermissionDenied, setLocationPermissionDenied] = useState(false);
+  const [shopDistances, setShopDistances] = useState<Record<string, string>>({});
 
   // Create a properly implemented debounced search function with 1-second delay
   const debouncedSearch = useCallback(
@@ -129,6 +131,57 @@ const ShopsScreen: React.FC = () => {
     loadShops();
   }, [searchQuery, selectedCategory, onlyOpen, minRating, sortBy, showNearby, userLocation]);
 
+  useEffect(() => {
+    const calculateDistances = async () => {
+      if (!userLocation || !filteredShops.length) return;
+      
+      // Extract shops with valid location data
+      const shopsWithLocation = filteredShops.filter(shop => 
+        shop.location && 
+        shop.location.coordinates && 
+        shop.location.coordinates.length === 2
+      );
+      
+      if (!shopsWithLocation.length) return;
+      
+      try {
+        // Calculate distances in batches to avoid API limits
+        const batchSize = 25;
+        const distances: Record<string, string> = {};
+        
+        for (let i = 0; i < shopsWithLocation.length; i += batchSize) {
+          const batch = shopsWithLocation.slice(i, i + batchSize);
+          
+          const destinations = batch.map(shop => ({
+            latitude: shop.location.coordinates[1],
+            longitude: shop.location.coordinates[0]
+          }));
+          
+          const distanceMatrix = await LocationService.getDistanceMatrix(
+            userLocation,
+            destinations
+          );
+          
+          if (distanceMatrix?.rows?.[0]?.elements) {
+            batch.forEach((shop, index) => {
+              const element = distanceMatrix.rows[0].elements[index];
+              if (element?.distance?.text) {
+                distances[shop._id] = element.distance.text;
+              }
+            });
+          }
+        }
+        
+        console.log("Calculated distances for shops:", distances);
+        setShopDistances(distances);
+      } catch (error) {
+        console.error('Error calculating distances:', error);
+      }
+    };
+    
+    calculateDistances();
+  }, [filteredShops, userLocation]);
+
   const fetchShopCategories = async () => {
     try {
       setLoadingCategories(true);
@@ -162,6 +215,9 @@ const ShopsScreen: React.FC = () => {
     } finally {
       setLoadingCategories(false);
     }
+
+    // Add back the getUserLocation function after the fetchShopCategories function
+    getUserLocation();
   };
 
   const getUserLocation = async () => {
@@ -174,7 +230,7 @@ const ShopsScreen: React.FC = () => {
           'Please enable location services to find nearby shops.',
           [{ text: 'OK' }]
         );
-        return;
+        return null;
       }
 
       setLocationPermissionDenied(false);
@@ -374,6 +430,13 @@ const ShopsScreen: React.FC = () => {
           <Text style={styles.shopDescription} numberOfLines={2}>
             {item.description}
           </Text>
+          
+          {shopDistances[item._id] && (
+            <View style={styles.distanceContainer}>
+              <FontAwesome name="map-marker" size={14} color={theme.colors.primary} />
+              <Text style={styles.distanceText}>{shopDistances[item._id]} away</Text>
+            </View>
+          )}
           
           {item.categories && item.categories.length > 0 && (
             <View style={styles.categoriesContainer}>
@@ -997,7 +1060,19 @@ const styles = StyleSheet.create({
     color: theme.colors.white,
     fontSize: 16,
     fontWeight: 'bold',
-  }
+  },
+  distanceContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
+    marginBottom: 4,
+  },
+  distanceText: {
+    fontSize: 12,
+    color: theme.colors.primary,
+    fontWeight: '500',
+    marginLeft: 4,
+  },
 });
 
 export default ShopsScreen; 

@@ -22,6 +22,7 @@ import { addToCart } from '../store/cartSlice';
 import { useNavigation, useRoute } from '../navigation/hooks';
 import Card3D from '../components/Card3D';
 import * as productApi from '../api/productApi';
+import { LocationService, Coordinates } from '../services/LocationService';
 
 const { width } = Dimensions.get('window');
 
@@ -37,29 +38,70 @@ const ProductDetailsScreen: React.FC = () => {
   const [reviewText, setReviewText] = useState('');
   const [reviewRating, setReviewRating] = useState(5);
   const [submittingReview, setSubmittingReview] = useState(false);
+  const [userLocation, setUserLocation] = useState<Coordinates | null>(null);
+  const [localProduct, setLocalProduct] = useState<any>(null);
   
   const { product, loading, error } = useSelector((state: RootState) => state.product);
   
+  // Get user location
+  useEffect(() => {
+    const getUserLocation = async () => {
+      try {
+        const location = await LocationService.getCurrentLocation();
+        setUserLocation(location);
+        
+        // Once we have the location, fetch the product with distance
+        if (location) {
+          try {
+            const response = await productApi.getProductWithDistance(productId, location);
+            setLocalProduct(response.data);
+          } catch (err) {
+            console.error("Error fetching product with distance:", err);
+          }
+        }
+      } catch (error) {
+        console.error('Error getting user location:', error);
+      }
+    };
+    
+    getUserLocation();
+  }, [productId]);
+  
+  // Fetch product from Redux store
   useEffect(() => {
     dispatch(getProduct(productId));
   }, [dispatch, productId]);
   
-  const handleRefresh = () => {
+  const handleRefresh = async () => {
     setRefreshing(true);
-    dispatch(getProduct(productId)).then(() => {
-      setRefreshing(false);
-    });
+    
+    // Refresh both standard product data and location-aware product data
+    await dispatch(getProduct(productId));
+    
+    if (userLocation) {
+      try {
+        const response = await productApi.getProductWithDistance(productId, userLocation);
+        setLocalProduct(response.data);
+      } catch (err) {
+        console.error("Error refreshing product with distance:", err);
+      }
+    }
+    
+    setRefreshing(false);
   };
+
+  // Use merged product data (preferring local product with distance info if available)
+  const productData = localProduct || product;
   
   const handleAddToCart = () => {
-    if (product) {
+    if (productData) {
       dispatch(addToCart({ productId, quantity }));
     }
   };
   
   const handleQuantityChange = (value: number) => {
     const newQuantity = quantity + value;
-    if (newQuantity >= 1 && product && newQuantity <= product.stock) {
+    if (newQuantity >= 1 && productData && newQuantity <= productData.stock) {
       setQuantity(newQuantity);
     }
   };
@@ -69,7 +111,7 @@ const ProductDetailsScreen: React.FC = () => {
   };
   
   const handleSubmitReview = async () => {
-    if (!product) return;
+    if (!productData) return;
     
     if (!reviewText.trim()) {
       Alert.alert('Review Required', 'Please enter review text');
@@ -126,7 +168,7 @@ const ProductDetailsScreen: React.FC = () => {
     );
   }
   
-  if (error || !product) {
+  if (error || !productData) {
     return (
       <View style={styles.errorContainer}>
         <Text style={styles.errorText}>
@@ -140,8 +182,8 @@ const ProductDetailsScreen: React.FC = () => {
   }
   
   // Calculate discounted price if there's a discount
-  const discountedPrice = product.discount > 0 
-    ? product.price - (product.price * (product.discount / 100))
+  const discountedPrice = productData.discount > 0 
+    ? productData.price - (productData.price * (productData.discount / 100))
     : null;
   
   return (
@@ -157,17 +199,17 @@ const ProductDetailsScreen: React.FC = () => {
         }
       >
         <Image 
-          source={{ uri: product.image || 'https://via.placeholder.com/400' }}
+          source={{ uri: productData.image || 'https://via.placeholder.com/400' }}
           style={styles.productImage}
           resizeMode="cover"
         />
         
         <View style={styles.contentContainer}>
-          <Text style={styles.productName}>{product.name}</Text>
+          <Text style={styles.productName}>{productData.name}</Text>
           
           <View style={styles.categoryContainer}>
-            <Text style={styles.categoryText}>{product.category}</Text>
-            <Text style={styles.typeText}>{product.type}</Text>
+            <Text style={styles.categoryText}>{productData.category}</Text>
+            <Text style={styles.typeText}>{productData.type}</Text>
           </View>
           
           <View style={styles.priceContainer}>
@@ -175,19 +217,19 @@ const ProductDetailsScreen: React.FC = () => {
               <>
                 <Text style={styles.priceLabel}>Price:</Text>
                 <Text style={[styles.priceValue, styles.strikethrough]}>
-                  ₹{product.price.toFixed(2)}
+                  ₹{productData.price.toFixed(2)}
                 </Text>
                 <Text style={styles.discountedPrice}>
                   ₹{discountedPrice.toFixed(2)}
                 </Text>
                 <View style={styles.discountBadge}>
-                  <Text style={styles.discountText}>{product.discount}% OFF</Text>
+                  <Text style={styles.discountText}>{productData.discount}% OFF</Text>
                 </View>
               </>
             ) : (
               <>
                 <Text style={styles.priceLabel}>Price:</Text>
-                <Text style={styles.priceValue}>₹{product.price.toFixed(2)}</Text>
+                <Text style={styles.priceValue}>₹{productData.price.toFixed(2)}</Text>
               </>
             )}
           </View>
@@ -195,45 +237,58 @@ const ProductDetailsScreen: React.FC = () => {
           <View style={styles.stockInfo}>
             <Text style={[
               styles.stockText, 
-              product.stock > 0 ? styles.inStock : styles.outOfStock
+              productData.stock > 0 ? styles.inStock : styles.outOfStock
             ]}>
-              {product.stock > 0 ? `In Stock (${product.stock} ${product.units})` : 'Out of Stock'}
+              {productData.stock > 0 ? `In Stock (${productData.stock} ${productData.units})` : 'Out of Stock'}
             </Text>
           </View>
           
           <View style={styles.ratingContainer}>
             <FontAwesome name="star" size={16} color="#FFD700" />
-            <Text style={styles.ratingText}>{product.rating.toFixed(1)}</Text>
+            <Text style={styles.ratingText}>{productData.rating.toFixed(1)}</Text>
             <Text style={styles.reviewCountText}>(
-              {product.reviews ? product.reviews.length : 0} reviews)
+              {productData.reviews ? productData.reviews.length : 0} reviews)
             </Text>
           </View>
           
           <View style={styles.divider} />
           
           <Text style={styles.sectionTitle}>Description</Text>
-          <Text style={styles.descriptionText}>{product.description}</Text>
+          <Text style={styles.descriptionText}>{productData.description}</Text>
           
           <View style={styles.divider} />
           
-          {product.vendor && (
+          {productData.vendor && (
             <>
               <Text style={styles.sectionTitle}>Sold By</Text>
               <TouchableOpacity 
                 style={styles.vendorContainer}
-                onPress={() => navigation.navigate('ShopDetails', { shopId: product.shop._id })}
+                onPress={() => navigation.navigate('ShopDetails', { shopId: productData.shop._id })}
               >
-                <Text style={styles.vendorName}>{product.shop.name}</Text>
+                <View style={styles.vendorInfo}>
+                  <Text style={styles.vendorName}>{productData.shop.name}</Text>
+                  
+                  {productData.shop.distance && (
+                    <View style={styles.distanceContainer}>
+                      <FontAwesome name="map-marker" size={14} color={theme.colors.primary} />
+                      <Text style={styles.distanceText}>
+                        {typeof productData.shop.distance === 'string' 
+                          ? productData.shop.distance 
+                          : LocationService.formatDistance(productData.shop.distance as number)} away
+                      </Text>
+                    </View>
+                  )}
+                </View>
                 <FontAwesome name="chevron-right" size={14} color={theme.colors.textLight} />
               </TouchableOpacity>
               <View style={styles.divider} />
             </>
           )}
           
-          {product.reviews && product.reviews.length > 0 && (
+          {productData.reviews && productData.reviews.length > 0 && (
             <>
               <Text style={styles.sectionTitle}>Reviews</Text>
-              {product.reviews.slice(0, 3).map((review, index) => (
+              {productData.reviews.slice(0, 3).map((review: any, index: number) => (
                 <View key={index} style={styles.reviewItem}>
                   <View style={styles.reviewHeader}>
                     <Text style={styles.reviewerName}>{review.user.name}</Text>
@@ -249,10 +304,10 @@ const ProductDetailsScreen: React.FC = () => {
                 </View>
               ))}
               
-              {product.reviews.length > 3 && (
+              {productData.reviews.length > 3 && (
                 <TouchableOpacity style={styles.moreReviewsButton}>
                   <Text style={styles.moreReviewsText}>
-                    See all {product.reviews.length} reviews
+                    See all {productData.reviews.length} reviews
                   </Text>
                 </TouchableOpacity>
               )}
@@ -342,15 +397,15 @@ const ProductDetailsScreen: React.FC = () => {
           <TouchableOpacity 
             style={[
               styles.quantityButton,
-              quantity >= product.stock && styles.quantityButtonDisabled
+              quantity >= productData.stock && styles.quantityButtonDisabled
             ]}
             onPress={() => handleQuantityChange(1)}
-            disabled={quantity >= product.stock}
+            disabled={quantity >= productData.stock}
           >
             <FontAwesome 
               name="plus" 
               size={16} 
-              color={quantity >= product.stock ? theme.colors.textLight : theme.colors.text} 
+              color={quantity >= productData.stock ? theme.colors.textLight : theme.colors.text} 
             />
           </TouchableOpacity>
         </View>
@@ -358,14 +413,14 @@ const ProductDetailsScreen: React.FC = () => {
         <TouchableOpacity 
           style={[
             styles.addToCartButton,
-            product.stock <= 0 && styles.disabledButton
+            productData.stock <= 0 && styles.disabledButton
           ]}
           onPress={handleAddToCart}
-          disabled={product.stock <= 0}
+          disabled={productData.stock <= 0}
         >
           <FontAwesome name="shopping-cart" size={18} color={theme.colors.white} />
           <Text style={styles.addToCartText}>
-            {product.stock > 0 ? 'Add to Cart' : 'Out of Stock'}
+            {productData.stock > 0 ? 'Add to Cart' : 'Out of Stock'}
           </Text>
         </TouchableOpacity>
       </View>
@@ -540,14 +595,18 @@ const styles = StyleSheet.create({
   },
   vendorContainer: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    backgroundColor: theme.colors.white,
     padding: 12,
-    backgroundColor: theme.colors.cardBg,
     borderRadius: 8,
+    marginTop: 8,
+  },
+  vendorInfo: {
+    flex: 1,
   },
   vendorName: {
     fontSize: 16,
+    fontWeight: 'bold',
     color: theme.colors.text,
   },
   reviewItem: {
@@ -712,6 +771,17 @@ const styles = StyleSheet.create({
   submitButtonText: {
     color: theme.colors.white,
     fontWeight: 'bold',
+  },
+  distanceContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  distanceText: {
+    fontSize: 12,
+    color: theme.colors.primary,
+    fontWeight: '500',
+    marginLeft: 4,
   },
 });
 

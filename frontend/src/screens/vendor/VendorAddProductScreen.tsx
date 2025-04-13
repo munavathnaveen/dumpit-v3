@@ -357,15 +357,15 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.colors.background,
+    paddingTop: Platform.OS === 'android' ? 25 : 0,
   },
   scrollView: {
-    padding: theme.spacing.md,
+    flex: 1,
+    paddingHorizontal: theme.spacing.md,
+    paddingTop: theme.spacing.sm,
   },
   contentContainer: {
-    paddingBottom: theme.spacing.xl,
-  },
-  formCard: {
-    padding: theme.spacing.md,
+    paddingBottom: Platform.OS === 'ios' ? 120 : 140,
   },
   formTitle: {
     fontSize: 20,
@@ -470,7 +470,6 @@ const styles = StyleSheet.create({
     padding: theme.spacing.md,
     borderRadius: theme.borderRadius.medium,
     alignItems: 'center',
-    marginTop: theme.spacing.lg,
     ...theme.shadow.small,
   },
   submitButtonText: {

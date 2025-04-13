@@ -1,5 +1,6 @@
 import axios from 'axios';
 import * as Location from 'expo-location';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getAuthHeader } from '../utils/auth';
 
 // Get API_URL from environment or use default
@@ -87,7 +88,7 @@ export interface DirectionsResult {
 }
 
 export class LocationService {
-  // Get current location coordinates
+  // Get current location coordinates with better accuracy
   static async getCurrentLocation(): Promise<Coordinates> {
     const { status } = await Location.requestForegroundPermissionsAsync();
     
@@ -95,11 +96,27 @@ export class LocationService {
       throw new Error('Permission to access location was denied');
     }
     
-    const location = await Location.getCurrentPositionAsync({});
-    return {
-      latitude: location.coords.latitude,
-      longitude: location.coords.longitude,
-    };
+    try {
+      // Try to get high accuracy location
+      const location = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.High
+      });
+      
+      console.log("Got high accuracy location:", location.coords);
+      return {
+        latitude: location.coords.latitude,
+        longitude: location.coords.longitude,
+      };
+    } catch (error) {
+      console.error("Error getting high accuracy location, falling back to regular accuracy", error);
+      
+      // Fall back to regular accuracy
+      const location = await Location.getCurrentPositionAsync({});
+      return {
+        latitude: location.coords.latitude,
+        longitude: location.coords.longitude,
+      };
+    }
   }
   
   // Geocode an address to get coordinates
@@ -161,13 +178,25 @@ export class LocationService {
     }
   }
   
-  // Calculate distance using Google Maps API directly
   static async getDistanceMatrix(
     origins: Coordinates | Coordinates[],
     destinations: Coordinates | Coordinates[]
   ): Promise<DistanceMatrixResult> {
     try {
-      // Format origins and destinations
+      const cacheKey = JSON.stringify({ origins, destinations });
+            try {
+        const cachedData = await AsyncStorage.getItem(`distance_matrix_${cacheKey}`);
+        if (cachedData) {
+          const { result, timestamp } = JSON.parse(cachedData);
+          const fifteenMinutesAgo = Date.now() - 15 * 60 * 1000;
+          if (timestamp > fifteenMinutesAgo) {
+            return result;
+          }
+        }
+      } catch (e) {
+        console.log('Cache access error:', e);
+      }
+      
       const originsStr = Array.isArray(origins)
         ? origins.map(coord => `${coord.latitude},${coord.longitude}`).join('|')
         : `${origins.latitude},${origins.longitude}`;
@@ -177,8 +206,16 @@ export class LocationService {
         : `${destinations.latitude},${destinations.longitude}`;
       
       const response = await axios.get(
-        `https://maps.googleapis.com/maps/api/distancematrix/json?origins=${originsStr}&destinations=${destinationsStr}&key=${GOOGLE_MAPS_API_KEY}`
+        `https://maps.googleapis.com/maps/api/distancematrix/json?origins=${originsStr}&destinations=${destinationsStr}&units=metric&mode=driving&traffic_model=best_guess&departure_time=now&key=${GOOGLE_MAPS_API_KEY}`
       );
+            try {
+        await AsyncStorage.setItem(
+          `distance_matrix_${cacheKey}`, 
+          JSON.stringify({ result: response.data, timestamp: Date.now() })
+        );
+      } catch (e) {
+        console.log('Cache write error:', e);
+      }
       
       return response.data;
     } catch (error) {
@@ -187,14 +224,12 @@ export class LocationService {
     }
   }
   
-  // Get directions between two points
   static async getDirections(
     origin: Coordinates,
     destination: Coordinates,
     waypoints?: Coordinates[]
   ): Promise<DirectionsResult> {
     try {
-      // Format origin, destination and waypoints
       const originStr = `${origin.latitude},${origin.longitude}`;
       const destinationStr = `${destination.latitude},${destination.longitude}`;
       let waypointsStr = '';
@@ -224,7 +259,6 @@ export class LocationService {
     }
   }
   
-  // Get nearby shops based on user location
   static async getNearbyShops(
     coordinates: Coordinates,
     distance: number = 10

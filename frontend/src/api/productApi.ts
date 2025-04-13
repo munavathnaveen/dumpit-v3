@@ -117,4 +117,28 @@ export interface ProductReview {
 export const addProductReview = async (productId: string, reviewData: ProductReview): Promise<SingleProductResponse> => {
   const response = await apiClient.post(`/products/${productId}/reviews`, reviewData);
   return response.data;
+};
+
+// Add a new function to get products with distance calculations
+export const getProductsWithDistance = async (
+  location: { latitude: number; longitude: number },
+  query: string = ''
+): Promise<ProductsResponse> => {
+  // Add the location coordinates to the query
+  const locationQuery = `latitude=${location.latitude}&longitude=${location.longitude}`;
+  const fullQuery = query ? `${query}&${locationQuery}` : locationQuery;
+  
+  const response = await apiClient.get(`/products?${fullQuery}`);
+  return response.data;
+};
+
+// Add a function to get a single product with distance calculation
+export const getProductWithDistance = async (
+  productId: string,
+  location: { latitude: number; longitude: number }
+): Promise<SingleProductResponse> => {
+  const response = await apiClient.get(
+    `/products/${productId}?latitude=${location.latitude}&longitude=${location.longitude}`
+  );
+  return response.data;
 }; 

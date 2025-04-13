@@ -1,5 +1,5 @@
 import React, { ReactNode } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Image, Platform, StatusBar } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Feather } from '@expo/vector-icons';
 import { theme } from '../theme';
@@ -7,6 +7,9 @@ import LogoImage from './LogoImage';
 import { useDispatch, useSelector } from 'react-redux';
 import { logout } from '../store/authSlice';
 import { AppDispatch, RootState } from '../store';
+
+// Get status bar height for proper spacing
+const STATUSBAR_HEIGHT = Platform.OS === 'ios' ? 44 : StatusBar.currentHeight || 0;
 
 export interface HeaderProps {
   location?: string;
@@ -142,12 +145,16 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: theme.spacing.md,
     paddingVertical: theme.spacing.sm,
-    paddingTop: theme.spacing.lg,
-    marginTop: 8,
+    paddingTop: Platform.OS === 'ios' ? theme.spacing.lg : theme.spacing.lg + STATUSBAR_HEIGHT,
     backgroundColor: theme.colors.white,
     borderBottomWidth: 1,
     borderBottomColor: theme.colors.lightGray,
-    borderRadius:'lg',
+    borderRadius: theme.borderRadius.large,
+    elevation: 2,
+    shadowColor: theme.colors.dark,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
   },
   leftContainer: {
     flex: 1,

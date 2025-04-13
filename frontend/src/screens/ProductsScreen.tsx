@@ -11,7 +11,8 @@ import {
   Modal,
   ScrollView,
   Switch,
-  SafeAreaView
+  SafeAreaView,
+  Platform
 } from 'react-native';
 import { useSelector, useDispatch } from 'react-redux';
 import { FontAwesome, Ionicons, MaterialIcons } from '@expo/vector-icons';
@@ -162,11 +163,11 @@ const ProductsScreen: React.FC = () => {
   // Calculate distances to shops when products or user location change
   useEffect(() => {
     const calculateDistances = async () => {
-      if (!userLocation || products.length === 0) return;
+      if (!userLocation || filteredProducts.length === 0) return;
       
       // Extract unique shops from products
       const uniqueShops = new Map();
-      products.forEach(product => {
+      filteredProducts.forEach(product => {
         if (product.shop && product.shop._id && 
             product.shop.location && 
             product.shop.location.coordinates && 
@@ -211,11 +212,12 @@ const ProductsScreen: React.FC = () => {
         }
       }
       
+      console.log("Calculated distances for products:", distances);
       setShopDistances(distances);
     };
     
     calculateDistances();
-  }, [products, userLocation]);
+  }, [filteredProducts, userLocation]);
 
   const fetchCategories = async () => {
     try {
@@ -285,7 +287,17 @@ const ProductsScreen: React.FC = () => {
         .map(([key, value]) => `${key}=${encodeURIComponent(value)}`)
         .join('&');
       
-      const response = await productApi.getProducts(queryString);
+      let response;
+      
+      // If user location is available, use the location-aware endpoint
+      if (userLocation) {
+        console.log("Using location-aware product endpoint with location:", userLocation);
+        response = await productApi.getProductsWithDistance(userLocation, queryString);
+      } else {
+        // Otherwise use the regular endpoint
+        response = await productApi.getProducts(queryString);
+      }
+      
       setFilteredProducts(response.data);
     } catch (error) {
       console.error('Failed to load products:', error);
@@ -357,9 +369,13 @@ const ProductsScreen: React.FC = () => {
               {item.shop.name}
             </Text>
             {shopDistances[item.shop._id] && (
-              <Text style={styles.distanceText}>
-                • {shopDistances[item.shop._id]} away
-              </Text>
+              <View style={{flexDirection: 'row', alignItems: 'center'}}>
+                <Text style={{color: theme.colors.gray}}>•</Text>
+                <FontAwesome name="map-marker" size={12} color={theme.colors.primary} style={{marginHorizontal: 2}} />
+                <Text style={styles.distanceText}>
+                  {shopDistances[item.shop._id]} away
+                </Text>
+              </View>
             )}
           </TouchableOpacity>
         )}
@@ -750,6 +766,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.colors.background,
+    paddingTop: Platform.OS === 'android' ? 25 : 0, // Add padding for Android status bar
   },
   contentContainer: {
     flex: 1,
@@ -757,7 +774,7 @@ const styles = StyleSheet.create({
     paddingBottom: 120,
   },
   searchContainer: {
-    padding: theme.spacing.md,
+    padding: theme.spacing.sm,
   },
   searchBar: {
     marginBottom: theme.spacing.sm,
@@ -766,6 +783,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    marginBottom: theme.spacing.sm,
   },
   filterButton: {
     flexDirection: 'row',
@@ -799,21 +817,27 @@ const styles = StyleSheet.create({
   },
   sortOptionsContainer: {
     paddingHorizontal: theme.spacing.md,
-    paddingBottom: theme.spacing.sm,
+    paddingBottom: theme.spacing.md,
+    flexDirection: 'row',
+    marginBottom: theme.spacing.sm,
   },
   sortOption: {
-    paddingHorizontal: theme.spacing.md,
-    paddingVertical: theme.spacing.xs,
-    borderRadius: 20,
+ 
     marginRight: theme.spacing.sm,
-    backgroundColor: theme.colors.bgLight,
+    backgroundColor: theme.colors.white,
+    minWidth: 70,
+    minHeight:30,
+    borderRadius:10,
+    padding:3,
+    alignItems: 'center',
   },
   sortOptionActive: {
     backgroundColor: theme.colors.primary,
   },
   sortOptionText: {
-    fontSize: 12,
+    fontSize: 13,
     color: theme.colors.text,
+    fontWeight: '500',
   },
   sortOptionTextActive: {
     color: theme.colors.white,
@@ -885,6 +909,11 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     overflow: 'hidden',
     backgroundColor: theme.colors.white,
+    shadowColor: theme.colors.dark,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   productImage: {
     width: '100%',
@@ -892,12 +921,12 @@ const styles = StyleSheet.create({
     resizeMode: 'cover',
   },
   productInfo: {
-    padding: 12,
+    padding: 16,
   },
   productName: {
     fontSize: 18,
     fontWeight: 'bold',
-    marginBottom: 4,
+    marginBottom: 6,
     color: theme.colors.text,
   },
   categoryChip: {
@@ -1063,26 +1092,19 @@ const styles = StyleSheet.create({
   shopInfoContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 5,
+    marginVertical: 4,
+    flexWrap: 'wrap',
   },
   shopName: {
-    fontSize: 14,
-    color: theme.colors.gray,
-    marginLeft: 4,
-    flex: 1,
-  },
-  distanceContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: theme.colors.lightGray,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 10,
-  },
-  distanceText: {
     fontSize: 12,
     color: theme.colors.gray,
     marginLeft: 4,
+    marginRight: 2,
+  },
+  distanceText: {
+    fontSize: 12,
+    color: theme.colors.primary,
+    fontWeight: '500',
   },
   clearSearchButton: {
     paddingVertical: 12,
