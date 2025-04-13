@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { ReactNode } from 'react';
 import { View, StyleSheet, TouchableOpacity } from 'react-native';
 import { theme } from '../theme';
 import Header from './Header';
@@ -10,6 +10,7 @@ export interface ScreenHeaderProps {
   onNotificationPress?: () => void;
   rightIcon?: string;
   onRightPress?: () => void;
+  customLocation?: ReactNode;
 }
 
 const ScreenHeader: React.FC<ScreenHeaderProps> = ({
@@ -18,6 +19,7 @@ const ScreenHeader: React.FC<ScreenHeaderProps> = ({
   onNotificationPress,
   rightIcon,
   onRightPress,
+  customLocation,
 }) => {
   return (
     <View style={styles.container}>
@@ -25,6 +27,7 @@ const ScreenHeader: React.FC<ScreenHeaderProps> = ({
         location={title}
         showBackButton={showBackButton}
         onNotificationPress={onNotificationPress}
+        customLocation={customLocation}
         rightComponent={
           rightIcon && onRightPress ? (
             <TouchableOpacity onPress={onRightPress} style={styles.rightButton}>

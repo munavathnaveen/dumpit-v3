@@ -63,6 +63,7 @@ export const exportData = async (
       throw new Error(`No data returned from ${dataType} export`);
     }
     
+    // The response is now directly the CSV data
     return response.data;
   } catch (error: any) {
     console.error(`Error exporting ${dataType} data:`, error);

@@ -14,15 +14,17 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
+import * as Location from 'expo-location';
 
 import Card3D from '../../components/Card3D';
-import ScreenHeader from '../../components/ScreenHeader';
+import VendorLocationHeader from '../../components/VendorLocationHeader';
 import { theme } from '../../theme';
 import { MainStackNavigationProp } from '../../navigation/types';
 import { getShopDetails, updateShop, ShopSettings, createShop, Shop } from '../../api/shopApi';
 import alert from '../../utils/alert';
 import { RootState } from '../../store';
 import { useSelector } from 'react-redux';
+import * as locationApi from '../../api/locationApi';
 
 interface LocationType {
   type: string;
@@ -56,6 +58,7 @@ const VendorShopSetupScreen: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [shopId, setShopId] = useState<string | null>(null);
+  const [locationLoading, setLocationLoading] = useState(false);
   const [form, setForm] = useState<ShopFormState>({
     name: '',
     description: '',
@@ -240,10 +243,61 @@ const VendorShopSetupScreen: React.FC = () => {
     }));
   };
 
+  const handleGetCurrentLocation = async () => {
+    try {
+      setLocationLoading(true);
+      
+      // Request location permissions
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      
+      if (status !== 'granted') {
+        Alert.alert('Permission Denied', 'Permission to access location was denied. Please enable it in your device settings.');
+        setLocationLoading(false);
+        return;
+      }
+      
+      // Get current position
+      const location = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
+      
+      const { latitude, longitude } = location.coords;
+      
+      // Update form with new coordinates
+      setForm({
+        ...form,
+        location: {
+          ...form.location,
+          coordinates: [longitude, latitude], // MongoDB uses [longitude, latitude] format
+        },
+      });
+      
+      // Also update user location in the backend
+      if (userId) {
+        try {
+          await locationApi.updateUserLocation({
+            latitude,
+            longitude,
+          });
+        } catch (error) {
+          console.error('Error updating user location in backend:', error);
+          // Continue anyway, this is not critical
+        }
+      }
+      
+      Alert.alert('Success', 'Your current location has been set successfully!');
+    } catch (error) {
+      console.error('Error getting current location:', error);
+      Alert.alert('Location Error', 'Failed to get your current location. Please try again or enter coordinates manually.');
+    } finally {
+      setLocationLoading(false);
+    }
+  };
+
   if (loading) {
     return (
       <View style={styles.container}>
-        <ScreenHeader title="Shop Setup" showBackButton={true} />
+        <VendorLocationHeader title="Shop Setup" showBackButton={true} />
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={theme.colors.primary} />
         </View>
@@ -254,7 +308,7 @@ const VendorShopSetupScreen: React.FC = () => {
   if (error) {
     return (
       <View style={styles.container}>
-        <ScreenHeader title="Shop Setup" showBackButton={true} />
+        <VendorLocationHeader title="Shop Setup" showBackButton={true} />
         <View style={styles.errorContainer}>
           <Text style={styles.errorText}>{error}</Text>
           <TouchableOpacity 
@@ -270,225 +324,270 @@ const VendorShopSetupScreen: React.FC = () => {
 
   return (
     <View style={styles.container}>
-      <ScreenHeader title="Shop Setup" showBackButton={true} />
-      
+      <VendorLocationHeader title={shopId ? "Edit Shop" : "Create Shop"} showBackButton />
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.contentContainer}>
-        {/* Basic Information */}
-        <Card3D style={styles.section} elevation="medium">
-          <Text style={styles.sectionTitle}>Basic Information</Text>
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Shop Name</Text>
-            <TextInput
-              style={styles.input}
-              value={form.name}
-              onChangeText={(text) => handleInputChange('name', text)}
-              placeholder="Enter shop name"
-            />
+        {loading ? (
+          <ActivityIndicator size="large" color={theme.colors.primary} />
+        ) : error ? (
+          <View style={styles.errorContainer}>
+            <Text style={styles.errorText}>{error}</Text>
+            <TouchableOpacity 
+              style={styles.retryButton}
+              onPress={() => navigation.goBack()}
+            >
+              <Text style={styles.retryButtonText}>Go Back</Text>
+            </TouchableOpacity>
           </View>
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Description</Text>
-            <TextInput
-              style={[styles.input, styles.textArea]}
-              value={form.description}
-              onChangeText={(text) => handleInputChange('description', text)}
-              placeholder="Enter shop description"
-              multiline
-              numberOfLines={4}
-            />
-          </View>
-          <View style={styles.imageSection}>
-            <Text style={styles.label}>Shop Image (Optional)</Text>
-            {form.image ? (
-              <View style={styles.imageContainer}>
-                <Image source={{ uri: form.image }} style={styles.image} />
-                <TouchableOpacity
-                  style={styles.removeImageButton}
-                  onPress={() => handleImageUrlChange('')}
+        ) : (
+          <>
+            <Card3D style={styles.card}>
+              <Text style={styles.sectionTitle}>Basic Information</Text>
+              
+              <View style={styles.formGroup}>
+                <Text style={styles.label}>Shop Name *</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Enter shop name"
+                  value={form.name}
+                  onChangeText={(value) => handleInputChange('name', value)}
+                />
+              </View>
+              
+              <View style={styles.formGroup}>
+                <Text style={styles.label}>Description *</Text>
+                <TextInput
+                  style={[styles.input, styles.textarea]}
+                  placeholder="Enter shop description"
+                  value={form.description}
+                  onChangeText={(value) => handleInputChange('description', value)}
+                  multiline
+                  numberOfLines={4}
+                />
+              </View>
+              
+              <View style={styles.formGroup}>
+                <Text style={styles.label}>Shop Image URL</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Enter image URL"
+                  value={form.image}
+                  onChangeText={handleImageUrlChange}
+                />
+                <TouchableOpacity 
+                  style={styles.imagePickerButton} 
+                  onPress={() => {}}
                 >
-                  <Ionicons name="close-circle" size={24} color={theme.colors.error} />
+                  <Text style={styles.imagePickerButtonText}>Choose Image</Text>
                 </TouchableOpacity>
+                
+                {form.image ? (
+                  <Image source={{ uri: form.image }} style={styles.previewImage} />
+                ) : null}
               </View>
-            ) : (
-              <View style={styles.imagePlaceholder}>
-                <Ionicons name="image-outline" size={40} color={theme.colors.gray} />
+              
+              <View style={styles.formGroup}>
+                <View style={styles.switchContainer}>
+                  <Text style={styles.label}>Active</Text>
+                  <Switch
+                    value={form.isActive}
+                    onValueChange={(value) => handleInputChange('isActive', value)}
+                    trackColor={{ false: theme.colors.gray, true: theme.colors.primary }}
+                    thumbColor={form.isActive ? theme.colors.white : theme.colors.lightGray}
+                  />
+                </View>
+                <Text style={styles.helperText}>
+                  When active, your shop will be visible to customers
+                </Text>
               </View>
-            )}
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Image URL</Text>
-              <TextInput
-                style={styles.input}
-                value={form.image}
-                onChangeText={(text) => handleImageUrlChange(text)}
-                placeholder="Enter image URL (optional)"
-              />
-            </View>
-          </View>
-        </Card3D>
-        
-        {/* Contact Information */}
-        <Card3D style={styles.section} elevation="medium">
-          <Text style={styles.sectionTitle}>Contact Information</Text>
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Village</Text>
-            <TextInput
-              style={styles.input}
-              value={form.address.village}
-              onChangeText={(text) => handleAddressChange('village', text)}
-              placeholder="Enter village name"
-            />
-          </View>
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Street</Text>
-            <TextInput
-              style={styles.input}
-              value={form.address.street}
-              onChangeText={(text) => handleAddressChange('street', text)}
-              placeholder="Enter street address"
-            />
-          </View>
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>District</Text>
-            <TextInput
-              style={styles.input}
-              value={form.address.district}
-              onChangeText={(text) => handleAddressChange('district', text)}
-              placeholder="Enter district"
-            />
-          </View>
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>State</Text>
-            <TextInput
-              style={styles.input}
-              value={form.address.state}
-              onChangeText={(text) => handleAddressChange('state', text)}
-              placeholder="Enter state"
-            />
-          </View>
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Pincode</Text>
-            <TextInput
-              style={styles.input}
-              value={form.address.pincode}
-              onChangeText={(text) => handleAddressChange('pincode', text)}
-              placeholder="Enter pincode"
-              keyboardType="numeric"
-            />
-          </View>
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Phone Number</Text>
-            <TextInput
-              style={styles.input}
-              value={form.address.phone}
-              onChangeText={(text) => handleAddressChange('phone', text)}
-              placeholder="Enter phone number"
-              keyboardType="phone-pad"
-            />
-          </View>
-        </Card3D>
-        
-        {/* Location */}
-        <Card3D style={styles.section} elevation="medium">
-          <Text style={styles.sectionTitle}>Location</Text>
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Location Type</Text>
-            <TextInput
-              style={styles.input}
-              value={form.location.type}
-              onChangeText={(text) => handleLocationChange('type', text)}
-              placeholder="Enter location type"
-            />
-          </View>
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Coordinates</Text>
-            <TextInput
-              style={styles.input}
-              value={form.location.coordinates.join(',')}
-              onChangeText={(text) => {
-                const coords = text.split(',').map(Number);
-                handleLocationChange('coordinates', coords);
-              }}
-              placeholder="Enter coordinates (comma-separated)"
-              keyboardType="numeric"
-            />
-          </View>
-        </Card3D>
-        
-        {/* Shop Status */}
-        <Card3D style={styles.section} elevation="medium">
-          <Text style={styles.sectionTitle}>Shop Status</Text>
-          <View style={styles.switchContainer}>
-            <Text style={styles.label}>Active</Text>
-            <Switch
-              value={form.isActive}
-              onValueChange={(value) => handleInputChange('isActive', value)}
-            />
-          </View>
-        </Card3D>
-        
-        {/* Payment Settings */}
-        <Card3D style={styles.section} elevation="medium">
-          <Text style={styles.sectionTitle}>Payment & Delivery Settings</Text>
-          
-          <View style={styles.formGroup}>
-            <Text style={styles.label}>Minimum Order Amount (₹)</Text>
-            <TextInput
-              style={styles.input}
-              value={form.minimumOrderAmount}
-              onChangeText={(text) => handleNumericInputChange('minimumOrderAmount', text)}
-              placeholder="Enter minimum order amount"
-              keyboardType="numeric"
-            />
-          </View>
-          
-          <View style={styles.formGroup}>
-            <Text style={styles.label}>Shipping Fee (₹)</Text>
-            <TextInput
-              style={styles.input}
-              value={form.shippingFee}
-              onChangeText={(text) => handleNumericInputChange('shippingFee', text)}
-              placeholder="Enter shipping fee"
-              keyboardType="numeric"
-            />
-          </View>
-          
-          <View style={styles.formGroup}>
-            <Text style={styles.label}>Free Shipping Threshold (₹)</Text>
-            <TextInput
-              style={styles.input}
-              value={form.freeShippingThreshold}
-              onChangeText={(text) => handleNumericInputChange('freeShippingThreshold', text)}
-              placeholder="Enter free shipping threshold"
-              keyboardType="numeric"
-            />
-          </View>
-          
-          <View style={styles.formGroup}>
-            <Text style={styles.label}>Tax Rate (%)</Text>
-            <TextInput
-              style={styles.input}
-              value={form.taxRate}
-              onChangeText={(text) => handleNumericInputChange('taxRate', text)}
-              placeholder="Enter tax rate"
-              keyboardType="numeric"
-            />
-          </View>
-        </Card3D>
-        
-        {/* Save Button */}
-        <TouchableOpacity 
-          style={styles.saveButton}
-          onPress={handleSave}
-          disabled={saving}
-        >
-          {saving ? (
-            <ActivityIndicator size="small" color={theme.colors.white} />
-          ) : (
-            <>
-              <Ionicons name="save-outline" size={20} color={theme.colors.white} />
-              <Text style={styles.saveButtonText}>Save Changes</Text>
-            </>
-          )}
-        </TouchableOpacity>
+            </Card3D>
+            
+            <Card3D style={styles.card}>
+              <Text style={styles.sectionTitle}>Address Information</Text>
+              
+              <View style={styles.formGroup}>
+                <Text style={styles.label}>Street *</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Enter street address"
+                  value={form.address.street}
+                  onChangeText={(value) => handleAddressChange('street', value)}
+                />
+              </View>
+              
+              <View style={styles.formGroup}>
+                <Text style={styles.label}>Village/Town *</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Enter village or town"
+                  value={form.address.village}
+                  onChangeText={(value) => handleAddressChange('village', value)}
+                />
+              </View>
+              
+              <View style={styles.formGroup}>
+                <Text style={styles.label}>District *</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Enter district"
+                  value={form.address.district}
+                  onChangeText={(value) => handleAddressChange('district', value)}
+                />
+              </View>
+              
+              <View style={styles.formGroup}>
+                <Text style={styles.label}>State *</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Enter state"
+                  value={form.address.state}
+                  onChangeText={(value) => handleAddressChange('state', value)}
+                />
+              </View>
+              
+              <View style={styles.formGroup}>
+                <Text style={styles.label}>Pincode *</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Enter 6-digit pincode"
+                  value={form.address.pincode}
+                  onChangeText={(value) => handleAddressChange('pincode', value)}
+                  keyboardType="number-pad"
+                  maxLength={6}
+                />
+              </View>
+              
+              <View style={styles.formGroup}>
+                <Text style={styles.label}>Phone Number *</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Enter 10-digit phone number"
+                  value={form.address.phone}
+                  onChangeText={(value) => handleAddressChange('phone', value)}
+                  keyboardType="phone-pad"
+                  maxLength={10}
+                />
+              </View>
+              
+              <View style={styles.formGroup}>
+                <Text style={styles.sectionTitle}>Shop Location</Text>
+                <Text style={styles.helperText}>
+                  Set your shop's location to help customers find you. 
+                  Your current coordinates are: [{form.location.coordinates[0].toFixed(6)}, {form.location.coordinates[1].toFixed(6)}]
+                </Text>
+                
+                <TouchableOpacity 
+                  style={styles.locationButton}
+                  onPress={handleGetCurrentLocation}
+                  disabled={locationLoading}
+                >
+                  {locationLoading ? (
+                    <ActivityIndicator size="small" color={theme.colors.white} />
+                  ) : (
+                    <>
+                      <Ionicons name="location" size={18} color={theme.colors.white} />
+                      <Text style={styles.locationButtonText}>Get My Current Location</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+                
+                <View style={styles.coordinatesContainer}>
+                  <View style={styles.coordinateInput}>
+                    <Text style={styles.coordinateLabel}>Longitude</Text>
+                    <TextInput
+                      style={styles.input}
+                      value={form.location.coordinates[0].toString()}
+                      onChangeText={(value) => {
+                        const newCoordinates = [...form.location.coordinates];
+                        newCoordinates[0] = parseFloat(value) || 0;
+                        handleLocationChange('coordinates', newCoordinates);
+                      }}
+                      keyboardType="decimal-pad"
+                    />
+                  </View>
+                  
+                  <View style={styles.coordinateInput}>
+                    <Text style={styles.coordinateLabel}>Latitude</Text>
+                    <TextInput
+                      style={styles.input}
+                      value={form.location.coordinates[1].toString()}
+                      onChangeText={(value) => {
+                        const newCoordinates = [...form.location.coordinates];
+                        newCoordinates[1] = parseFloat(value) || 0;
+                        handleLocationChange('coordinates', newCoordinates);
+                      }}
+                      keyboardType="decimal-pad"
+                    />
+                  </View>
+                </View>
+              </View>
+            </Card3D>
+            
+            <Card3D style={styles.card}>
+              <Text style={styles.sectionTitle}>Shipping & Payment Settings</Text>
+              
+              <View style={styles.formGroup}>
+                <Text style={styles.label}>Minimum Order Amount (₹)</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Enter minimum order amount"
+                  value={form.minimumOrderAmount}
+                  onChangeText={(value) => handleNumericInputChange('minimumOrderAmount', value)}
+                  keyboardType="decimal-pad"
+                />
+              </View>
+              
+              <View style={styles.formGroup}>
+                <Text style={styles.label}>Shipping Fee (₹)</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Enter shipping fee"
+                  value={form.shippingFee}
+                  onChangeText={(value) => handleNumericInputChange('shippingFee', value)}
+                  keyboardType="decimal-pad"
+                />
+              </View>
+              
+              <View style={styles.formGroup}>
+                <Text style={styles.label}>Free Shipping Threshold (₹)</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Enter free shipping threshold"
+                  value={form.freeShippingThreshold}
+                  onChangeText={(value) => handleNumericInputChange('freeShippingThreshold', value)}
+                  keyboardType="decimal-pad"
+                />
+                <Text style={styles.helperText}>
+                  Orders above this amount will have free shipping
+                </Text>
+              </View>
+              
+              <View style={styles.formGroup}>
+                <Text style={styles.label}>Tax Rate (%)</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Enter tax rate"
+                  value={form.taxRate}
+                  onChangeText={(value) => handleNumericInputChange('taxRate', value)}
+                  keyboardType="decimal-pad"
+                />
+              </View>
+            </Card3D>
+            
+            <TouchableOpacity 
+              style={[styles.saveButton, saving && styles.disabledButton]}
+              onPress={handleSave}
+              disabled={saving}
+            >
+              {saving ? (
+                <ActivityIndicator size="small" color={theme.colors.white} />
+              ) : (
+                <Text style={styles.saveButtonText}>
+                  {shopId ? "Update Shop" : "Create Shop"}
+                </Text>
+              )}
+            </TouchableOpacity>
+          </>
+        )}
       </ScrollView>
     </View>
   );
@@ -534,7 +633,7 @@ const styles = StyleSheet.create({
     padding: theme.spacing.md,
     paddingBottom: theme.spacing.xl * 2,
   },
-  section: {
+  card: {
     marginHorizontal: theme.spacing.md,
     marginVertical: theme.spacing.sm,
     padding: theme.spacing.lg,
@@ -545,7 +644,7 @@ const styles = StyleSheet.create({
     marginBottom: theme.spacing.md,
     color: theme.colors.dark,
   },
-  inputGroup: {
+  formGroup: {
     marginBottom: theme.spacing.md,
   },
   label: {
@@ -561,38 +660,27 @@ const styles = StyleSheet.create({
     fontSize: 16,
     backgroundColor: theme.colors.white,
   },
-  textArea: {
+  textarea: {
     minHeight: 100,
     textAlignVertical: 'top',
   },
-  imageContainer: {
+  imagePickerButton: {
+    backgroundColor: theme.colors.primary,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
     alignItems: 'center',
-    marginBottom: theme.spacing.md,
-    position: 'relative',
-  },
-  imagePlaceholder: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: theme.colors.lightGray,
     justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: theme.spacing.md,
   },
-  image: {
+  imagePickerButtonText: {
+    color: theme.colors.white,
+    fontWeight: '600',
+  },
+  previewImage: {
     width: 120,
     height: 120,
     borderRadius: 60,
-    marginBottom: theme.spacing.sm,
-  },
-  removeImageButton: {
-    position: 'absolute',
-    top: 0,
-    right: 0,
-    padding: theme.spacing.xs,
-  },
-  imageSection: {
-    marginBottom: theme.spacing.lg,
+    marginTop: theme.spacing.md,
   },
   switchContainer: {
     flexDirection: 'row',
@@ -600,8 +688,38 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: theme.spacing.md,
   },
-  formGroup: {
-    marginBottom: theme.spacing.md,
+  helperText: {
+    fontSize: 14,
+    color: theme.colors.gray,
+  },
+  locationButton: {
+    backgroundColor: theme.colors.primary,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginVertical: 12,
+  },
+  locationButtonText: {
+    color: theme.colors.white,
+    fontWeight: '600',
+    marginLeft: 8,
+  },
+  coordinatesContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 8,
+  },
+  coordinateInput: {
+    width: '48%',
+  },
+  coordinateLabel: {
+    fontWeight: '500',
+    fontSize: 14,
+    marginBottom: 4,
+    color: theme.colors.text,
   },
   saveButton: {
     backgroundColor: theme.colors.primary,
@@ -613,11 +731,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  disabledButton: {
+    backgroundColor: theme.colors.gray,
+    opacity: 0.7,
+  },
   saveButtonText: {
     color: theme.colors.white,
     fontSize: 16,
     fontWeight: 'bold',
-    marginLeft: theme.spacing.xs,
   },
 });
 

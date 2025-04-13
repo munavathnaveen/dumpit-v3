@@ -108,6 +108,23 @@ const ProductSchema = new mongoose.Schema(
 // Index for search
 ProductSchema.index({name: 'text', description: 'text', category: 'text', type: 'text'})
 
+// Add additional indexes for common query patterns
+ProductSchema.index({ shop: 1 })
+ProductSchema.index({ vendor: 1 })
+ProductSchema.index({ category: 1 })
+ProductSchema.index({ type: 1 })
+ProductSchema.index({ featured: 1 })
+ProductSchema.index({ price: 1 })
+ProductSchema.index({ stock: 1 })
+ProductSchema.index({ isActive: 1 })
+ProductSchema.index({ createdAt: -1 })
+ProductSchema.index({ rating: -1 })
+// Compound indexes for common filter combinations
+ProductSchema.index({ shop: 1, category: 1 })
+ProductSchema.index({ shop: 1, isActive: 1 })
+ProductSchema.index({ category: 1, isActive: 1 })
+ProductSchema.index({ shop: 1, featured: 1, isActive: 1 })
+
 // Calculate discounted price
 ProductSchema.virtual('discountedPrice').get(function () {
   return this.rate - this.rate * (this.discount / 100)

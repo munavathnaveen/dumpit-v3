@@ -123,6 +123,22 @@ ShopSchema.index({location: '2dsphere'})
 // Index for search
 ShopSchema.index({name: 'text', description: 'text'})
 
+// Add additional indexes for common query patterns
+ShopSchema.index({ owner: 1 })
+ShopSchema.index({ isActive: 1 })
+ShopSchema.index({ isOpen: 1 })
+ShopSchema.index({ 'address.state': 1 })
+ShopSchema.index({ 'address.district': 1 })
+ShopSchema.index({ 'address.pincode': 1 })
+ShopSchema.index({ createdAt: -1 })
+ShopSchema.index({ rating: -1 })
+ShopSchema.index({ categories: 1 })
+// Compound indexes for common filter combinations
+ShopSchema.index({ isActive: 1, isOpen: 1 })
+ShopSchema.index({ isActive: 1, rating: -1 })
+ShopSchema.index({ categories: 1, isActive: 1 })
+ShopSchema.index({ 'address.district': 1, isActive: 1 })
+
 // Virtual field for products in this shop
 ShopSchema.virtual('products', {
   ref: 'Product',

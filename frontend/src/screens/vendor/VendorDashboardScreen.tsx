@@ -5,7 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSelector, useDispatch } from 'react-redux';
 
 import Card3D from '../../components/Card3D';
-import ScreenHeader from '../../components/ScreenHeader';
+import VendorLocationHeader from '../../components/VendorLocationHeader';
 import { theme } from '../../theme';
 import { fetchAnalytics, Analytics } from '../../api/analyticsApi';
 import { RootState } from '../../store';
@@ -85,7 +85,7 @@ const VendorDashboardScreen: React.FC = () => {
   if (loading) {
     return (
       <View style={styles.container}>
-        <ScreenHeader 
+        <VendorLocationHeader 
           title="Dashboard" 
           showBackButton={false} 
           onNotificationPress={handleNotificationPress}
@@ -100,7 +100,7 @@ const VendorDashboardScreen: React.FC = () => {
   if (error) {
     return (
       <View style={styles.container}>
-        <ScreenHeader 
+        <VendorLocationHeader 
           title="Dashboard" 
           showBackButton={false} 
           onNotificationPress={handleNotificationPress}
@@ -120,7 +120,7 @@ const VendorDashboardScreen: React.FC = () => {
 
   return (
     <View style={styles.container}>
-      <ScreenHeader 
+      <VendorLocationHeader 
         title="Dashboard" 
         showBackButton={false} 
         onNotificationPress={handleNotificationPress}
