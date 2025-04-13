@@ -2,9 +2,10 @@ import io from 'socket.io-client';
 import axios from 'axios';
 import { getAuthHeader } from '../utils/auth';
 import { LocationService, Coordinates, DirectionsResult } from './LocationService';
+import { API_URL } from '../utils/config';
 
-// Get API_URL from environment or use default
-const API_URL = process.env.API_URL || 'http://localhost:5000/api/v1';
+// Get API_URL from our config file
+// const API_URL = process.env.API_URL || 'http://localhost:5000/api/v1';
 
 export type OrderStatus = 'pending' | 'processing' | 'shipped' | 'delivered' | 'cancelled';
 export type TrackingStatus = 'preparing' | 'ready_for_pickup' | 'in_transit' | 'delivered';

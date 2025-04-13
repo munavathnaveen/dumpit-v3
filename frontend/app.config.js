@@ -1,4 +1,3 @@
-const dotenv = require('react-native-dotenv');
 const appJson = require('./_app.json');
 const appConfig = appJson.expo;
 
@@ -7,7 +6,7 @@ module.exports = {
   name: "Dumpit",
   slug: "dumpit",
   orientation: "portrait",
-  icon: "./assets/icon.png",
+  icon: "./assets/logo.png",
   userInterfaceStyle: "light",
   newArchEnabled: true,
   splash: {
@@ -23,7 +22,7 @@ module.exports = {
     ...appConfig.ios,
     supportsTablet: true,
     config: {
-      googleMapsApiKey: process.env.GOOGLE_MAPS_API_KEY,
+      googleMapsApiKey: process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY,
     }
   },
   android: {
@@ -35,7 +34,7 @@ module.exports = {
     },
     config: {
       googleMaps: {
-        apiKey: process.env.GOOGLE_MAPS_API_KEY
+        apiKey: process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY
       }
     }
   },
@@ -43,7 +42,7 @@ module.exports = {
     favicon: "./assets/favicon.png"
   },
   extra: {
-    googleMapsApiKey: process.env.GOOGLE_MAPS_API_KEY,
+    googleMapsApiKey: process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY,
     eas: {
       projectId: "0866d496-cd11-4928-87e5-ea9f960ed725"
     }

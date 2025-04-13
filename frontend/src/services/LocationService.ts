@@ -2,11 +2,7 @@ import axios from 'axios';
 import * as Location from 'expo-location';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getAuthHeader } from '../utils/auth';
-
-// Get API_URL from environment or use default
-const API_URL = process.env.API_URL || 'http://localhost:5000/api/v1';
-// Get Google Maps API key from environment
-const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY || '';
+import { API_URL, GOOGLE_MAPS_API_KEY } from '../utils/config';
 
 export interface Coordinates {
   latitude: number;

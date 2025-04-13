@@ -1,4 +1,4 @@
-import { API_URL as ENV_API_URL, NODE_ENV } from '@env';
+import Constants from 'expo-constants';
 
 interface Config {
   apiUrl: string;
@@ -13,28 +13,24 @@ const defaultConfig: Config = {
   googleMapsApiKey: '',
 };
 
-// Function to load environment variables from .env through react-native-dotenv
+// Function to load environment variables from Expo Constants
 const loadEnvVariables = (): Config => {
   const envConfig: Partial<Config> = {};
   
-  // Use environment variables from .env file through @env
-  if (ENV_API_URL) {
-    envConfig.apiUrl = ENV_API_URL;
+  // Get values from Expo Constants
+  const expoConstants = Constants.expoConfig?.extra;
+  
+  if (Constants.expoConfig?.extra?.apiUrl || process.env.EXPO_PUBLIC_API_URL) {
+    envConfig.apiUrl = Constants.expoConfig?.extra?.apiUrl || process.env.EXPO_PUBLIC_API_URL || '';
   }
   
-  if (NODE_ENV) {
-    envConfig.environment = NODE_ENV;
+  if (process.env.EXPO_PUBLIC_NODE_ENV) {
+    envConfig.environment = process.env.EXPO_PUBLIC_NODE_ENV;
   }
   
-  try {
-    // Attempt to load GOOGLE_MAPS_API_KEY from process.env
-    // This approach handles the case where it might not be available from @env directly
-    const googleMapsApiKey = process.env.GOOGLE_MAPS_API_KEY;
-    if (googleMapsApiKey) {
-      envConfig.googleMapsApiKey = googleMapsApiKey;
-    }
-  } catch (error) {
-    console.warn('Could not load Google Maps API key from environment variables');
+  // Get Google Maps API key from Constants
+  if (Constants.expoConfig?.extra?.googleMapsApiKey || process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY) {
+    envConfig.googleMapsApiKey = Constants.expoConfig?.extra?.googleMapsApiKey || process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || '';
   }
   
   // Return merged config with defaults

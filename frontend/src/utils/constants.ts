@@ -1,5 +1,7 @@
-// API URL - Using the environment variable for base URL
-export const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
+import Constants from 'expo-constants';
+
+// API URL - Using the environment variable from Expo Constants
+export const API_URL = Constants.expoConfig?.extra?.apiUrl || 'http://localhost:5000/api/v1';
 
 // User roles
 export const USER_ROLES = {
