@@ -62,7 +62,7 @@ exports.getProducts = async (req, res, next) => {
     // Populate
     query = query.populate([
       {path: 'vendor', select: 'name'},
-      {path: 'shop', select: 'name'},
+      {path: 'shop', select: 'name location address'},
     ])
 
     // Executing query
@@ -103,7 +103,7 @@ exports.getProduct = async (req, res, next) => {
   try {
     const product = await Product.findById(req.params.id).populate([
       {path: 'vendor', select: 'name'},
-      {path: 'shop', select: 'name'},
+      {path: 'shop', select: 'name location address'},
       {path: 'reviews.user', select: 'name avatar_url'},
     ])
 
@@ -313,7 +313,7 @@ exports.searchProducts = async (req, res, next) => {
       ]
     }).populate([
       {path: 'vendor', select: 'name'},
-      {path: 'shop', select: 'name'},
+      {path: 'shop', select: 'name location address'},
     ])
 
     res.status(200).json({
@@ -334,7 +334,7 @@ exports.getVendorProducts = async (req, res, next) => {
     // Get products for the logged in vendor
     const products = await Product.find({ vendor: req.user.id })
       .populate([
-        {path: 'shop', select: 'name'},
+        {path: 'shop', select: 'name location address'},
       ])
       .sort('-createdAt')
 

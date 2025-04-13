@@ -873,6 +873,37 @@ exports.getOrderTracking = async (req, res, next) => {
       index === self.findIndex(s => s.shopId.toString() === shop.shopId.toString())
     );
 
+    // Calculate straight-line distance from current location to destination
+    let straightLineDistance = null;
+    if (order.tracking?.currentLocation?.coordinates && 
+        order.shippingAddress?.location?.coordinates) {
+      // Get coordinates
+      const currentLng = order.tracking.currentLocation.coordinates[0];
+      const currentLat = order.tracking.currentLocation.coordinates[1];
+      const destLng = order.shippingAddress.location.coordinates[0]; 
+      const destLat = order.shippingAddress.location.coordinates[1];
+      
+      // Earth's radius in meters
+      const R = 6371000;
+      
+      // Convert to radians
+      const lat1 = currentLat * Math.PI / 180;
+      const lat2 = destLat * Math.PI / 180;
+      const lng1 = currentLng * Math.PI / 180;
+      const lng2 = destLng * Math.PI / 180;
+      
+      // Calculate differences
+      const dLat = lat2 - lat1;
+      const dLng = lng2 - lng1;
+      
+      // Haversine formula
+      const a = Math.sin(dLat/2) * Math.sin(dLat/2) + 
+                Math.cos(lat1) * Math.cos(lat2) * 
+                Math.sin(dLng/2) * Math.sin(dLng/2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+      straightLineDistance = Math.round(R * c);
+    }
+
     res.status(200).json({
       success: true,
       data: {
@@ -881,7 +912,8 @@ exports.getOrderTracking = async (req, res, next) => {
         trackingStatus: order.tracking.status,
         currentLocation: order.tracking.currentLocation,
         eta: order.tracking.eta,
-        distance: order.tracking.distance,
+        distance: order.tracking.distance || straightLineDistance, // Use calculated distance as fallback
+        straightLineDistance, // Add straight-line distance for client calculation
         route: order.tracking.route,
         lastUpdated: order.tracking.lastUpdated,
         shippingAddress: order.shippingAddress,

@@ -376,10 +376,51 @@ exports.getNearbyShops = async (req, res, next) => {
     .populate('owner', 'name')
     .select('name description address location rating images categories isOpen')
     .limit(10);
+    
+    // Calculate and add distance information to each shop
+    const shopsWithDistance = shops.map(shop => {
+      // Skip shops without valid location data
+      if (!shop.location || !shop.location.coordinates || shop.location.coordinates.length !== 2) {
+        return shop;
+      }
+      
+      // Calculate distance using Haversine formula
+      const shopLng = shop.location.coordinates[0];
+      const shopLat = shop.location.coordinates[1];
+      
+      // Earth's radius in meters
+      const R = 6371000;
+      
+      // Convert to radians
+      const lat1 = latitude * Math.PI / 180;
+      const lat2 = shopLat * Math.PI / 180;
+      const lng1 = longitude * Math.PI / 180;
+      const lng2 = shopLng * Math.PI / 180;
+      
+      // Calculate differences
+      const dLat = lat2 - lat1;
+      const dLng = lng2 - lng1;
+      
+      // Haversine formula
+      const a = Math.sin(dLat/2) * Math.sin(dLat/2) + 
+                Math.cos(lat1) * Math.cos(lat2) * 
+                Math.sin(dLng/2) * Math.sin(dLng/2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+      const distanceInMeters = R * c;
+      
+      // Convert shop to plain object if it's a Mongoose document
+      const shopObj = shop.toObject ? shop.toObject() : { ...shop };
+      
+      // Add the distance field
+      shopObj.distance = Math.round(distanceInMeters);
+      
+      return shopObj;
+    });
+    
     res.status(200).json({
       success: true,
       count: shops.length,
-      data: shops,
+      data: shopsWithDistance,
     });
   } catch (err) {
     console.error('Error in getNearbyShops:', err);
