@@ -18,7 +18,6 @@ import debounce from 'lodash.debounce';
 
 import Card3D from '../../components/Card3D';
 import ScreenHeader from '../../components/ScreenHeader';
-import VendorLocationHeader from '../../components/VendorLocationHeader';
 import { theme } from '../../theme';
 import { MainStackNavigationProp } from '../../navigation/types';
 import { RootState } from '../../store';
@@ -251,9 +250,9 @@ const VendorProductsScreen: React.FC = () => {
 
   return (
     <View style={styles.container}>
-      <VendorLocationHeader 
+      <ScreenHeader 
         title="Products" 
-        showBackButton={false} 
+        showBackButton={true} 
         rightIcon="add-circle-outline"
         onRightPress={() => navigation.navigate('VendorAddProduct')}
       />

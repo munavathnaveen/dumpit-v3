@@ -318,25 +318,6 @@ const VendorAddProductScreen: React.FC = () => {
           {/* Product Image */}
           <View style={styles.formGroup}>
             <Text style={styles.label}>Product Image (Optional)</Text>
-            <View style={styles.imageSection}>
-              {formData.image ? (
-                <View style={styles.imagePreviewContainer}>
-                  <Image source={{ uri: formData.image }} style={styles.imagePreview} />
-                  <TouchableOpacity
-                    style={styles.removeImageButton}
-                    onPress={handleRemoveImage}
-                  >
-                    <Ionicons name="close-circle" size={20} color={theme.colors.error} />
-                  </TouchableOpacity>
-                </View>
-              ) : (
-                <View style={styles.placeholderContainer}>
-                  <Ionicons name="image-outline" size={40} color={theme.colors.gray} />
-                  <Text style={styles.placeholderText}>No Image</Text>
-                </View>
-              )}
-            </View>
-            
             <View style={styles.formGroup}>
               <Text style={styles.label}>Image URL</Text>
               <TextInput

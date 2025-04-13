@@ -11,6 +11,7 @@ export interface ScreenHeaderProps {
   rightIcon?: string;
   onRightPress?: () => void;
   customLocation?: ReactNode;
+  showLocation?: boolean;
 }
 
 const ScreenHeader: React.FC<ScreenHeaderProps> = ({
@@ -20,6 +21,7 @@ const ScreenHeader: React.FC<ScreenHeaderProps> = ({
   rightIcon,
   onRightPress,
   customLocation,
+  showLocation = false,
 }) => {
   return (
     <View style={styles.container}>
@@ -28,6 +30,7 @@ const ScreenHeader: React.FC<ScreenHeaderProps> = ({
         showBackButton={showBackButton}
         onNotificationPress={onNotificationPress}
         customLocation={customLocation}
+        showLocation={showLocation}
         rightComponent={
           rightIcon && onRightPress ? (
             <TouchableOpacity onPress={onRightPress} style={styles.rightButton}>

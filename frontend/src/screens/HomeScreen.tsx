@@ -555,6 +555,7 @@ const HomeScreen: React.FC = () => {
         location={location}
         onProfilePress={handleProfilePress}
         onNotificationPress={handleNotificationPress}
+        showLocation={true}
       />
       
       <ScrollView

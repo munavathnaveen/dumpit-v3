@@ -201,6 +201,7 @@ const VendorLocationHeader: React.FC<VendorLocationHeaderProps> = ({
       rightIcon={rightIcon}
       onRightPress={onRightPress}
       customLocation={customLocation}
+      showLocation={true}
     />
   );
 };

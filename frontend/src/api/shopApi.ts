@@ -156,4 +156,15 @@ export const uploadShopImage = async (shopId: string, imageUrl: string): Promise
 }> => {
   const response = await apiClient.put(`/shops/${shopId}/image`, { image: imageUrl });
   return response.data;
+};
+
+// Review related functions
+export interface ShopReview {
+  rating: number;
+  text: string;
+}
+
+export const addShopReview = async (shopId: string, reviewData: ShopReview): Promise<SingleShopResponse> => {
+  const response = await apiClient.post(`/shops/${shopId}/reviews`, reviewData);
+  return response.data;
 }; 

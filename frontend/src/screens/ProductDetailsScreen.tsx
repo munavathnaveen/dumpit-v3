@@ -9,6 +9,8 @@ import {
   ActivityIndicator,
   Dimensions,
   RefreshControl,
+  TextInput,
+  Alert,
 } from 'react-native';
 import { FontAwesome } from '@expo/vector-icons';
 import { useSelector, useDispatch } from 'react-redux';
@@ -19,6 +21,7 @@ import { getProduct } from '../store/productSlice';
 import { addToCart } from '../store/cartSlice';
 import { useNavigation, useRoute } from '../navigation/hooks';
 import Card3D from '../components/Card3D';
+import * as productApi from '../api/productApi';
 
 const { width } = Dimensions.get('window');
 
@@ -30,6 +33,10 @@ const ProductDetailsScreen: React.FC = () => {
   const { productId } = route.params;
   const [quantity, setQuantity] = useState(1);
   const [refreshing, setRefreshing] = useState(false);
+  const [showReviewForm, setShowReviewForm] = useState(false);
+  const [reviewText, setReviewText] = useState('');
+  const [reviewRating, setReviewRating] = useState(5);
+  const [submittingReview, setSubmittingReview] = useState(false);
   
   const { product, loading, error } = useSelector((state: RootState) => state.product);
   
@@ -59,6 +66,56 @@ const ProductDetailsScreen: React.FC = () => {
   
   const handleGoBack = () => {
     navigation.goBack();
+  };
+  
+  const handleSubmitReview = async () => {
+    if (!product) return;
+    
+    if (!reviewText.trim()) {
+      Alert.alert('Review Required', 'Please enter review text');
+      return;
+    }
+    
+    try {
+      setSubmittingReview(true);
+      await productApi.addProductReview(productId, {
+        rating: reviewRating,
+        text: reviewText
+      });
+      
+      // Refresh product data to show the new review
+      dispatch(getProduct(productId));
+      setShowReviewForm(false);
+      setReviewText('');
+      setReviewRating(5);
+      Alert.alert('Success', 'Your review has been submitted!');
+    } catch (error) {
+      console.error('Failed to submit review:', error);
+      Alert.alert('Error', 'Failed to submit review. Please try again later.');
+    } finally {
+      setSubmittingReview(false);
+    }
+  };
+  
+  const renderStarRating = (rating: number, size: number, interactive: boolean = false) => {
+    return (
+      <View style={{ flexDirection: 'row' }}>
+        {[1, 2, 3, 4, 5].map((star) => (
+          <TouchableOpacity 
+            key={star} 
+            onPress={() => interactive && setReviewRating(star)}
+            disabled={!interactive}
+          >
+            <FontAwesome
+              name={star <= rating ? 'star' : 'star-o'}
+              size={size}
+              color={star <= rating ? '#FFD700' : theme.colors.textLight}
+              style={{ marginRight: 2 }}
+            />
+          </TouchableOpacity>
+        ))}
+      </View>
+    );
   };
   
   if (loading) {
@@ -191,6 +248,7 @@ const ProductDetailsScreen: React.FC = () => {
                   </Text>
                 </View>
               ))}
+              
               {product.reviews.length > 3 && (
                 <TouchableOpacity style={styles.moreReviewsButton}>
                   <Text style={styles.moreReviewsText}>
@@ -198,11 +256,69 @@ const ProductDetailsScreen: React.FC = () => {
                   </Text>
                 </TouchableOpacity>
               )}
-              <View style={styles.divider} />
             </>
+          )}
+          
+          {!showReviewForm ? (
+            <TouchableOpacity 
+              style={styles.addReviewButton}
+              onPress={() => setShowReviewForm(true)}
+            >
+              <Text style={styles.addReviewText}>Add Review</Text>
+            </TouchableOpacity>
+          ) : (
+            <Card3D style={styles.reviewFormContainer} elevation="medium">
+              <Text style={styles.reviewFormTitle}>Write a Review</Text>
+              
+              <Text style={styles.ratingLabel}>Rating:</Text>
+              <View style={styles.ratingSelector}>
+                {renderStarRating(reviewRating, 24, true)}
+              </View>
+              
+              <TextInput
+                style={styles.reviewInput}
+                placeholder="Write your review here..."
+                value={reviewText}
+                onChangeText={setReviewText}
+                multiline
+                numberOfLines={4}
+                maxLength={200}
+              />
+              
+              <View style={styles.reviewFormButtons}>
+                <TouchableOpacity 
+                  style={[styles.reviewButton, styles.cancelButton]}
+                  onPress={() => {
+                    setShowReviewForm(false);
+                    setReviewText('');
+                    setReviewRating(5);
+                  }}
+                >
+                  <Text style={styles.cancelButtonText}>Cancel</Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity 
+                  style={[
+                    styles.reviewButton, 
+                    styles.submitButton,
+                    submittingReview && styles.disabledButton
+                  ]}
+                  onPress={handleSubmitReview}
+                  disabled={submittingReview}
+                >
+                  {submittingReview ? (
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                  ) : (
+                    <Text style={styles.submitButtonText}>Submit</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </Card3D>
           )}
         </View>
       </ScrollView>
+      
+      <View style={styles.divider} />
       
       <View style={styles.footer}>
         <View style={styles.quantityContainer}>
@@ -524,6 +640,77 @@ const styles = StyleSheet.create({
     color: theme.colors.white,
     marginLeft: 8,
     fontSize: 16,
+    fontWeight: 'bold',
+  },
+  addReviewButton: {
+    backgroundColor: theme.colors.primary,
+    padding: 12,
+    borderRadius: 8,
+    marginHorizontal: 16,
+    marginTop: 16,
+    alignItems: 'center',
+  },
+  addReviewText: {
+    color: theme.colors.white,
+    fontWeight: 'bold',
+    fontSize: 16,
+  },
+  reviewFormContainer: {
+    backgroundColor: theme.colors.cardBg,
+    borderRadius: 8,
+    padding: 16,
+    marginHorizontal: 16,
+    marginTop: 16,
+  },
+  reviewFormTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: theme.colors.text,
+    marginBottom: 12,
+  },
+  ratingLabel: {
+    fontSize: 16,
+    color: theme.colors.text,
+    marginBottom: 8,
+  },
+  ratingSelector: {
+    flexDirection: 'row',
+    marginBottom: 16,
+  },
+  reviewInput: {
+    backgroundColor: theme.colors.background,
+    borderRadius: 8,
+    padding: 12,
+    minHeight: 100,
+    textAlignVertical: 'top',
+    marginBottom: 16,
+    borderColor: theme.colors.border,
+    borderWidth: 1,
+  },
+  reviewFormButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  reviewButton: {
+    padding: 12,
+    borderRadius: 8,
+    flex: 1,
+    alignItems: 'center',
+  },
+  cancelButton: {
+    backgroundColor: theme.colors.lightGray,
+    marginRight: 8,
+  },
+  cancelButtonText: {
+    color: theme.colors.text,
+    fontWeight: 'bold',
+  },
+  submitButton: {
+    backgroundColor: theme.colors.primary,
+    marginLeft: 8,
+  },
+  submitButtonText: {
+    color: theme.colors.white,
     fontWeight: 'bold',
   },
 });

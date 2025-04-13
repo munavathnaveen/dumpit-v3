@@ -373,16 +373,6 @@ const VendorShopSetupScreen: React.FC = () => {
                   value={form.image}
                   onChangeText={handleImageUrlChange}
                 />
-                <TouchableOpacity 
-                  style={styles.imagePickerButton} 
-                  onPress={() => {}}
-                >
-                  <Text style={styles.imagePickerButtonText}>Choose Image</Text>
-                </TouchableOpacity>
-                
-                {form.image ? (
-                  <Image source={{ uri: form.image }} style={styles.previewImage} />
-                ) : null}
               </View>
               
               <View style={styles.formGroup}>

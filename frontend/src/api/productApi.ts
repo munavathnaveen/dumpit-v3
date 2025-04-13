@@ -106,4 +106,15 @@ export const getProductTypes = async (): Promise<{success: boolean, count: numbe
 export const getShops = async (): Promise<{success: boolean, count: number, data: { _id: string, name: string }[]}> => {
   const response = await apiClient.get('/shops?select=name');
   return response.data;
+};
+
+// Review related functions
+export interface ProductReview {
+  rating: number;
+  text: string;
+}
+
+export const addProductReview = async (productId: string, reviewData: ProductReview): Promise<SingleProductResponse> => {
+  const response = await apiClient.post(`/products/${productId}/reviews`, reviewData);
+  return response.data;
 }; 

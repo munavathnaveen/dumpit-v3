@@ -21,7 +21,6 @@ import { MainStackNavigationProp, MainStackParamList } from '../../navigation/ty
 import { getProduct, updateProduct, uploadProductImage, ProductFormData } from '../../api/productApi';
 import Card3D from '../../components/Card3D';
 import ScreenHeader from '../../components/ScreenHeader';
-import Button from '../../components/Button';
 import alert from '../../utils/alert';
 
 type EditProductRouteProp = RouteProp<MainStackParamList, 'VendorEditProduct'>;
@@ -398,18 +397,6 @@ const VendorEditProductScreen: React.FC = () => {
         {/* Product Image */}
         <Card3D style={styles.formCard} elevation="medium">
           <Text style={styles.sectionTitle}>Product Image</Text>
-          
-          {formData.image && (
-            <View style={styles.imageContainer}>
-              <Image source={{ uri: formData.image }} style={styles.productImage} />
-              <TouchableOpacity 
-                style={styles.removeImageButton}
-                onPress={handleRemoveImage}
-              >
-                <Ionicons name="close-circle" size={24} color={theme.colors.error} />
-              </TouchableOpacity>
-            </View>
-          )}
 
           <View style={styles.formField}>
             <Text style={styles.label}>Image URL (Optional)</Text>

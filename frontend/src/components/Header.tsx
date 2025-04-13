@@ -17,6 +17,7 @@ export interface HeaderProps {
   rightComponent?: ReactNode;
   onLogoPress?: () => void;
   customLocation?: ReactNode;
+  showLocation?: boolean;
 }
 
 const Header: React.FC<HeaderProps> = ({
@@ -28,6 +29,7 @@ const Header: React.FC<HeaderProps> = ({
   rightComponent,
   onLogoPress,
   customLocation,
+  showLocation = false,
 }) => {
   const navigation = useNavigation();
   const dispatch = useDispatch<AppDispatch>();
@@ -84,15 +86,17 @@ const Header: React.FC<HeaderProps> = ({
           >
             <Feather name="arrow-left" size={24} color={theme.colors.primary} />
           </TouchableOpacity>
-        ) : customLocation ? (
+        ) : showLocation && customLocation ? (
           customLocation
-        ) : (
+        ) : showLocation ? (
           <View style={styles.locationContainer}>
             <Feather name="map-pin" size={18} color={theme.colors.primary} style={styles.locationIcon} />
-            <Text style={styles.locationText} numberOfLines={1}>
+            <Text style={styles.locationText} ellipsizeMode="tail" numberOfLines={1}>
               {location}
             </Text>
           </View>
+        ) : (
+          <View />
         )}
       </View>
 
@@ -147,6 +151,7 @@ const styles = StyleSheet.create({
   },
   leftContainer: {
     flex: 1,
+    maxWidth: '30%',
   },
   backButton: {
     padding: theme.spacing.xs,
@@ -161,11 +166,13 @@ const styles = StyleSheet.create({
   locationText: {
     fontSize: 14,
     color: theme.colors.dark,
-    maxWidth: 150,
+    maxWidth: 120,
   },
   logoContainer: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    flex: 1,
   },
   logoImage: {
     marginRight: theme.spacing.xs,
