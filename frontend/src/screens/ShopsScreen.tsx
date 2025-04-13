@@ -39,6 +39,7 @@ type ShopAddress = string | {
 type Shop = Omit<ApiShop, 'logo'> & {
   logo?: string;
   image?: string;
+  distance?: number | string;
 };
 
 type ShopFilters = {
@@ -133,7 +134,12 @@ const ShopsScreen: React.FC = () => {
 
   useEffect(() => {
     const calculateDistances = async () => {
-      if (!userLocation || !filteredShops.length) return;
+      if (!userLocation || !filteredShops.length) {
+        console.log("Missing user location or no shops - cannot calculate distances");
+        return;
+      }
+      
+      console.log("Calculating distances for", filteredShops.length, "shops");
       
       // Extract shops with valid location data
       const shopsWithLocation = filteredShops.filter(shop => 
@@ -142,7 +148,12 @@ const ShopsScreen: React.FC = () => {
         shop.location.coordinates.length === 2
       );
       
-      if (!shopsWithLocation.length) return;
+      if (!shopsWithLocation.length) {
+        console.log("No shops with valid coordinates found");
+        return;
+      }
+      
+      console.log("Found", shopsWithLocation.length, "shops with valid coordinates");
       
       try {
         // Calculate distances in batches to avoid API limits
@@ -157,25 +168,41 @@ const ShopsScreen: React.FC = () => {
             longitude: shop.location.coordinates[0]
           }));
           
-          const distanceMatrix = await LocationService.getDistanceMatrix(
-            userLocation,
-            destinations
-          );
+          console.log(`Calculating distances for batch ${i/batchSize + 1} (${batch.length} shops)`);
           
-          if (distanceMatrix?.rows?.[0]?.elements) {
-            batch.forEach((shop, index) => {
-              const element = distanceMatrix.rows[0].elements[index];
-              if (element?.distance?.text) {
-                distances[shop._id] = element.distance.text;
-              }
-            });
+          try {
+            const distanceMatrix = await LocationService.getDistanceMatrix(
+              userLocation,
+              destinations
+            );
+            
+            if (distanceMatrix?.rows?.[0]?.elements) {
+              batch.forEach((shop, index) => {
+                const element = distanceMatrix.rows[0].elements[index];
+                if (element?.status === 'OK' && element?.distance?.text) {
+                  distances[shop._id] = element.distance.text;
+                } else {
+                  console.log(`Distance calculation failed for shop ${shop.name} (${shop._id}): ${element?.status || 'Unknown error'}`);
+                }
+              });
+            } else {
+              console.log("Invalid distance matrix response structure:", 
+                distanceMatrix?.rows ? "Missing elements" : "Missing rows");
+            }
+          } catch (error) {
+            console.error('Error calculating distances for batch:', error);
           }
         }
         
-        console.log("Calculated distances for shops:", distances);
+        const distanceCount = Object.keys(distances).length;
+        console.log(`Successfully calculated distances for ${distanceCount}/${shopsWithLocation.length} shops:`, 
+          Object.entries(distances).slice(0, 5).map(([id, dist]) => `${id}: ${dist}`).join(', ') + 
+          (distanceCount > 5 ? '...' : '')
+        );
+        
         setShopDistances(distances);
       } catch (error) {
-        console.error('Error calculating distances:', error);
+        console.error('Error in distance calculation process:', error);
       }
     };
     
@@ -222,8 +249,10 @@ const ShopsScreen: React.FC = () => {
 
   const getUserLocation = async () => {
     try {
+      console.log("Requesting location permission...");
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
+        console.log("Location permission denied:", status);
         setLocationPermissionDenied(true);
         alert(
           'Permission Denied',
@@ -234,16 +263,37 @@ const ShopsScreen: React.FC = () => {
       }
 
       setLocationPermissionDenied(false);
+      console.log("Permission granted, getting current location...");
       
-      const location = await Location.getCurrentPositionAsync({});
-      
-      setUserLocation({
-        latitude: location.coords.latitude,
-        longitude: location.coords.longitude,
-      });
-      
-      console.log('Got user location:', location.coords.latitude, location.coords.longitude);
-      return location.coords;
+      // Try to get high accuracy location first
+      try {
+        const location = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.High
+        });
+        
+        console.log('Got high accuracy location:', location.coords.latitude, location.coords.longitude);
+        
+        setUserLocation({
+          latitude: location.coords.latitude,
+          longitude: location.coords.longitude,
+        });
+        
+        return location.coords;
+      } catch (highAccuracyError) {
+        console.warn("High accuracy location failed, falling back to low accuracy:", highAccuracyError);
+        
+        // Fallback to lower accuracy
+        const location = await Location.getCurrentPositionAsync({});
+        
+        console.log('Got standard accuracy location:', location.coords.latitude, location.coords.longitude);
+        
+        setUserLocation({
+          latitude: location.coords.latitude,
+          longitude: location.coords.longitude,
+        });
+        
+        return location.coords;
+      }
     } catch (error) {
       console.error('Error getting location:', error);
       setLocationPermissionDenied(true);
@@ -431,12 +481,16 @@ const ShopsScreen: React.FC = () => {
             {item.description}
           </Text>
           
-          {shopDistances[item._id] && (
+          {item.distance || shopDistances[item._id] ? (
             <View style={styles.distanceContainer}>
               <FontAwesome name="map-marker" size={14} color={theme.colors.primary} />
-              <Text style={styles.distanceText}>{shopDistances[item._id]} away</Text>
+              <Text style={styles.distanceText}>
+                {typeof item.distance === 'number' 
+                  ? LocationService.formatDistance(item.distance) 
+                  : item.distance || shopDistances[item._id]} away
+              </Text>
             </View>
-          )}
+          ) : null}
           
           {item.categories && item.categories.length > 0 && (
             <View style={styles.categoriesContainer}>

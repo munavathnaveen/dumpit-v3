@@ -163,7 +163,12 @@ const ProductsScreen: React.FC = () => {
   // Calculate distances to shops when products or user location change
   useEffect(() => {
     const calculateDistances = async () => {
-      if (!userLocation || filteredProducts.length === 0) return;
+      if (!userLocation || filteredProducts.length === 0) {
+        console.log("Missing user location or empty product list - cannot calculate distances");
+        return;
+      }
+      
+      console.log("Calculating distances for", filteredProducts.length, "products");
       
       // Extract unique shops from products
       const uniqueShops = new Map();
@@ -179,7 +184,12 @@ const ProductsScreen: React.FC = () => {
         }
       });
       
-      if (uniqueShops.size === 0) return;
+      if (uniqueShops.size === 0) {
+        console.log("No shops with valid coordinates found");
+        return;
+      }
+      
+      console.log("Found", uniqueShops.size, "unique shops with coordinates");
       
       // Convert shops to array for distance calculation
       const shopCoordinates = Array.from(uniqueShops.entries()).map(
@@ -202,17 +212,26 @@ const ProductsScreen: React.FC = () => {
           if (distanceMatrix?.rows?.[0]?.elements) {
             batch.forEach((shop, index) => {
               const element = distanceMatrix.rows[0].elements[index];
-              if (element?.distance?.text) {
+              if (element?.status === 'OK' && element?.distance?.text) {
                 distances[shop.id] = element.distance.text;
+              } else {
+                console.log(`Distance calculation failed for shop ${shop.id}: ${element?.status || 'Unknown error'}`);
               }
             });
+          } else {
+            console.log("Invalid distance matrix response:", distanceMatrix);
           }
         } catch (error) {
           console.error('Error calculating distances:', error);
         }
       }
       
-      console.log("Calculated distances for products:", distances);
+      const distanceCount = Object.keys(distances).length;
+      console.log(`Successfully calculated distances for ${distanceCount}/${uniqueShops.size} shops:`, 
+        Object.entries(distances).slice(0, 5).map(([id, dist]) => `${id}: ${dist}`).join(', ') + 
+        (distanceCount > 5 ? '...' : '')
+      );
+      
       setShopDistances(distances);
     };
     
@@ -287,16 +306,8 @@ const ProductsScreen: React.FC = () => {
         .map(([key, value]) => `${key}=${encodeURIComponent(value)}`)
         .join('&');
       
-      let response;
+      let response = await productApi.getProducts(queryString);
       
-      // If user location is available, use the location-aware endpoint
-      if (userLocation) {
-        console.log("Using location-aware product endpoint with location:", userLocation);
-        response = await productApi.getProductsWithDistance(userLocation, queryString);
-      } else {
-        // Otherwise use the regular endpoint
-        response = await productApi.getProducts(queryString);
-      }
       
       setFilteredProducts(response.data);
     } catch (error) {
@@ -368,15 +379,17 @@ const ProductsScreen: React.FC = () => {
             <Text style={styles.shopName} numberOfLines={1}>
               {item.shop.name}
             </Text>
-            {shopDistances[item.shop._id] && (
-              <View style={{flexDirection: 'row', alignItems: 'center'}}>
+            {item.shop.distance || shopDistances[item.shop._id] ? (
+              <View style={styles.distanceRow}>
                 <Text style={{color: theme.colors.gray}}>•</Text>
                 <FontAwesome name="map-marker" size={12} color={theme.colors.primary} style={{marginHorizontal: 2}} />
                 <Text style={styles.distanceText}>
-                  {shopDistances[item.shop._id]} away
+                  {typeof item.shop.distance === 'number' 
+                    ? LocationService.formatDistance(item.shop.distance)
+                    : item.shop.distance || shopDistances[item.shop._id]} away
                 </Text>
               </View>
-            )}
+            ) : null}
           </TouchableOpacity>
         )}
         
@@ -1100,6 +1113,10 @@ const styles = StyleSheet.create({
     color: theme.colors.gray,
     marginLeft: 4,
     marginRight: 2,
+  },
+  distanceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   distanceText: {
     fontSize: 12,

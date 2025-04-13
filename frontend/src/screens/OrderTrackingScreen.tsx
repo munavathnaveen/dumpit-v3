@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -33,21 +33,48 @@ const OrderTrackingScreen: React.FC = () => {
   const [eta, setEta] = useState<string | null>(null);
   const [distance, setDistance] = useState<string | null>(null);
   const [showDeliveryInfo, setShowDeliveryInfo] = useState(false);
+  const mapRef = useRef<MapView>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [lastUpdateTime, setLastUpdateTime] = useState<Date | null>(null);
+  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   
   useEffect(() => {
+    console.log("OrderTrackingScreen mounted with orderId:", orderId);
     loadTrackingData();
+    
+    // Set up polling as backup for socket updates (every 30 seconds)
+    pollingIntervalRef.current = setInterval(() => {
+      console.log("Polling for tracking updates...");
+      loadTrackingData();
+    }, 30000);
     
     // Subscribe to real-time updates
     const unsubscribe = OrderTrackingService.subscribeToOrderUpdates(
       orderId, 
       (data) => {
+        console.log("Received live tracking update:", 
+          data.tracking?.currentLocation ? 
+          `Position: ${data.tracking.currentLocation.coordinates.join(',')}` : 
+          "No location data"
+        );
         setTrackingData(data);
+        setLastUpdateTime(new Date());
         
         // If there's route information, decode and set it
         if (data.tracking?.route) {
           try {
             const decodedRoute = LocationService.decodePolyline(data.tracking.route);
             setRouteCoordinates(decodedRoute);
+            
+            // Center map on delivery vehicle when we get an update
+            if (data.tracking.currentLocation && mapRef.current) {
+              mapRef.current.animateToRegion({
+                latitude: data.tracking.currentLocation.coordinates[1],
+                longitude: data.tracking.currentLocation.coordinates[0],
+                latitudeDelta: 0.01,
+                longitudeDelta: 0.01
+              }, 1000);
+            }
           } catch (error) {
             console.error('Error decoding route:', error);
           }
@@ -67,16 +94,29 @@ const OrderTrackingScreen: React.FC = () => {
 
     return () => {
       unsubscribe();
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+      }
     };
   }, [orderId]);
   
   const loadTrackingData = async () => {
     try {
       setLoading(true);
+      setLoadError(null);
+      
+      console.log("Loading tracking data for order:", orderId);
       
       // Get order tracking data
       const data = await OrderTrackingService.getOrderTracking(orderId);
+      console.log("Received tracking data:", 
+        data.tracking?.currentLocation ? 
+        `Position: ${data.tracking.currentLocation.coordinates.join(',')}` : 
+        "No location data"
+      );
+      
       setTrackingData(data);
+      setLastUpdateTime(new Date());
       
       // If there's route information, decode and set it
       if (data.tracking?.route) {
@@ -103,16 +143,19 @@ const OrderTrackingScreen: React.FC = () => {
           data.shippingAddress?.location &&
           !data.tracking.route) {
         try {
+          console.log("Getting directions for order...");
           const directionsData = await OrderTrackingService.getOrderDirections(data);
           setRouteCoordinates(directionsData.route);
           setDistance(LocationService.formatDistance(directionsData.distance));
           setEta(OrderTrackingService.formatETA(directionsData.duration));
         } catch (error) {
           console.error('Error getting directions:', error);
+          setLoadError("Couldn't load route directions");
         }
       }
     } catch (error) {
       console.error('Error loading tracking data:', error);
+      setLoadError("Couldn't load tracking data. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -215,9 +258,22 @@ const OrderTrackingScreen: React.FC = () => {
         </TouchableOpacity>
       </View>
       
+      {loadError && (
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorText}>{loadError}</Text>
+        </View>
+      )}
+      
+      {lastUpdateTime && (
+        <Text style={styles.lastUpdateText}>
+          Last updated: {lastUpdateTime.toLocaleTimeString()}
+        </Text>
+      )}
+      
       {/* Main Map View */}
       <View style={styles.mapContainer}>
         <MapView
+          ref={mapRef}
           provider={PROVIDER_GOOGLE}
           style={styles.map}
           region={initialRegion}
@@ -615,6 +671,24 @@ const styles = StyleSheet.create({
     color: theme.colors.white,
     fontWeight: 'bold',
     fontSize: 16,
+  },
+  errorContainer: {
+    backgroundColor: `${theme.colors.error}20`,
+    padding: 8,
+    marginHorizontal: 16,
+    borderRadius: 8,
+    marginTop: 8,
+  },
+  errorText: {
+    color: theme.colors.error,
+    textAlign: 'center',
+    fontSize: 14,
+  },
+  lastUpdateText: {
+    fontSize: 12,
+    color: theme.colors.textLight,
+    textAlign: 'center',
+    marginTop: 4,
   }
 });
 
