@@ -3,6 +3,7 @@ import { StackNavigationProp } from '@react-navigation/stack';
 import { MutableRefObject } from 'react';
 import { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { OrderTrackingScreenParams } from '../services/OrderTrackingService';
 
 // Auth stack params
 export type AuthStackParamList = {
@@ -34,6 +35,7 @@ export type MainStackParamList = {
   Checkout: undefined;
   Orders: undefined;
   OrderDetails: { orderId: string };
+  OrderTracking: OrderTrackingScreenParams;
   Settings: undefined;
   ChangePassword: undefined;
   EditProfile: undefined;

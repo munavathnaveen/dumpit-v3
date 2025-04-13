@@ -86,9 +86,6 @@ exports.login = async (req, res, next) => {
     if (!user) {
       return next(new ErrorResponse("Invalid credentials", 401));
     }
-    if (user.role != role) {
-      return next(new ErrorResponse(`Please Login As ${user.role}`));
-    }
     // Check if password matches
     const isMatch = await user.matchPassword(password);
 

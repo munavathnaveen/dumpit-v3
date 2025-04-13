@@ -29,6 +29,8 @@ import ScreenHeader from '../components/ScreenHeader';
 import { useNavigation, useTabRoute } from '../navigation/hooks';
 import { BottomTabParamList } from '../navigation/types';
 import * as productApi from '../api/productApi';
+import { LocationService, Coordinates } from '../services/LocationService';
+import alert from '../utils/alert';
 
 const sortOptions = [
   { label: 'Price: Low to High', value: 'price' },
@@ -64,6 +66,8 @@ const ProductsScreen: React.FC = () => {
   const [loadingShops, setLoadingShops] = useState(false);
   const [shopId, setShopId] = useState<string | undefined>(route.params?.shopId);
   const [isSearching, setIsSearching] = useState(false);
+  const [userLocation, setUserLocation] = useState<Coordinates | null>(null);
+  const [shopDistances, setShopDistances] = useState<Record<string, string>>({});
 
   // Create a properly implemented debounced search function with 1-second delay
   const debouncedSearch = useCallback(
@@ -134,6 +138,84 @@ const ProductsScreen: React.FC = () => {
   useEffect(() => {
     loadProducts();
   }, [searchQuery, selectedCategory, selectedType, selectedShop, priceRange, sortBy, inStock, shopId]);
+
+  // Get user location and calculate distances to shops
+  useEffect(() => {
+    const getUserLocation = async () => {
+      try {
+        const location = await LocationService.getCurrentLocation();
+        setUserLocation(location);
+        try {
+          await LocationService.updateUserLocation(location);
+        } catch (error) {
+          // Silently fail if user is not logged in
+          console.log('Could not update user location in backend');
+        }
+      } catch (error) {
+        alert(`Error getting user location`);
+      }
+    };
+    
+    getUserLocation();
+  }, []);
+  
+  // Calculate distances to shops when products or user location change
+  useEffect(() => {
+    const calculateDistances = async () => {
+      if (!userLocation || products.length === 0) return;
+      
+      // Extract unique shops from products
+      const uniqueShops = new Map();
+      products.forEach(product => {
+        if (product.shop && product.shop._id && 
+            product.shop.location && 
+            product.shop.location.coordinates && 
+            product.shop.location.coordinates.length === 2) {
+          uniqueShops.set(product.shop._id, {
+            latitude: product.shop.location.coordinates[1],
+            longitude: product.shop.location.coordinates[0]
+          });
+        }
+      });
+      
+      if (uniqueShops.size === 0) return;
+      
+      // Convert shops to array for distance calculation
+      const shopCoordinates = Array.from(uniqueShops.entries()).map(
+        ([id, coordinates]) => ({ id, ...coordinates })
+      );
+      
+      // Calculate distances in batches to avoid API limits
+      const batchSize = 25;
+      const distances: Record<string, string> = {};
+      
+      for (let i = 0; i < shopCoordinates.length; i += batchSize) {
+        const batch = shopCoordinates.slice(i, i + batchSize);
+        
+        try {
+          const distanceMatrix = await LocationService.getDistanceMatrix(
+            userLocation,
+            batch.map(shop => ({ latitude: shop.latitude, longitude: shop.longitude }))
+          );
+          
+          if (distanceMatrix?.rows?.[0]?.elements) {
+            batch.forEach((shop, index) => {
+              const element = distanceMatrix.rows[0].elements[index];
+              if (element?.distance?.text) {
+                distances[shop.id] = element.distance.text;
+              }
+            });
+          }
+        } catch (error) {
+          console.error('Error calculating distances:', error);
+        }
+      }
+      
+      setShopDistances(distances);
+    };
+    
+    calculateDistances();
+  }, [products, userLocation]);
 
   const fetchCategories = async () => {
     try {
@@ -274,6 +356,11 @@ const ProductsScreen: React.FC = () => {
             <Text style={styles.shopName} numberOfLines={1}>
               {item.shop.name}
             </Text>
+            {shopDistances[item.shop._id] && (
+              <Text style={styles.distanceText}>
+                • {shopDistances[item.shop._id]} away
+              </Text>
+            )}
           </TouchableOpacity>
         )}
         
@@ -994,8 +1081,8 @@ const styles = StyleSheet.create({
   },
   distanceText: {
     fontSize: 12,
-    color: theme.colors.primary,
-    marginLeft: 2,
+    color: theme.colors.gray,
+    marginLeft: 4,
   },
   clearSearchButton: {
     paddingVertical: 12,

@@ -15,6 +15,7 @@ import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 
 import Card3D from '../../components/Card3D';
 import VendorLocationHeader from '../../components/VendorLocationHeader';
@@ -25,6 +26,9 @@ import alert from '../../utils/alert';
 import { RootState } from '../../store';
 import { useSelector } from 'react-redux';
 import * as locationApi from '../../api/locationApi';
+import MapViewComponent from '../../components/MapView';
+import { LocationService, Coordinates } from '../../services/LocationService';
+import Button from '../../components/Button';
 
 interface LocationType {
   type: string;
@@ -83,6 +87,8 @@ const VendorShopSetupScreen: React.FC = () => {
   });
   const [error, setError] = useState<string | null>(null);
   const userId = useSelector((state: RootState) => state.auth.user?._id);
+  const [showMap, setShowMap] = useState(false);
+  const [userLocation, setUserLocation] = useState<Coordinates | null>(null);
   
   useEffect(() => {
     if (!userId) return;
@@ -133,6 +139,68 @@ const VendorShopSetupScreen: React.FC = () => {
 
     loadShopDetails();
   }, [userId]);
+
+  // Get user location on component mount
+  useEffect(() => {
+    const getUserLocation = async () => {
+      try {
+        const location = await LocationService.getCurrentLocation();
+        setUserLocation(location);
+      } catch (error) {
+        console.error('Error getting user location:', error);
+      }
+    };
+
+    getUserLocation();
+  }, []);
+
+  // Geocode address to get coordinates
+  const geocodeAddress = async () => {
+    try {
+      setLocationLoading(true);
+      // Check if all required address fields are filled
+      if (
+        !form.address.street ||
+        !form.address.village ||
+        !form.address.district ||
+        !form.address.state ||
+        !form.address.pincode
+      ) {
+        Alert.alert('Error', 'Please fill all address fields before geocoding');
+        setLocationLoading(false);
+        return;
+      }
+
+      // Geocode the address
+      const location = await LocationService.geocodeAddress(form.address);
+      
+      // Update the form with the geocoded location
+      setForm({
+        ...form,
+        location,
+      });
+      
+      // Update map position
+      setShowMap(true);
+    } catch (error) {
+      console.error('Error geocoding address:', error);
+      Alert.alert('Error', 'Failed to geocode address. Please try again or place the pin manually.');
+    } finally {
+      setLocationLoading(false);
+    }
+  };
+
+  // Handle map press to update shop location
+  const handleMapPress = (coordinate: Coordinates) => {
+    // Update the form location with the pressed coordinates
+    setForm({
+      ...form,
+      location: {
+        type: 'Point',
+        coordinates: [coordinate.longitude, coordinate.latitude],
+      },
+    });
+  };
 
   const handleInputChange = (
     field: keyof ShopFormState,
@@ -323,194 +391,201 @@ const VendorShopSetupScreen: React.FC = () => {
   }
 
   return (
-    <View style={styles.container}>
-      <VendorLocationHeader title={shopId ? "Edit Shop" : "Create Shop"} showBackButton />
-      <ScrollView style={styles.scrollView} contentContainerStyle={styles.contentContainer}>
-        {loading ? (
-          <ActivityIndicator size="large" color={theme.colors.primary} />
-        ) : error ? (
-          <View style={styles.errorContainer}>
-            <Text style={styles.errorText}>{error}</Text>
-            <TouchableOpacity 
-              style={styles.retryButton}
-              onPress={() => navigation.goBack()}
-            >
-              <Text style={styles.retryButtonText}>Go Back</Text>
-            </TouchableOpacity>
-          </View>
-        ) : (
-          <>
-            <Card3D style={styles.card}>
-              <Text style={styles.sectionTitle}>Basic Information</Text>
-              
-              <View style={styles.formGroup}>
-                <Text style={styles.label}>Shop Name *</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Enter shop name"
-                  value={form.name}
-                  onChangeText={(value) => handleInputChange('name', value)}
-                />
-              </View>
-              
-              <View style={styles.formGroup}>
-                <Text style={styles.label}>Description *</Text>
-                <TextInput
-                  style={[styles.input, styles.textarea]}
-                  placeholder="Enter shop description"
-                  value={form.description}
-                  onChangeText={(value) => handleInputChange('description', value)}
-                  multiline
-                  numberOfLines={4}
-                />
-              </View>
-              
-              <View style={styles.formGroup}>
-                <Text style={styles.label}>Shop Image URL</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Enter image URL"
-                  value={form.image}
-                  onChangeText={handleImageUrlChange}
-                />
-              </View>
-              
-              <View style={styles.formGroup}>
-                <View style={styles.switchContainer}>
-                  <Text style={styles.label}>Active</Text>
-                  <Switch
-                    value={form.isActive}
-                    onValueChange={(value) => handleInputChange('isActive', value)}
-                    trackColor={{ false: theme.colors.gray, true: theme.colors.primary }}
-                    thumbColor={form.isActive ? theme.colors.white : theme.colors.lightGray}
-                  />
-                </View>
-                <Text style={styles.helperText}>
-                  When active, your shop will be visible to customers
-                </Text>
-              </View>
-            </Card3D>
+    <KeyboardAwareScrollView style={styles.container}>
+      <View style={styles.header}>
+        <Text style={styles.title}>Shop Setup</Text>
+        <Text style={styles.subtitle}>Configure your shop details</Text>
+      </View>
+
+      {loading ? (
+        <ActivityIndicator size="large" color={theme.colors.primary} style={styles.loader} />
+      ) : (
+        <>
+          <Card3D style={styles.formCard}>
+            <Text style={styles.sectionTitle}>Basic Information</Text>
             
-            <Card3D style={styles.card}>
-              <Text style={styles.sectionTitle}>Address Information</Text>
-              
-              <View style={styles.formGroup}>
-                <Text style={styles.label}>Street *</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Enter street address"
-                  value={form.address.street}
-                  onChangeText={(value) => handleAddressChange('street', value)}
+            <View style={styles.formGroup}>
+              <Text style={styles.label}>Shop Name *</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Enter shop name"
+                value={form.name}
+                onChangeText={(value) => handleInputChange('name', value)}
+              />
+            </View>
+            
+            <View style={styles.formGroup}>
+              <Text style={styles.label}>Description *</Text>
+              <TextInput
+                style={[styles.input, styles.textarea]}
+                placeholder="Enter shop description"
+                value={form.description}
+                onChangeText={(value) => handleInputChange('description', value)}
+                multiline
+                numberOfLines={4}
+              />
+            </View>
+            
+            <View style={styles.formGroup}>
+              <Text style={styles.label}>Shop Image URL</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Enter image URL"
+                value={form.image}
+                onChangeText={handleImageUrlChange}
+              />
+            </View>
+            
+            <View style={styles.formGroup}>
+              <View style={styles.switchContainer}>
+                <Text style={styles.label}>Active</Text>
+                <Switch
+                  value={form.isActive}
+                  onValueChange={(value) => handleInputChange('isActive', value)}
+                  trackColor={{ false: theme.colors.gray, true: theme.colors.primary }}
+                  thumbColor={form.isActive ? theme.colors.white : theme.colors.lightGray}
                 />
               </View>
+              <Text style={styles.helperText}>
+                When active, your shop will be visible to customers
+              </Text>
+            </View>
+            
+            <Text style={styles.sectionTitle}>Shop Address</Text>
+            
+            <View style={styles.formGroup}>
+              <Text style={styles.label}>Street *</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Enter street address"
+                value={form.address.street}
+                onChangeText={(value) => handleAddressChange('street', value)}
+              />
+            </View>
+            
+            <View style={styles.formGroup}>
+              <Text style={styles.label}>Village/Town *</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Enter village or town"
+                value={form.address.village}
+                onChangeText={(value) => handleAddressChange('village', value)}
+              />
+            </View>
+            
+            <View style={styles.formGroup}>
+              <Text style={styles.label}>District *</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Enter district"
+                value={form.address.district}
+                onChangeText={(value) => handleAddressChange('district', value)}
+              />
+            </View>
+            
+            <View style={styles.formGroup}>
+              <Text style={styles.label}>State *</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Enter state"
+                value={form.address.state}
+                onChangeText={(value) => handleAddressChange('state', value)}
+              />
+            </View>
+            
+            <View style={styles.formGroup}>
+              <Text style={styles.label}>Pincode *</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Enter 6-digit pincode"
+                value={form.address.pincode}
+                onChangeText={(value) => handleAddressChange('pincode', value)}
+                keyboardType="number-pad"
+                maxLength={6}
+              />
+            </View>
+            
+            <View style={styles.formGroup}>
+              <Text style={styles.label}>Phone Number *</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Enter 10-digit phone number"
+                value={form.address.phone}
+                onChangeText={(value) => handleAddressChange('phone', value)}
+                keyboardType="phone-pad"
+                maxLength={10}
+              />
+            </View>
+            
+            <View style={styles.mapSection}>
+              <Text style={styles.sectionTitle}>Shop Location</Text>
+              <Text style={styles.helperText}>
+                We'll use your address to place your shop on the map. You can adjust the pin if needed.
+              </Text>
               
-              <View style={styles.formGroup}>
-                <Text style={styles.label}>Village/Town *</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Enter village or town"
-                  value={form.address.village}
-                  onChangeText={(value) => handleAddressChange('village', value)}
+              <View style={styles.buttonRow}>
+                <Button 
+                  title="Geocode Address"
+                  onPress={geocodeAddress}
+                  loading={locationLoading}
+                  style={styles.geocodeButton}
                 />
-              </View>
-              
-              <View style={styles.formGroup}>
-                <Text style={styles.label}>District *</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Enter district"
-                  value={form.address.district}
-                  onChangeText={(value) => handleAddressChange('district', value)}
-                />
-              </View>
-              
-              <View style={styles.formGroup}>
-                <Text style={styles.label}>State *</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Enter state"
-                  value={form.address.state}
-                  onChangeText={(value) => handleAddressChange('state', value)}
-                />
-              </View>
-              
-              <View style={styles.formGroup}>
-                <Text style={styles.label}>Pincode *</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Enter 6-digit pincode"
-                  value={form.address.pincode}
-                  onChangeText={(value) => handleAddressChange('pincode', value)}
-                  keyboardType="number-pad"
-                  maxLength={6}
-                />
-              </View>
-              
-              <View style={styles.formGroup}>
-                <Text style={styles.label}>Phone Number *</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Enter 10-digit phone number"
-                  value={form.address.phone}
-                  onChangeText={(value) => handleAddressChange('phone', value)}
-                  keyboardType="phone-pad"
-                  maxLength={10}
-                />
-              </View>
-              
-              <View style={styles.formGroup}>
-                <Text style={styles.sectionTitle}>Shop Location</Text>
-                <Text style={styles.helperText}>
-                  Set your shop's location to help customers find you. 
-                  Your current coordinates are: [{form.location.coordinates[0].toFixed(6)}, {form.location.coordinates[1].toFixed(6)}]
-                </Text>
                 
-                <TouchableOpacity 
-                  style={styles.locationButton}
-                  onPress={handleGetCurrentLocation}
-                  disabled={locationLoading}
-                >
-                  {locationLoading ? (
-                    <ActivityIndicator size="small" color={theme.colors.white} />
-                  ) : (
-                    <>
-                      <Ionicons name="location" size={18} color={theme.colors.white} />
-                      <Text style={styles.locationButtonText}>Get My Current Location</Text>
-                    </>
-                  )}
-                </TouchableOpacity>
-                
-                <View style={styles.coordinatesContainer}>
-                  <View style={styles.coordinateInput}>
-                    <Text style={styles.coordinateLabel}>Longitude</Text>
-                    <TextInput
-                      style={styles.input}
-                      value={form.location.coordinates[0].toString()}
-                      onChangeText={(value) => {
-                        const newCoordinates = [...form.location.coordinates];
-                        newCoordinates[0] = parseFloat(value) || 0;
-                        handleLocationChange('coordinates', newCoordinates);
-                      }}
-                      keyboardType="decimal-pad"
-                    />
-                  </View>
+                <Button 
+                  title={showMap ? "Hide Map" : "Show Map"}
+                  onPress={() => setShowMap(!showMap)}
+                  outline
+                  style={styles.toggleMapButton}
+                />
+              </View>
+              
+              {showMap && (
+                <View style={styles.mapContainer}>
+                  <MapViewComponent 
+                    style={styles.map}
+                    initialRegion={
+                      form.location.coordinates[0] !== 0 && form.location.coordinates[1] !== 0
+                        ? {
+                            latitude: form.location.coordinates[1],
+                            longitude: form.location.coordinates[0],
+                            latitudeDelta: 0.01,
+                            longitudeDelta: 0.01,
+                          }
+                        : userLocation
+                          ? {
+                              latitude: userLocation.latitude,
+                              longitude: userLocation.longitude,
+                              latitudeDelta: 0.01,
+                              longitudeDelta: 0.01,
+                            }
+                          : undefined
+                    }
+                    markers={
+                      form.location.coordinates[0] !== 0 && form.location.coordinates[1] !== 0
+                        ? [
+                            {
+                              id: 'shop',
+                              coordinate: {
+                                latitude: form.location.coordinates[1],
+                                longitude: form.location.coordinates[0],
+                              },
+                              title: form.name || 'Your Shop',
+                              description: 'Drag to adjust location',
+                              pinColor: theme.colors.primary,
+                            },
+                          ]
+                        : []
+                    }
+                    editable={true}
+                    onMapPress={handleMapPress}
+                  />
                   
-                  <View style={styles.coordinateInput}>
-                    <Text style={styles.coordinateLabel}>Latitude</Text>
-                    <TextInput
-                      style={styles.input}
-                      value={form.location.coordinates[1].toString()}
-                      onChangeText={(value) => {
-                        const newCoordinates = [...form.location.coordinates];
-                        newCoordinates[1] = parseFloat(value) || 0;
-                        handleLocationChange('coordinates', newCoordinates);
-                      }}
-                      keyboardType="decimal-pad"
-                    />
-                  </View>
+                  <Text style={styles.mapNote}>
+                    Tap on the map to adjust the shop location pin
+                  </Text>
                 </View>
-              </View>
-            </Card3D>
+              )}
+            </View>
             
             <Card3D style={styles.card}>
               <Text style={styles.sectionTitle}>Shipping & Payment Settings</Text>
@@ -563,23 +638,18 @@ const VendorShopSetupScreen: React.FC = () => {
               </View>
             </Card3D>
             
-            <TouchableOpacity 
-              style={[styles.saveButton, saving && styles.disabledButton]}
-              onPress={handleSave}
-              disabled={saving}
-            >
-              {saving ? (
-                <ActivityIndicator size="small" color={theme.colors.white} />
-              ) : (
-                <Text style={styles.saveButtonText}>
-                  {shopId ? "Update Shop" : "Create Shop"}
-                </Text>
-              )}
-            </TouchableOpacity>
-          </>
-        )}
-      </ScrollView>
-    </View>
+            <View style={styles.buttonContainer}>
+              <Button 
+                title="Save Shop Settings" 
+                onPress={handleSave}
+                loading={saving}
+                style={styles.saveButton}
+              />
+            </View>
+          </Card3D>
+        </>
+      )}
+    </KeyboardAwareScrollView>
   );
 };
 
@@ -588,10 +658,33 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: theme.colors.background,
   },
+  header: {
+    padding: theme.spacing.lg,
+    backgroundColor: theme.colors.cardBg,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.lightGray,
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: theme.colors.dark,
+  },
+  subtitle: {
+    fontSize: 16,
+    color: theme.colors.gray,
+    marginTop: 4,
+  },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  loader: {
+    marginVertical: 20,
+  },
+  formCard: {
+    margin: theme.spacing.md,
+    padding: theme.spacing.lg,
   },
   errorContainer: {
     flex: 1,
@@ -697,6 +790,10 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginLeft: 8,
   },
+  buttonContainer: {
+    marginVertical: theme.spacing.lg,
+    alignItems: 'center',
+  },
   coordinatesContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -729,6 +826,38 @@ const styles = StyleSheet.create({
     color: theme.colors.white,
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  mapSection: {
+    marginTop: 20,
+  },
+  buttonRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 15,
+  },
+  geocodeButton: {
+    flex: 1,
+    marginRight: 10,
+  },
+  toggleMapButton: {
+    flex: 1,
+  },
+  mapContainer: {
+    width: '100%',
+    height: 300,
+    borderRadius: 12,
+    overflow: 'hidden',
+    marginBottom: 20,
+  },
+  map: {
+    width: '100%',
+    height: '100%',
+  },
+  mapNote: {
+    fontSize: 12,
+    color: theme.colors.textLight,
+    textAlign: 'center',
+    marginTop: 5,
   },
 });
 

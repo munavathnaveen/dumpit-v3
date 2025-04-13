@@ -12,6 +12,7 @@ import {
   RefreshControl,
   TextInput,
   Alert,
+  Linking,
 } from 'react-native';
 import { FontAwesome } from '@expo/vector-icons';
 import { useDispatch } from 'react-redux';
@@ -25,6 +26,8 @@ import { useNavigation, useRoute } from '../navigation/hooks';
 import Card3D from '../components/Card3D';
 import { Product } from '../types/product';
 import { Shop } from '../api/shopApi';
+import MapViewComponent from '../components/MapView';
+import { LocationService, Coordinates } from '../services/LocationService';
 
 const { width } = Dimensions.get('window');
 
@@ -43,10 +46,61 @@ const ShopDetailsScreen: React.FC = () => {
   const [reviewText, setReviewText] = useState('');
   const [reviewRating, setReviewRating] = useState(5);
   const [submittingReview, setSubmittingReview] = useState(false);
+  const [userLocation, setUserLocation] = useState<Coordinates | null>(null);
+  const [distance, setDistance] = useState<string | null>(null);
+  const [duration, setDuration] = useState<string | null>(null);
   
   useEffect(() => {
     loadShopDetails();
   }, [shopId]);
+  
+  useEffect(() => {
+    const getUserLocationAndDistance = async () => {
+      try {
+        // Get user's current location
+        const location = await LocationService.getCurrentLocation();
+        setUserLocation(location);
+        
+        // If shop has location data, calculate distance
+        if (shop && 
+            shop.location && 
+            shop.location.coordinates && 
+            shop.location.coordinates.length === 2 && 
+            shop.location.coordinates[0] !== 0 && 
+            shop.location.coordinates[1] !== 0) {
+          
+          // Calculate distance to shop
+          const distanceMatrix = await LocationService.getDistanceMatrix(
+            location,
+            {
+              latitude: shop.location.coordinates[1],
+              longitude: shop.location.coordinates[0],
+            }
+          );
+          
+          if (distanceMatrix && 
+              distanceMatrix.rows && 
+              distanceMatrix.rows.length > 0 && 
+              distanceMatrix.rows[0].elements && 
+              distanceMatrix.rows[0].elements.length > 0) {
+            
+            const element = distanceMatrix.rows[0].elements[0];
+            
+            if (element.distance && element.duration) {
+              setDistance(element.distance.text);
+              setDuration(element.duration.text);
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error getting location or calculating distance:', error);
+      }
+    };
+    
+    if (shop) {
+      getUserLocationAndDistance();
+    }
+  }, [shop]);
   
   const loadShopDetails = async () => {
     try {
@@ -167,6 +221,74 @@ const ShopDetailsScreen: React.FC = () => {
       </Card3D>
     </TouchableOpacity>
   );
+  
+  const renderShopMap = () => {
+    if (!shop || 
+        !shop.location || 
+        !shop.location.coordinates || 
+        shop.location.coordinates.length !== 2 || 
+        shop.location.coordinates[0] === 0 || 
+        shop.location.coordinates[1] === 0) {
+      return null;
+    }
+    
+    const shopLocation = {
+      latitude: shop.location.coordinates[1],
+      longitude: shop.location.coordinates[0],
+    };
+    
+    return (
+      <View style={styles.mapContainer}>
+        <Text style={styles.sectionTitle}>Shop Location</Text>
+        
+        {distance && duration && (
+          <View style={styles.distanceContainer}>
+            <View style={styles.distanceItem}>
+              <FontAwesome name="map-marker" size={16} color={theme.colors.primary} />
+              <Text style={styles.distanceText}>{distance} away</Text>
+            </View>
+            <View style={styles.distanceItem}>
+              <FontAwesome name="clock-o" size={16} color={theme.colors.primary} />
+              <Text style={styles.distanceText}>{duration} by car</Text>
+            </View>
+          </View>
+        )}
+        
+        <MapViewComponent
+          style={styles.map}
+          initialRegion={{
+            latitude: shopLocation.latitude,
+            longitude: shopLocation.longitude,
+            latitudeDelta: 0.01,
+            longitudeDelta: 0.01,
+          }}
+          markers={[
+            {
+              id: 'shop',
+              coordinate: shopLocation,
+              title: shop.name,
+              description: shop.address ? `${shop.address.street}, ${shop.address.village}` : '',
+              pinColor: theme.colors.primary,
+            },
+          ]}
+          showsUserLocation={true}
+        />
+        
+        <View style={styles.mapButtonsContainer}>
+          <TouchableOpacity 
+            style={styles.mapButton}
+            onPress={() => {
+              const url = `https://www.google.com/maps/dir/?api=1&destination=${shopLocation.latitude},${shopLocation.longitude}`;
+              Linking.openURL(url);
+            }}
+          >
+            <FontAwesome name="location-arrow" size={16} color={theme.colors.white} />
+            <Text style={styles.mapButtonText}>Directions</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  };
   
   if (loading) {
     return (
@@ -416,6 +538,41 @@ const ShopDetailsScreen: React.FC = () => {
                 </TouchableOpacity>
               )}
             </>
+          )}
+        </View>
+        
+        <View style={styles.divider} />
+        
+        {renderShopMap()}
+        
+        <View style={styles.sectionContainer}>
+          <Text style={styles.sectionTitle}>Products</Text>
+          {loading ? (
+            <ActivityIndicator size="small" color={theme.colors.primary} style={styles.productsLoading} />
+          ) : products.length > 0 ? (
+            <View>
+              <FlatList
+                data={products.slice(0, 4)}
+                keyExtractor={(item) => item._id}
+                renderItem={renderProductItem}
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.productsList}
+              />
+              
+              <TouchableOpacity 
+                style={styles.viewAllButton}
+                onPress={() => navigation.navigate('TabNavigator', { 
+                  screen: 'ProductsTab', 
+                  params: { shopId } 
+                })}
+              >
+                <Text style={styles.viewAllButtonText}>View All Products</Text>
+                <FontAwesome name="arrow-right" size={16} color={theme.colors.primary} />
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <Text style={styles.noProductsText}>This shop doesn't have any products yet.</Text>
           )}
         </View>
       </ScrollView>
@@ -792,6 +949,56 @@ const styles = StyleSheet.create({
   },
   disabledButton: {
     opacity: 0.7,
+  },
+  mapContainer: {
+    marginHorizontal: 16,
+    marginVertical: 20,
+    borderRadius: 12,
+    overflow: 'hidden',
+    backgroundColor: theme.colors.cardBg,
+    ...theme.shadow.small,
+  },
+  map: {
+    height: 200,
+    width: '100%',
+    borderRadius: 12,
+  },
+  distanceContainer: {
+    flexDirection: 'row',
+    marginVertical: 8,
+    marginHorizontal: 16,
+  },
+  distanceItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginRight: 20,
+  },
+  distanceText: {
+    marginLeft: 6,
+    color: theme.colors.gray,
+    fontSize: 14,
+  },
+  mapButtonsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    padding: 12,
+  },
+  mapButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: theme.colors.primary,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 25,
+    ...theme.shadow.small,
+  },
+  mapButtonText: {
+    color: theme.colors.white,
+    marginLeft: 6,
+    fontWeight: '600',
+  },
+  sectionContainer: {
+    padding: 16,
   },
 });
 

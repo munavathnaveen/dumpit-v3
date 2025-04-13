@@ -18,6 +18,18 @@ export interface Product {
     _id: string;
     name: string;
     distance?: number | string;
+    location?: {
+      type: string;
+      coordinates: number[];
+    };
+    address?: {
+      street: string;
+      village: string;
+      district: string;
+      state: string;
+      pincode: string;
+      phone: string;
+    };
   };
   reviews: Array<{
     user: {

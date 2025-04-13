@@ -7,6 +7,7 @@ import ProfileScreen from '../screens/ProfileScreen';
 import ProductDetailsScreen from '../screens/ProductDetailsScreen';
 import ShopDetailsScreen from '../screens/ShopDetailsScreen';
 import OrderDetailsScreen from '../screens/OrderDetailsScreen';
+import OrderTrackingScreen from '../screens/OrderTrackingScreen';
 import CheckoutScreen from '../screens/CheckoutScreen';
 import NotificationsScreen from '../screens/NotificationsScreen';
 import { MainStackParamList } from './types';
@@ -47,7 +48,8 @@ const MainNavigator: React.FC = () => {
           <Stack.Screen name="ProductDetails" component={ProductDetailsScreen} />
           <Stack.Screen name="ShopDetails" component={ShopDetailsScreen} />
           <Stack.Screen name="OrderDetails" component={OrderDetailsScreen} />
-          <Stack.Screen name="CheckoutScreen" component={CheckoutScreen} />
+          <Stack.Screen name="OrderTracking" component={OrderTrackingScreen} />
+          <Stack.Screen name="Checkout" component={CheckoutScreen} />
         </>
       )}
 
