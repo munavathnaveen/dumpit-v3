@@ -95,4 +95,14 @@ OrderSchema.pre('save', function (next) {
   next()
 })
 
+// Add indexes to improve query performance
+OrderSchema.index({ user: 1 })
+OrderSchema.index({ createdAt: -1 }) // For sorting by date, newest first
+OrderSchema.index({ status: 1 }) // For filtering by status
+OrderSchema.index({ 'items.shop': 1 }) // For filtering by shop
+OrderSchema.index({ 'items.product': 1 }) // For filtering by product
+OrderSchema.index({ 'payment.status': 1 }) // For filtering by payment status
+OrderSchema.index({ 'payment.method': 1 }) // For filtering by payment method
+OrderSchema.index({ totalPrice: 1 }) // For filtering/sorting by price
+
 module.exports = mongoose.model('Order', OrderSchema)

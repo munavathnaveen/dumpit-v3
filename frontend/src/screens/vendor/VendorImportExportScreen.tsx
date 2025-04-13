@@ -18,6 +18,7 @@ import * as Sharing from 'expo-sharing';
 
 import Card3D from '../../components/Card3D';
 import ScreenHeader from '../../components/ScreenHeader';
+import VendorLocationHeader from '../../components/VendorLocationHeader';
 import { theme } from '../../theme';
 import { MainStackNavigationProp } from '../../navigation/types';
 import { exportData, importData, ImportResult } from '../../api/analyticsApi';
@@ -421,11 +422,9 @@ const VendorImportExportScreen: React.FC = () => {
 
   return (
     <View style={styles.container}>
-      <ScreenHeader 
-        title="Import & Export" 
-        showBackButton={true}
-        onRightPress={() => setShowInstructions(true)}
-        rightIcon="help-circle-outline"
+      <VendorLocationHeader 
+        title="Import/Export" 
+        showBackButton={true} 
       />
       
       {actionMessage ? (

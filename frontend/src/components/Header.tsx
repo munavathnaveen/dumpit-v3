@@ -16,6 +16,7 @@ export interface HeaderProps {
   onLogoutPress?: () => void;
   rightComponent?: ReactNode;
   onLogoPress?: () => void;
+  customLocation?: ReactNode;
 }
 
 const Header: React.FC<HeaderProps> = ({
@@ -26,6 +27,7 @@ const Header: React.FC<HeaderProps> = ({
   onLogoutPress,
   rightComponent,
   onLogoPress,
+  customLocation,
 }) => {
   const navigation = useNavigation();
   const dispatch = useDispatch<AppDispatch>();
@@ -82,6 +84,8 @@ const Header: React.FC<HeaderProps> = ({
           >
             <Feather name="arrow-left" size={24} color={theme.colors.primary} />
           </TouchableOpacity>
+        ) : customLocation ? (
+          customLocation
         ) : (
           <View style={styles.locationContainer}>
             <Feather name="map-pin" size={18} color={theme.colors.primary} style={styles.locationIcon} />
@@ -139,6 +143,7 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.white,
     borderBottomWidth: 1,
     borderBottomColor: theme.colors.lightGray,
+    borderRadius:'lg',
   },
   leftContainer: {
     flex: 1,

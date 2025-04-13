@@ -84,14 +84,16 @@ exports.exportProducts = asyncHandler(async (req, res, next) => {
 
   // Export data to CSV
   const filePath = await exportToCSV(products, fields, 'products')
-
-  res.status(200).json({
-    success: true,
-    data: {
-      message: 'Products exported successfully',
-      filePath: path.basename(filePath),
-    },
-  })
+  
+  // Read the generated file and send it directly
+  const csvData = fs.readFileSync(filePath, 'utf8')
+  
+  // Set headers for direct download
+  res.setHeader('Content-Type', 'text/csv')
+  res.setHeader('Content-Disposition', `attachment; filename=products-export-${Date.now()}.csv`)
+  
+  // Send the file contents directly
+  return res.send(csvData)
 })
 
 /**
@@ -195,14 +197,16 @@ exports.exportOrders = asyncHandler(async (req, res, next) => {
 
   // Export data to CSV
   const filePath = await exportToCSV(csvData, fields, 'orders')
-
-  res.status(200).json({
-    success: true,
-    data: {
-      message: 'Orders exported successfully',
-      filePath: path.basename(filePath),
-    },
-  })
+  
+  // Read the generated file and send it directly
+  const csvContent = fs.readFileSync(filePath, 'utf8')
+  
+  // Set headers for direct download
+  res.setHeader('Content-Type', 'text/csv')
+  res.setHeader('Content-Disposition', `attachment; filename=orders-export-${Date.now()}.csv`)
+  
+  // Send the file contents directly
+  return res.send(csvContent)
 })
 
 /**
@@ -256,96 +260,141 @@ exports.exportRevenue = asyncHandler(async (req, res, next) => {
     }
   }
 
-  // Get orders
-  const orders = await Order.find(query)
-    .populate('items.product', 'name price')
-    .lean()
+  // Get all orders containing the vendor's products
+  const orders = await Order.find(query).populate('items.product', 'name price').lean()
 
-  // Generate revenue data
-  const revenueData = {}
+  // Prepare data for CSV based on the period
+  let csvData = []
+  if (period === 'daily') {
+    // Group by day
+    const dailyRevenue = {}
+    orders.forEach(order => {
+      const orderDate = new Date(order.createdAt)
+      const dateKey = orderDate.toISOString().split('T')[0] // YYYY-MM-DD
 
-  orders.forEach(order => {
-    // Skip orders that aren't completed if you only want to count completed orders
-    // if (order.status !== 'completed') return;
-
-    const orderDate = new Date(order.createdAt)
-    let dateKey
-
-    // Format the date key based on the period
-    if (period === 'daily') {
-      dateKey = orderDate.toISOString().split('T')[0] // YYYY-MM-DD
-    } else if (period === 'weekly') {
-      dateKey = getWeekNumber(orderDate)
-    } else { // monthly
-      dateKey = `${orderDate.getFullYear()}-${String(orderDate.getMonth() + 1).padStart(2, '0')}` // YYYY-MM
-    }
-
-    if (!revenueData[dateKey]) {
-      revenueData[dateKey] = {
-        date: dateKey,
-        revenue: 0,
-        orders: 0,
-        items: 0
+      if (!dailyRevenue[dateKey]) {
+        dailyRevenue[dateKey] = {
+          date: dateKey,
+          revenue: 0,
+          orders: 0,
+          items: 0
+        }
       }
-    }
 
-    // Calculate revenue from this order (only from vendor's products)
-    let orderRevenue = 0
-    let itemCount = 0
+      // Calculate revenue from this vendor's products only
+      let dailyItems = 0
+      let dailyRevenue = 0
+      order.items.forEach(item => {
+        if (productIds.some(id => id.toString() === item.product._id.toString())) {
+          dailyItems += item.quantity
+          dailyRevenue += item.price * item.quantity
+        }
+      })
 
-    order.items.forEach(item => {
-      if (productIds.some(id => id.toString() === item.product._id.toString())) {
-        orderRevenue += item.price * item.quantity
-        itemCount += item.quantity
-      }
+      dailyRevenue[dateKey].revenue += dailyRevenue
+      dailyRevenue[dateKey].orders += 1
+      dailyRevenue[dateKey].items += dailyItems
     })
 
-    revenueData[dateKey].revenue += orderRevenue
-    revenueData[dateKey].orders += 1
-    revenueData[dateKey].items += itemCount
-  })
+    // Convert to array for CSV
+    csvData = Object.values(dailyRevenue).sort((a, b) => new Date(a.date) - new Date(b.date))
+  } else if (period === 'weekly') {
+    // Group by week (using ISO week numbering)
+    const weeklyRevenue = {}
+    orders.forEach(order => {
+      const orderDate = new Date(order.createdAt)
+      const weekKey = getWeekNumber(orderDate)
 
-  // Convert to array and format for CSV
-  const csvData = Object.values(revenueData).map(item => {
-    let formattedDate = item.date
+      if (!weeklyRevenue[weekKey]) {
+        weeklyRevenue[weekKey] = {
+          week: weekKey,
+          weekLabel: `Week ${weekKey.split('-')[1]} of ${weekKey.split('-')[0]}`,
+          revenue: 0,
+          orders: 0,
+          items: 0
+        }
+      }
 
-    // Format the date for display
-    if (period === 'monthly') {
-      const [year, month] = item.date.split('-')
-      const date = new Date(parseInt(year), parseInt(month) - 1, 1)
-      formattedDate = date.toLocaleString('default', { month: 'long', year: 'numeric' })
-    } else if (period === 'weekly') {
-      const [year, week] = item.date.split('-')
-      formattedDate = `Week ${week}, ${year}`
-    }
+      // Calculate revenue from this vendor's products only
+      let weeklyItems = 0
+      let weekRevenue = 0
+      order.items.forEach(item => {
+        if (productIds.some(id => id.toString() === item.product._id.toString())) {
+          weeklyItems += item.quantity
+          weekRevenue += item.price * item.quantity
+        }
+      })
 
-    return {
-      ...item,
-      formattedDate
-    }
-  }).sort((a, b) => {
-    // Sort by date
-    return a.date.localeCompare(b.date)
-  })
+      weeklyRevenue[weekKey].revenue += weekRevenue
+      weeklyRevenue[weekKey].orders += 1
+      weeklyRevenue[weekKey].items += weeklyItems
+    })
 
-  // Define CSV fields
+    // Convert to array for CSV
+    csvData = Object.values(weeklyRevenue).sort((a, b) => {
+      const [aYear, aWeek] = a.week.split('-').map(Number)
+      const [bYear, bWeek] = b.week.split('-').map(Number)
+      return aYear !== bYear ? aYear - bYear : aWeek - bWeek
+    })
+  } else {
+    // Group by month (default)
+    const monthlyRevenue = {}
+    orders.forEach(order => {
+      const orderDate = new Date(order.createdAt)
+      const monthKey = `${orderDate.getFullYear()}-${String(orderDate.getMonth() + 1).padStart(2, '0')}`
+      const monthName = orderDate.toLocaleString('default', { month: 'long' })
+
+      if (!monthlyRevenue[monthKey]) {
+        monthlyRevenue[monthKey] = {
+          month: monthKey,
+          monthLabel: `${monthName} ${orderDate.getFullYear()}`,
+          revenue: 0,
+          orders: 0,
+          items: 0
+        }
+      }
+
+      // Calculate revenue from this vendor's products only
+      let monthlyItems = 0
+      let monthRevenue = 0
+      order.items.forEach(item => {
+        if (productIds.some(id => id.toString() === item.product._id.toString())) {
+          monthlyItems += item.quantity
+          monthRevenue += item.price * item.quantity
+        }
+      })
+
+      monthlyRevenue[monthKey].revenue += monthRevenue
+      monthlyRevenue[monthKey].orders += 1
+      monthlyRevenue[monthKey].items += monthlyItems
+    })
+
+    // Convert to array for CSV
+    csvData = Object.values(monthlyRevenue).sort((a, b) => a.month.localeCompare(b.month))
+  }
+
+  // Define CSV fields based on the period
+  const periodField = period === 'daily' ? 'date' : period === 'weekly' ? 'weekLabel' : 'monthLabel'
+  
   const fields = [
-    { label: 'Period', value: 'formattedDate' },
-    { label: 'Revenue', value: 'revenue' },
+    { label: period === 'daily' ? 'Date' : period === 'weekly' ? 'Week' : 'Month', value: periodField },
+    { label: 'Revenue (INR)', value: 'revenue' },
     { label: 'Orders', value: 'orders' },
     { label: 'Items Sold', value: 'items' }
   ]
 
   // Export data to CSV
   const filePath = await exportToCSV(csvData, fields, `revenue-${period}`)
-
-  res.status(200).json({
-    success: true,
-    data: {
-      message: 'Revenue data exported successfully',
-      filePath: path.basename(filePath),
-    },
-  })
+  
+  // Read the generated file and send it directly
+  const csvContent = fs.readFileSync(filePath, 'utf8')
+  
+  // Set headers for direct download
+  res.setHeader('Content-Type', 'text/csv')
+  res.setHeader('Content-Disposition', `attachment; filename=revenue-${period}-export-${Date.now()}.csv`)
+  
+  // Send the file contents directly
+  return res.send(csvContent)
 })
 
 /**
