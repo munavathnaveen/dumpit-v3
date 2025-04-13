@@ -203,7 +203,7 @@ const VendorAddProductScreen: React.FC = () => {
         contentContainerStyle={styles.contentContainer}
         keyboardShouldPersistTaps="handled"
       >
-        <Card3D style={styles.formCard}>
+        <Card3D>
           <Text style={styles.formTitle}>Product Information</Text>
           
           {/* Product Name */}
