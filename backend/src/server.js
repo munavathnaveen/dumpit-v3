@@ -71,10 +71,11 @@ app.use(errorHandler);
 
 // Start server
 const PORT = config.port;
-const server = app.listen(PORT, () => {
+const HOST = config.host;
+const server = app.listen(PORT,HOST, () => {
   console.log(
     colors.yellow.bold(
-      `Server running in ${config.nodeEnv} mode on port ${PORT}`
+      `Server running on http://${process.env.HOST}:${process.env.PORT}`
     )
   );
 });

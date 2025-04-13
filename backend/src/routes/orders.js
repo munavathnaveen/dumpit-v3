@@ -5,10 +5,13 @@ const {
   createOrder,
   updateOrderStatus,
   updatePayment,
+  getOrdersPending,
   cancelOrder,
   getVendorOrders,
   getVendorOrder,
-  getVendorOrderStats
+  getVendorOrderStats,
+  updateOrderTracking,
+  getOrderTracking
 } = require('../controllers/orders')
 
 const {protect, authorize} = require('../middleware/auth')
@@ -29,19 +32,21 @@ router.get('/vendor/:id', authorize(config.constants.userRoles.VENDOR), getVendo
 // Get all orders
 router.get('/', getOrders)
 
+// Get pending orders
+router.get('/pending', getOrdersPending)
+
 // Create order
 router.post('/', validateRequest(orderSchema), createOrder)
 
 // Get single order
 router.get('/:id', getOrder)
 
+// Order tracking routes
+router.get('/:id/tracking', getOrderTracking)
+router.put('/:id/tracking', authorize(config.constants.userRoles.VENDOR), updateOrderTracking)
+
 // Update order status
-router.put(
-  '/:id',
-  authorize(config.constants.userRoles.VENDOR),
-  validateRequest(updateOrderStatusSchema),
-  updateOrderStatus
-)
+router.put('/:id/status', updateOrderStatus)
 
 // Payment update route
 router.put('/:id/payment', validateRequest(updatePaymentSchema), updatePayment)

@@ -139,6 +139,56 @@ exports.createShop = async (req, res, next) => {
       return next(new ErrorResponse(`The vendor with ID ${req.user.id} already has a shop`, 400))
     }
 
+    // If location coordinates are not provided, attempt to geocode the address
+    if (!req.body.location || !req.body.location.coordinates || 
+        (req.body.location.coordinates[0] === 0 && req.body.location.coordinates[1] === 0)) {
+      
+      // Make sure we have a complete address
+      if (!req.body.address || 
+          !req.body.address.street || 
+          !req.body.address.village || 
+          !req.body.address.district || 
+          !req.body.address.state || 
+          !req.body.address.pincode) {
+        return next(new ErrorResponse('Please provide a complete address for geocoding', 400));
+      }
+
+      try {
+        // Format the address for geocoding
+        const formattedAddress = `${req.body.address.street}, ${req.body.address.village}, ${req.body.address.district}, ${req.body.address.state}, ${req.body.address.pincode}`;
+        
+        // Make request to Google Maps Geocoding API
+        const axios = require('axios');
+        const geocodeUrl = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(formattedAddress)}&key=${process.env.GOOGLE_MAPS_API_KEY}`;
+        
+        const response = await axios.get(geocodeUrl);
+        
+        if (response.data.status === 'OK') {
+          const location = response.data.results[0].geometry.location;
+          
+          // Set the location in the request body
+          req.body.location = {
+            type: 'Point',
+            coordinates: [location.lng, location.lat]
+          };
+        } else {
+          console.log('Geocoding failed, using default coordinates');
+          // If geocoding fails, use default location structure
+          req.body.location = {
+            type: 'Point',
+            coordinates: [0, 0]
+          };
+        }
+      } catch (error) {
+        console.error('Error geocoding address:', error);
+        // If there's an error, use default location structure
+        req.body.location = {
+          type: 'Point',
+          coordinates: [0, 0]
+        };
+      }
+    }
+
     const shop = await Shop.create(req.body)
 
     // Update user with shop_id reference

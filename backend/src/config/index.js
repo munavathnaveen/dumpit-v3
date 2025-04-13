@@ -7,7 +7,7 @@ module.exports = {
   // Server settings
   port: process.env.PORT || 5000,
   nodeEnv: process.env.NODE_ENV || 'development',
-
+  host: process.env.HOST || '0.0.0.0',
   // MongoDB settings
   mongoUri: process.env.MONGO_URI || 'mongodb://localhost:27017/dumpit',
 

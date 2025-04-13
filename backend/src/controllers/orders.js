@@ -76,6 +76,50 @@ exports.getOrders = async (req, res, next) => {
   }
 }
 
+// @desc    Get pending orders
+// @route   GET /api/v1/orders/pending
+// @access  Private
+exports.getOrdersPending = async (req, res, next) => {
+  try {
+    let query;
+
+    // If user is a customer, get only their pending orders
+    if (req.user.role === config.constants.userRoles.CUSTOMER) {
+      query = Order.find({
+        user: req.user.id,
+        status: config.constants.orderStatus.PENDING
+      });
+    } else {
+      // For vendors, get all pending orders that include their products
+      const products = await Product.find({ vendor: req.user.id }).select('_id');
+      const productIds = products.map((product) => product._id);
+
+      query = Order.find({
+        'items.product': { $in: productIds },
+        status: config.constants.orderStatus.PENDING
+      });
+    }
+
+    // Execute query
+    const orders = await query
+      .sort('-createdAt')
+      .populate([
+        { path: 'user', select: 'name email phone' },
+        { path: 'items.product', select: 'name' },
+        { path: 'items.shop', select: 'name' },
+        { path: 'shippingAddress' },
+      ]);
+
+    res.status(200).json({
+      success: true,
+      count: orders.length,
+      data: orders,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
 // @desc    Get single order
 // @route   GET /api/v1/orders/:id
 // @access  Private
@@ -713,3 +757,138 @@ const getRecentOrders = async (vendorId, productIds, limit = 5) => {
     status: order.status
   }))
 }
+
+// @desc    Update order tracking information
+// @route   PUT /api/v1/orders/:id/tracking
+// @access  Private (Vendor/Delivery only)
+exports.updateOrderTracking = async (req, res, next) => {
+  try {
+    const order = await Order.findById(req.params.id);
+
+    if (!order) {
+      return next(new ErrorResponse(`Order not found with id of ${req.params.id}`, 404));
+    }
+
+    // Check if user is authorized (vendor of any product in the order)
+    // For now only vendors can update, but this could be extended to delivery personnel
+    if (req.user.role === config.constants.userRoles.VENDOR) {
+      const products = await Product.find({ vendor: req.user.id }).select('_id');
+      const productIds = products.map(product => product._id.toString());
+
+      const hasVendorProduct = order.items.some(item => 
+        productIds.includes(item.product.toString())
+      );
+
+      if (!hasVendorProduct) {
+        return next(new ErrorResponse(`User not authorized to update this order tracking`, 403));
+      }
+    } else {
+      return next(new ErrorResponse(`User role not authorized to update tracking`, 403));
+    }
+
+    // Get tracking information from request body
+    const { latitude, longitude, status, eta, distance, route } = req.body;
+
+    // Update tracking information
+    if (latitude && longitude) {
+      order.tracking.currentLocation = {
+        type: 'Point',
+        coordinates: [parseFloat(longitude), parseFloat(latitude)]
+      };
+    }
+
+    if (status) {
+      order.tracking.status = status;
+    }
+
+    if (eta) {
+      order.tracking.eta = new Date(eta);
+    }
+
+    if (distance !== undefined) {
+      order.tracking.distance = distance;
+    }
+
+    if (route) {
+      order.tracking.route = route;
+    }
+
+    order.tracking.lastUpdated = Date.now();
+    await order.save();
+
+    res.status(200).json({
+      success: true,
+      data: order
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// @desc    Get order tracking information
+// @route   GET /api/v1/orders/:id/tracking
+// @access  Private
+exports.getOrderTracking = async (req, res, next) => {
+  try {
+    const order = await Order.findById(req.params.id)
+      .populate('shippingAddress')
+      .populate({
+        path: 'items.shop',
+        select: 'name location address'
+      });
+
+    if (!order) {
+      return next(new ErrorResponse(`Order not found with id of ${req.params.id}`, 404));
+    }
+
+    // Check if user is authorized (owner, vendor of product in order, or admin)
+    const isOrderOwner = order.user.toString() === req.user.id;
+    let isVendorOfProduct = false;
+
+    if (req.user.role === config.constants.userRoles.VENDOR) {
+      const products = await Product.find({ vendor: req.user.id }).select('_id');
+      const productIds = products.map(product => product._id.toString());
+      isVendorOfProduct = order.items.some(item => 
+        productIds.includes(item.product.toString())
+      );
+    }
+
+    if (!isOrderOwner && !isVendorOfProduct && req.user.role !== 'admin') {
+      return next(new ErrorResponse(`User not authorized to view this order tracking`, 403));
+    }
+
+    // Get shop locations for the order items
+    const shopLocations = order.items.map(item => {
+      const shop = item.shop;
+      return {
+        shopId: shop._id,
+        shopName: shop.name,
+        location: shop.location,
+        address: shop.address
+      };
+    });
+
+    // Filter out duplicates
+    const uniqueShops = shopLocations.filter((shop, index, self) => 
+      index === self.findIndex(s => s.shopId.toString() === shop.shopId.toString())
+    );
+
+    res.status(200).json({
+      success: true,
+      data: {
+        orderId: order._id,
+        status: order.status,
+        trackingStatus: order.tracking.status,
+        currentLocation: order.tracking.currentLocation,
+        eta: order.tracking.eta,
+        distance: order.tracking.distance,
+        route: order.tracking.route,
+        lastUpdated: order.tracking.lastUpdated,
+        shippingAddress: order.shippingAddress,
+        shops: uniqueShops
+      }
+    });
+  } catch (err) {
+    next(err);
+  }
+};
