@@ -28,6 +28,7 @@ module.exports = {
   },
   android: {
     ...appConfig.android,
+    package: "com.mdnihal.dumpit",
     adaptiveIcon: {
       foregroundImage: "./assets/adaptive-icon.png",
       backgroundColor: "#E23744"
@@ -42,6 +43,9 @@ module.exports = {
     favicon: "./assets/favicon.png"
   },
   extra: {
-    googleMapsApiKey: process.env.GOOGLE_MAPS_API_KEY
+    googleMapsApiKey: process.env.GOOGLE_MAPS_API_KEY,
+    eas: {
+      projectId: "0866d496-cd11-4928-87e5-ea9f960ed725"
+    }
   }
 } 
