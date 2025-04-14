@@ -3,6 +3,7 @@ const User = require("../models/User");
 const ErrorResponse = require("../utils/errorResponse");
 const { sendEmail, emailTemplates } = require("../utils/email");
 const config = require("../config");
+const axios = require('axios');
 
 // @desc    Register user
 // @route   POST /api/v1/auth/register
@@ -34,13 +35,44 @@ exports.register = async (req, res, next) => {
           )
         );
       }
+
+      // Get coordinates from Google Maps API
+      let coordinates = [0, 0]; // Default coordinates
+      
+      try {
+        // Format the address for the API request
+        const addressString = `${shopAddress.village}, ${shopAddress.street}, ${shopAddress.district}, ${shopAddress.state}, ${shopAddress.pincode}`;
+        
+        // Make request to Google Maps Geocoding API
+        const response = await axios.get('https://maps.googleapis.com/maps/api/geocode/json', {
+          params: {
+            address: addressString,
+            key: process.env.GOOGLE_MAPS_API_KEY
+          }
+        });
+        
+        // Extract coordinates from response
+        if (response.data.status === 'OK' && response.data.results.length > 0) {
+          const location = response.data.results[0].geometry.location;
+          coordinates = [location.lng, location.lat]; // GeoJSON format is [longitude, latitude]
+        }
+      } catch (error) {
+        console.error('Error fetching coordinates:', error);
+        // Continue with default coordinates if geocoding fails
+      }
+      
       // Create shop associated with the vendor
       const shop = await Shop.create({
         name: shopName,
         description: shopDescription,
         owner: user._id,
         address: shopAddress,
+        location: {
+          type: 'Point',
+          coordinates: coordinates
+        }
       });
+      
       const updatedUser = await User.findByIdAndUpdate(
         user._id,
         { shop_id: shop._id },
@@ -72,7 +104,6 @@ exports.register = async (req, res, next) => {
 exports.login = async (req, res, next) => {
   try {
     const { email, password, role } = req.body;
-        console.log("debug " , req.body, " ",config.constants.userRoles);
 
     // Validate email & password
     if (!email || !password) {
@@ -87,12 +118,19 @@ exports.login = async (req, res, next) => {
     if (!user) {
       return next(new ErrorResponse("Invalid credentials", 401));
     }
+
     // Check if password matches
     const isMatch = await user.matchPassword(password);
 
     if (!isMatch) {
       return next(new ErrorResponse("Invalid credentials", 401));
     }
+
+    // Check if role matches
+    console.log("debug ", user.role, " ", role);
+    // if (role && user.role !== role) {
+    //   return next(new ErrorResponse("Invalid role for this user", 401));
+    // }
 
     sendTokenResponse(user, 200, res);
   } catch (err) {
@@ -289,3 +327,4 @@ const sendTokenResponse = (user, statusCode, res) => {
     token,
   });
 };
+

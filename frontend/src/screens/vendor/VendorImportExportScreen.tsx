@@ -78,15 +78,15 @@ const VendorImportExportScreen: React.FC = () => {
     try {
       setLoading(`export-${dataType}-${format}`);
       setActionMessage(`Exporting ${dataType}...`);
-      
+
       // Get the blob data from API
       const blobData = await exportData(dataType, format);
-      
+
       // Create a temporary file name
       const extension = format === 'csv' ? 'csv' : 'xlsx';
       const fileName = `${dataType}_export_${new Date().toISOString().slice(0, 10)}.${extension}`;
       const fileUri = `${FileSystem.cacheDirectory}${fileName}`;
-      
+
       // Convert blob to base64 for file system operations
       const reader = new FileReader();
       reader.readAsDataURL(blobData);
@@ -94,13 +94,13 @@ const VendorImportExportScreen: React.FC = () => {
         try {
           // Remove data URL prefix (e.g., 'data:application/octet-stream;base64,')
           const base64Data = reader.result?.toString().split(',')[1];
-          
+
           if (base64Data) {
             // Write the file
             await FileSystem.writeAsStringAsync(fileUri, base64Data, {
               encoding: FileSystem.EncodingType.Base64,
             });
-            
+
             // Share the file
             if (await Sharing.isAvailableAsync()) {
               await Sharing.shareAsync(fileUri, {
@@ -120,7 +120,7 @@ const VendorImportExportScreen: React.FC = () => {
           setActionMessage('');
         }
       };
-      
+
       reader.onerror = () => {
         setLoading(null);
         setActionMessage('');
@@ -138,19 +138,18 @@ const VendorImportExportScreen: React.FC = () => {
     try {
       setLoading(`import-${dataType}`);
       setActionMessage(`Picking file for ${dataType} import...`);
-      
-      // Pick a document
+
       const result = await DocumentPicker.getDocumentAsync({
-        type: ['text/csv', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
+        type: '*/*',
         copyToCacheDirectory: true,
       });
-      
+
       if (result.canceled) {
         setLoading(null);
         setActionMessage('');
         return;
       }
-      
+
       const fileAsset = result.assets?.[0];
       if (!fileAsset) {
         setLoading(null);
@@ -158,39 +157,49 @@ const VendorImportExportScreen: React.FC = () => {
         return;
       }
 
+      const allowedExtensions = ['csv', 'xlsx'];
+      const fileExtension = fileAsset.name.split('.').pop()?.toLowerCase();
+
+      if (!fileExtension || !allowedExtensions.includes(fileExtension)) {
+        Alert.alert(
+          'Invalid File Type',
+          'Please select a valid CSV (.csv) or Excel (.xlsx) file.'
+        );
+        setLoading(null);
+        setActionMessage('');
+        return;
+      }
+
       setActionMessage(`Importing ${dataType}...`);
-      
-      // Create a file object for API upload
+
       const fileInfo = {
         uri: fileAsset.uri,
         name: fileAsset.name,
-        type: fileAsset.mimeType,
+        type: fileAsset.mimeType ?? (fileExtension === 'csv'
+          ? 'text/csv'
+          : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'),
       };
-      
-      // Convert the picked file to a Blob
+
+      // Convert to blob for upload
       const response = await fetch(fileInfo.uri);
       const blob = await response.blob();
       const file = new File([blob], fileInfo.name, { type: fileInfo.type });
-      
-      // Upload the file
+
       const importResponse = await importData(dataType as 'products', file);
-      
+
       Alert.alert(
         'Import Successful',
         `Successfully imported ${importResponse.processed || 0} ${dataType}`,
         [{ text: 'OK' }]
       );
-      
-      // If importing products, refresh the products screen
+
       if (dataType === 'products') {
         navigation.navigate('VendorProducts');
       }
     } catch (error: any) {
       console.error(`Error importing ${dataType}:`, error);
-      
-      // Check if this is our structured error result with format guidance
+
       if (error && error.format) {
-        // Show format guidance modal
         setFormatGuidance({
           show: true,
           title: `${dataType.charAt(0).toUpperCase() + dataType.slice(1)} Import Format`,
@@ -198,11 +207,7 @@ const VendorImportExportScreen: React.FC = () => {
           fields: error.format.fields,
         });
       } else {
-        // Show generic error
-        Alert.alert(
-          'Import Error', 
-          error.message || `Failed to import ${dataType}. Please check your file format and try again.`
-        );
+        alert(error.message || `Failed to import ${dataType}. Please check your file format and try again.`);
       }
     } finally {
       setLoading(null);
@@ -226,7 +231,7 @@ const VendorImportExportScreen: React.FC = () => {
           <Text style={styles.cardDescription}>{description}</Text>
         </View>
       </View>
-      
+
       <View style={styles.formatButtons}>
         <TouchableOpacity
           style={[styles.formatButton, styles.csvButton]}
@@ -242,7 +247,7 @@ const VendorImportExportScreen: React.FC = () => {
             </>
           )}
         </TouchableOpacity>
-        
+
         <TouchableOpacity
           style={[styles.formatButton, styles.excelButton]}
           onPress={() => handleExport(dataType, 'excel')}
@@ -275,10 +280,10 @@ const VendorImportExportScreen: React.FC = () => {
         <View style={styles.cardTitleContainer}>
           <Text style={styles.cardTitle}>{title}</Text>
           <Text style={styles.cardDescription}>{description}</Text>
-          
+
           {/* Info button for format guidance */}
-          <TouchableOpacity 
-            style={styles.infoButton} 
+          <TouchableOpacity
+            style={styles.infoButton}
             onPress={() => {
               if (dataType === 'products') {
                 setFormatGuidance({
@@ -293,7 +298,7 @@ const VendorImportExportScreen: React.FC = () => {
           </TouchableOpacity>
         </View>
       </View>
-      
+
       <TouchableOpacity
         style={styles.importButton}
         onPress={() => handleImport(dataType)}
@@ -323,23 +328,23 @@ const VendorImportExportScreen: React.FC = () => {
         <Card3D style={styles.modalContent} elevation="large">
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>{formatGuidance.title}</Text>
-            <TouchableOpacity 
+            <TouchableOpacity
               onPress={() => setFormatGuidance({ ...formatGuidance, show: false })}
               style={styles.closeButton}
             >
               <Ionicons name="close" size={24} color={theme.colors.gray} />
             </TouchableOpacity>
           </View>
-          
+
           <ScrollView style={styles.modalScrollView}>
             <Text style={styles.formatGuideTitle}>Required Fields:</Text>
             {formatGuidance.fields.map((field, index) => (
               <Text key={index} style={styles.formatField}>• {field}</Text>
             ))}
-            
+
             {formatGuidance.sample && (
               <>
-                <Text style={[styles.formatGuideTitle, {marginTop: theme.spacing.md}]}>
+                <Text style={[styles.formatGuideTitle, { marginTop: theme.spacing.md }]}>
                   Sample Format:
                 </Text>
                 <View style={styles.sampleContainer}>
@@ -347,13 +352,13 @@ const VendorImportExportScreen: React.FC = () => {
                 </View>
               </>
             )}
-            
-            <Text style={[styles.formatInstruction, {marginTop: theme.spacing.md}]}>
+
+            <Text style={[styles.formatInstruction, { marginTop: theme.spacing.md }]}>
               Your CSV file should follow this exact format. You can also export your data first to see the correct format.
             </Text>
           </ScrollView>
-          
-          <TouchableOpacity 
+
+          <TouchableOpacity
             style={styles.closeModalButton}
             onPress={() => setFormatGuidance({ ...formatGuidance, show: false })}
           >
@@ -379,7 +384,7 @@ const VendorImportExportScreen: React.FC = () => {
               <Ionicons name="close" size={24} color={theme.colors.text} />
             </TouchableOpacity>
           </View>
-          
+
           <ScrollView style={styles.instructionsContainer}>
             <Text style={styles.instructionsTitle}>Import Guidelines:</Text>
             <Text style={styles.instructionsText}>
@@ -391,7 +396,7 @@ const VendorImportExportScreen: React.FC = () => {
             <Text style={styles.instructionsText}>
               • Revenue: CSV/Excel file with columns: date, amount, orderId, paymentMethod
             </Text>
-            
+
             <Text style={styles.instructionsTitle}>Export Guidelines:</Text>
             <Text style={styles.instructionsText}>
               • Choose between CSV or Excel format
@@ -422,34 +427,34 @@ const VendorImportExportScreen: React.FC = () => {
 
   return (
     <View style={styles.container}>
-      <VendorLocationHeader 
-        title="Import/Export" 
-        showBackButton={true} 
+      <VendorLocationHeader
+        title="Import/Export"
+        showBackButton={true}
       />
-      
+
       {actionMessage ? (
         <View style={styles.actionMessageContainer}>
           <Text style={styles.actionMessageText}>{actionMessage}</Text>
           <ActivityIndicator size="small" color={theme.colors.primary} />
         </View>
       ) : null}
-      
+
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollViewContent}>
         <Text style={styles.sectionTitle}>Export Data</Text>
         {renderExportCard('Products', 'Export your product catalog', 'cube-outline', 'products')}
         {renderExportCard('Orders', 'Export your order history', 'receipt-outline', 'orders')}
         {renderExportCard('Revenue', 'Export your revenue reports', 'cash-outline', 'revenue')}
-        
+
         <Text style={styles.sectionTitle}>Import Data</Text>
         {renderImportCard('Products', 'Import your product catalog', 'cube-outline', 'products')}
-        
+
         <View style={styles.helpCard}>
           <Text style={styles.helpTitle}>Need Help?</Text>
           <Text style={styles.helpText}>
             For help with importing or exporting data, please refer to our documentation
             or contact support.
           </Text>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.helpButton}
             onPress={() => setShowInstructions(true)}
           >
@@ -457,7 +462,7 @@ const VendorImportExportScreen: React.FC = () => {
           </TouchableOpacity>
         </View>
       </ScrollView>
-      
+
       {renderFormatGuidanceModal()}
       {renderInstructionsModal()}
     </View>

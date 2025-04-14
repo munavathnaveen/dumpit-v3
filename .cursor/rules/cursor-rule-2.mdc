@@ -1,0 +1,115 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+
+## ✅ 🔁 The Ultimate Cursor Rule for Clean, Secure, Scalable Code
+
+This rule serves as a **unified checklist** across the stack — frontend, backend, security, and quality. You can use this as a **benchmark** for every code module, PR review, or feature release.
+
+---
+
+### 🔷 1. 🔍 **Clarity & Readability First**
+- ✅ Use **clear, descriptive naming** for all variables, functions, files, and components.  
+  e.g., `getUserById` instead of `getUsr`.
+- ✅ Follow a **consistent naming convention**: camelCase for JS, snake_case for Python, PascalCase for components.
+- ✅ Write small, modular functions with a **single responsibility**.
+- ✅ Comment *why*, not *what*. (The code tells *what*, comments tell *why*.)
+
+---
+
+### 🔷 2. 🧱 **Code Structure & Scalability**
+- ✅ Organize code in a **modular**, **feature-first** directory structure.
+  - e.g., `features/products/`, `components/common/`, `services/api/`
+- ✅ Separate **business logic**, **UI**, **API**, and **models**.
+- ✅ Follow proper **MVC** or **MVVM** patterns where applicable.
+- ✅ Use **dependency injection** or service abstraction where needed.
+
+---
+
+### 🔷 3. 🔐 **Security**
+- ✅ Never trust user input. Always validate on both **client & server**.
+- ✅ Sanitize inputs before database operations or rendering.
+- ✅ Hash passwords with strong algorithms (e.g., `bcrypt`, `argon2`).
+- ✅ Use **HTTPS**, CSRF tokens, CORS policies, and secure headers.
+- ✅ Use **prepared statements** or ORM to avoid SQL injection.
+- ✅ Hide secrets via `.env` or secret managers — never hardcode!
+- ✅ Rate-limit and throttle sensitive APIs.
+
+---
+
+### 🔷 4. 📱 **Frontend (Web/App) Best Practices**
+- ✅ Build **responsive UIs** using mobile-first or fluid layouts.
+- ✅ Use reusable, atomic components (`Button`, `Input`, `Modal`, etc.).
+- ✅ Avoid state duplication — manage app state (Redux, Zustand, Pinia) responsibly.
+- ✅ Lazy load components and use **code splitting**.
+- ✅ Use accessibility (`aria-label`, semantic tags) and keyboard nav.
+- ✅ Optimize assets and images (WebP, SVG, compression).
+
+---
+
+### 🔷 5. 🧠 **Backend / API Design**
+- ✅ Use REST or GraphQL principles — clean resource naming and versioning.
+- ✅ Return proper HTTP status codes (`200`, `400`, `401`, `500`, etc.).
+- ✅ Write idempotent, consistent APIs.
+- ✅ Log intelligently (not excessively) with unique trace IDs.
+- ✅ Ensure all endpoints have auth and access control.
+
+---
+
+### 🔷 6. 🧪 **Testing & Validation**
+- ✅ Write **unit tests**, **integration tests**, and **e2e tests**.
+- ✅ Use schema validation (e.g., Joi, Zod, Yup) on incoming data.
+- ✅ Test error flows and edge cases.
+- ✅ Use mocking for isolated backend/frontend testing.
+
+---
+
+### 🔷 7. 🚀 **Performance & Optimization**
+- ✅ Avoid unnecessary re-renders (React), queries, and computations.
+- ✅ Use indexes in DBs for common queries.
+- ✅ Cache common results with Redis or memory caching.
+- ✅ Debounce or throttle user interactions (search, typing).
+- ✅ Profile before optimizing — avoid premature optimization.
+
+---
+
+### 🔷 8. 🔄 **CI/CD & DevOps Hygiene**
+- ✅ Use **linting** (ESLint, Prettier), **formatting**, and **type checks**.
+- ✅ Set up **CI/CD** pipelines with automated tests and checks.
+- ✅ Use **environment-based configs** for dev, staging, and prod.
+- ✅ Automate deployments with rollback options.
+
+---
+
+### 🔷 9. 📚 **Documentation & Maintainability**
+- ✅ Write docs for:
+  - API contracts (Swagger/OpenAPI)
+  - Setup guides
+  - Environment variables
+  - Major decisions (ADR-style)
+- ✅ Maintain a changelog and README per module.
+- ✅ Keep code DRY — abstract common patterns.
+
+---
+
+### 🔷 10. 🤝 **Collaboration & Reviews**
+- ✅ Every PR should be:
+  - Small and focused.
+  - Descriptive with screenshots or test results if needed.
+- ✅ Enforce code reviews and approve only when:
+  - Code is tested
+  - Naming and structure are consistent
+  - No breaking changes or regressions
+
+---
+
+### ✳️ Bonus Principles
+- **SOLID** principles (for OOP/code structure)
+- **KISS** – Keep It Simple, Stupid
+- **DRY** – Don’t Repeat Yourself
+- **YAGNI** – You Aren’t Gonna Need It (avoid overengineering)
+- **BEM** / **Atomic CSS** for styling best practices
+
+---

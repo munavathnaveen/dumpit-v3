@@ -210,18 +210,24 @@ const styles = StyleSheet.create({
   locationContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: theme.spacing.xs,
+    padding: theme.spacing.sm,
+    minHeight: 40,
+    backgroundColor: theme.colors.white,
+    borderRadius: theme.borderRadius.medium,
+    marginHorizontal: theme.spacing.sm,
+    ...theme.shadow.small,
   },
   locationIcon: {
-    marginRight: theme.spacing.xs,
+    marginRight: theme.spacing.sm,
   },
   refreshIcon: {
-    marginLeft: theme.spacing.xs,
+    marginLeft: theme.spacing.sm,
   },
   locationText: {
     fontSize: 14,
     color: theme.colors.dark,
-    maxWidth: 150,
+    flex: 1,
+    marginRight: theme.spacing.xs,
   },
 });
 

@@ -6,6 +6,7 @@ import {getCart, removeFromCart, updateCartItem, clearCart} from '../store/cartS
 import {CartItem} from '../store/cartSlice'
 import {Ionicons} from '@expo/vector-icons'
 import {useNavigation} from '@react-navigation/native'
+import Toast from 'react-native-toast-message'
 
 import {theme} from '../theme'
 import Card3D from '../components/Card3D'
@@ -22,20 +23,59 @@ const CartScreen = () => {
     dispatch(getCart())
   }, [dispatch])
 
-  const handleRemoveItem = (itemId: string) => {
-    dispatch(removeFromCart(itemId))
+  const handleRemoveItem = async (itemId: string) => {
+    try {
+      await dispatch(removeFromCart(itemId)).unwrap()
+      Toast.show({
+        type: 'success',
+        text1: 'Item Removed',
+        text2: 'Item has been removed from your cart',
+      })
+    } catch (error) {
+      Toast.show({
+        type: 'error',
+        text1: 'Error',
+        text2: 'Failed to remove item from cart',
+      })
+    }
   }
 
-  const handleUpdateQuantity = (itemId: string, quantity: number) => {
+  const handleUpdateQuantity = async (itemId: string, quantity: number) => {
     if (quantity > 0) {
-      dispatch(updateCartItem({itemId, quantity}))
+      try {
+        await dispatch(updateCartItem({itemId, quantity})).unwrap()
+        Toast.show({
+          type: 'success',
+          text1: 'Quantity Updated',
+          text2: 'Cart quantity has been updated',
+        })
+      } catch (error) {
+        Toast.show({
+          type: 'error',
+          text1: 'Error',
+          text2: 'Failed to update quantity',
+        })
+      }
     } else {
       handleRemoveItem(itemId)
     }
   }
 
-  const handleClearCart = () => {
-    dispatch(clearCart())
+  const handleClearCart = async () => {
+    try {
+      await dispatch(clearCart()).unwrap()
+      Toast.show({
+        type: 'success',
+        text1: 'Cart Cleared',
+        text2: 'Your cart has been cleared',
+      })
+    } catch (error) {
+      Toast.show({
+        type: 'error',
+        text1: 'Error',
+        text2: 'Failed to clear cart',
+      })
+    }
   }
 
   const handleCheckout = () => {

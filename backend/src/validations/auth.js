@@ -77,6 +77,14 @@ const loginSchema = Joi.object({
   password: Joi.string().required().messages({
     'string.empty': 'Password is required',
   }),
+
+  role: Joi.string()
+    .valid(config.constants.userRoles.VENDOR, config.constants.userRoles.CUSTOMER)
+    .required()
+    .messages({
+      'string.empty': 'Role is required',
+      'any.only': 'Role must be either vendor or customer',
+    }),
 })
 
 // Update details validation schema

@@ -19,6 +19,7 @@ import { FontAwesome, Ionicons, MaterialIcons } from '@expo/vector-icons';
 import Slider from '@react-native-community/slider';
 import { RouteProp } from '@react-navigation/native';
 import debounce from 'lodash.debounce';
+import Toast from 'react-native-toast-message';
 
 import { RootState, AppDispatch } from '../store';
 import { theme } from '../theme';
@@ -325,8 +326,21 @@ const ProductsScreen: React.FC = () => {
     navigation.navigate('Notifications');
   };
 
-  const handleAddToCart = (productId: string, quantity: number) => {
-    dispatch(addToCart({ productId, quantity }));
+  const handleAddToCart = async (productId: string) => {
+    try {
+      await dispatch(addToCart({ productId, quantity: 1 })).unwrap();
+      Toast.show({
+        type: 'success',
+        text1: 'Added to Cart',
+        text2: 'Product has been added to your cart',
+      });
+    } catch (error) {
+      Toast.show({
+        type: 'error',
+        text1: 'Error',
+        text2: 'Failed to add product to cart',
+      });
+    }
   };
 
   const handleFilterPress = () => {
@@ -405,7 +419,7 @@ const ProductsScreen: React.FC = () => {
           <Text style={styles.productPrice}>₹{item.price.toFixed(2)}</Text>
           <TouchableOpacity 
             style={styles.addButton}
-            onPress={() => handleAddToCart(item._id, 1)}
+            onPress={() => handleAddToCart(item._id)}
           >
             <FontAwesome name="plus" size={16} color={theme.colors.white} />
           </TouchableOpacity>

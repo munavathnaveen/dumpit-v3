@@ -16,6 +16,7 @@ import {
 } from 'react-native';
 import { FontAwesome } from '@expo/vector-icons';
 import { useDispatch } from 'react-redux';
+import Toast from 'react-native-toast-message';
 
 import { AppDispatch } from '../store';
 import { theme } from '../theme';
@@ -28,6 +29,7 @@ import { Product } from '../types/product';
 import { Shop } from '../api/shopApi';
 import MapViewComponent from '../components/MapView';
 import { LocationService, Coordinates } from '../services/LocationService';
+import toast from '../utils/toast';
 
 const { width } = Dimensions.get('window');
 
@@ -129,6 +131,7 @@ const ShopDetailsScreen: React.FC = () => {
   
   const handleAddToCart = (productId: string) => {
     dispatch(addToCart({ productId, quantity: 1 }));
+    toast.success('Added to Cart', 'Product has been added to your cart');
   };
   
   const handleProductPress = (productId: string) => {
@@ -143,7 +146,7 @@ const ShopDetailsScreen: React.FC = () => {
     if (!shop) return;
     
     if (!reviewText.trim()) {
-      Alert.alert('Review Required', 'Please enter review text');
+      toast.error('Review Required', 'Please enter review text');
       return;
     }
     
@@ -161,10 +164,10 @@ const ShopDetailsScreen: React.FC = () => {
       setShowReviewForm(false);
       setReviewText('');
       setReviewRating(5);
-      Alert.alert('Success', 'Your review has been submitted!');
+      toast.success('Review Submitted', 'Your review has been added successfully');
     } catch (error) {
       console.error('Failed to submit review:', error);
-      Alert.alert('Error', 'Failed to submit review. Please try again later.');
+      toast.error('Review Failed', 'Failed to submit your review. Please try again.');
     } finally {
       setSubmittingReview(false);
     }

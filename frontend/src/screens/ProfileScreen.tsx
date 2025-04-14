@@ -79,49 +79,6 @@ const ProfileScreen = () => {
     fetchUserAddresses();
   }, [fetchUserAddresses]);
 
-  // Avatar upload
-  const handleAvatarUpload = async () => {
-    if (!user?._id) return;
-
-    // Request permissions
-    if (Platform.OS !== 'web') {
-      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (status !== 'granted') {
-        alert('Permission Denied', 'We need camera roll permissions to upload an avatar.');
-        return;
-      }
-    }
-
-    try {
-      let result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: "images",
-        allowsEditing: true,
-        aspect: [1, 1],
-        quality: 0.8,
-      });
-      if (!result.canceled) {
-        const uri = result.assets[0].uri;
-        const fileExtension = uri.split('.').pop() || 'jpg';
-        
-        const file = {
-          uri,
-          type: `image/${fileExtension}`,
-          name: `avatar.${fileExtension}`,
-        } as any;
-    
-        const response = await userApi.uploadAvatar(user._id, file);
-        if (response.success) {
-          alert('Success', 'Avatar updated successfully!');
-          // Reload user data
-          dispatch({ type: 'auth/loadUser/fulfilled', payload: { ...user, avatar_url: response.data.url } });
-        }
-      }
-    } catch (error) {
-      alert('Upload Failed', 'Failed to upload avatar. Please try again.');
-      console.error('Avatar upload error:', error);
-    }
-  };
-
   // Profile update
   const handleUpdateProfile = async () => {
     console.log("Updating profile");
@@ -326,9 +283,6 @@ const ProfileScreen = () => {
               source={{ uri: user?.avatar_url || 'https://via.placeholder.com/150' }}
               style={styles.avatar}
             />
-            <TouchableOpacity style={styles.editAvatarButton} onPress={handleAvatarUpload}>
-              <MaterialIcons name="edit" size={18} color={theme.colors.white} />
-            </TouchableOpacity>
           </View>
           <Text style={styles.name}>{user?.name}</Text>
           <Text style={styles.email}>{user?.email}</Text>
@@ -606,19 +560,6 @@ const styles = StyleSheet.create({
     borderRadius: 50,
     borderWidth: 3,
     borderColor: theme.colors.primary,
-  },
-  editAvatarButton: {
-    position: 'absolute',
-    bottom: 0,
-    right: 0,
-    backgroundColor: theme.colors.primary,
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: theme.colors.white,
   },
   name: {
     fontSize: 22,

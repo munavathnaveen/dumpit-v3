@@ -17,6 +17,7 @@ import {
 import { FontAwesome, MaterialIcons, Ionicons } from '@expo/vector-icons';
 import { useSelector, useDispatch } from 'react-redux';
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
+import Toast from 'react-native-toast-message';
 
 import { RootState, AppDispatch } from '../store';
 import { theme } from '../theme';
@@ -26,6 +27,7 @@ import { useNavigation, useRoute } from '../navigation/hooks';
 import Card3D from '../components/Card3D';
 import * as productApi from '../api/productApi';
 import { LocationService, Coordinates } from '../services/LocationService';
+import toast from '../utils/toast';
 
 const { width } = Dimensions.get('window');
 
@@ -166,7 +168,7 @@ const ProductDetailsScreen: React.FC = () => {
   const handleAddToCart = () => {
     if (productData) {
       dispatch(addToCart({ productId, quantity }));
-      Alert.alert('Success', 'Item added to cart');
+      toast.success('Added to Cart', `${quantity} item(s) added to your cart`);
     }
   };
   
@@ -185,7 +187,7 @@ const ProductDetailsScreen: React.FC = () => {
     if (!productData) return;
     
     if (!reviewText.trim()) {
-      Alert.alert('Review Required', 'Please enter review text');
+      toast.error('Review Required', 'Please enter review text');
       return;
     }
     
@@ -198,13 +200,16 @@ const ProductDetailsScreen: React.FC = () => {
       
       // Refresh product data to show the new review
       dispatch(getProduct(productId));
-      setShowReviewForm(false);
+      
+      // Clear form and hide it
       setReviewText('');
       setReviewRating(5);
-      Alert.alert('Success', 'Your review has been submitted!');
+      setShowReviewForm(false);
+      
+      toast.success('Review Submitted', 'Your review has been added successfully');
     } catch (error) {
-      console.error('Failed to submit review:', error);
-      Alert.alert('Error', 'Failed to submit review. Please try again later.');
+      console.error('Error submitting review:', error);
+      toast.error('Review Failed', 'Failed to submit your review. Please try again.');
     } finally {
       setSubmittingReview(false);
     }
