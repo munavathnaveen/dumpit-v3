@@ -72,6 +72,7 @@ exports.register = async (req, res, next) => {
 exports.login = async (req, res, next) => {
   try {
     const { email, password, role } = req.body;
+        console.log("debug " , req.body, " ",config.constants.userRoles);
 
     // Validate email & password
     if (!email || !password) {
