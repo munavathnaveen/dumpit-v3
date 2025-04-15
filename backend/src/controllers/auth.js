@@ -127,10 +127,9 @@ exports.login = async (req, res, next) => {
     }
 
     // Check if role matches
-    console.log("debug ", user.role, " ", role);
-    // if (role && user.role !== role) {
-    //   return next(new ErrorResponse("Invalid role for this user", 401));
-    // }
+    if (role && user.role !== role) {
+      return next(new ErrorResponse("Invalid role for this user", 401));
+    }
 
     sendTokenResponse(user, 200, res);
   } catch (err) {
