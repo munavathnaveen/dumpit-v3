@@ -39,8 +39,10 @@ const TabNavigator: React.FC = () => {
   
   React.useEffect(() => {
     // When user or role changes, update key to force re-render
-    setKey(Date.now());
-  }, [user?.role]);
+    if (user) {
+      setKey(Date.now());
+    }
+  }, [user, user?.role]);
 
   return (
     <Tab.Navigator

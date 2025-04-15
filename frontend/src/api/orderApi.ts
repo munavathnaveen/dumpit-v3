@@ -142,6 +142,14 @@ export const updateOrderStatus = async (orderId: string, status: OrderStatus): P
   return response.data;
 };
 
+export const vendorOrderAction = async (orderId: string, action: 'accept' | 'reject'): Promise<{
+  success: boolean;
+  data: VendorOrder;
+}> => {
+  const response = await apiClient.put(`/orders/${orderId}/vendor-action`, { action });
+  return response.data;
+};
+
 export const getVendorOrderStats = async (): Promise<{
   success: boolean;
   data: any;

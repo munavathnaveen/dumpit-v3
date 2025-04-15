@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,8 @@ import {
   Alert,
   ActivityIndicator,
   Platform,
+  FlatList,
+  Modal,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -23,19 +25,69 @@ import ScreenHeader from '../../components/ScreenHeader';
 import alert from '../../utils/alert';
 import Card3D from '../../components/Card3D';
 
-// Categories for products
-const CATEGORIES = [
-  'Electronics',
-  'Clothing',
-  'Home',
-  'Beauty',
-  'Sports',
-  'Books',
-  'Food',
-  'Toys',
-  'Automotive',
-  'Other',
-];
+// Categories and product types from the provided JSON
+interface ProductCategoriesMap {
+  [key: string]: string[];
+}
+
+const PRODUCT_CATEGORIES: ProductCategoriesMap = {
+  "Construction Materials": [
+    "Cement",
+    "Steel",
+    "Sand",
+    "Aggregate"
+  ],
+  "Interior Products": [
+    "Plywood",
+    "Laminates",
+    "Hardware",
+    "Edge Beeding",
+    "Adhesive"
+  ],
+  "Plumbing & Bathware": [
+    "Upvc Pipes",
+    "HDPE Pipes",
+    "PVC Pipes",
+    "Fixtures"
+  ],
+  "Electrical": [
+    "Wires",
+    "Lights",
+    "Switches & Boards"
+  ],
+  "Paints": [
+    "Putty",
+    "Primers",
+    "Internal Paints",
+    "External Paints",
+    "Enamel Paints"
+  ],
+  "Tiles & Granites": [
+    "Floor Tiles",
+    "Bath room Dadoo",
+    "Bath room Flooring",
+    "Adhesives",
+    "Granite",
+    "Marbles"
+  ],
+  "Man Power supply": [
+    "Carpenters",
+    "Painters",
+    "Electrician",
+    "Plumbers",
+    "Masons",
+    "Labour",
+    "Tile labour"
+  ],
+  "Machinery & Equipments": [
+    "Machinery",
+    "Equipments"
+  ],
+  "Other": ["Other"]
+};
+
+// Flattened categories array for display
+const CATEGORIES = Object.keys(PRODUCT_CATEGORIES);
 
 const VendorAddProductScreen: React.FC = () => {
   const navigation = useNavigation<MainStackNavigationProp<'VendorAddProduct'>>();
@@ -56,6 +108,21 @@ const VendorAddProductScreen: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [uploading, setUploading] = useState(false);
+  
+  // State for dropdown functionality
+  const [showCategoryModal, setShowCategoryModal] = useState(false);
+  const [showTypeModal, setShowTypeModal] = useState(false);
+  const [productTypes, setProductTypes] = useState<string[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
+
+  // Effect to update product types when category changes
+  useEffect(() => {
+    if (formData.category && PRODUCT_CATEGORIES[formData.category]) {
+      setProductTypes(PRODUCT_CATEGORIES[formData.category]);
+    } else {
+      setProductTypes([]);
+    }
+  }, [formData.category]);
 
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};
@@ -154,13 +221,19 @@ const VendorAddProductScreen: React.FC = () => {
         units: formData.units,
         stock: formData.stock,
         discount: formData.discount,
-        image: formData.image,
+        // We'll specifically pass the image URL to make sure it reaches the backend
+        image: formData.image || undefined,
         isActive: formData.isActive
       };
 
       const response = await createProduct(productData);
       
       if (response.success) {
+        // If the product has an image URL and was created successfully, ensure the image is properly set
+        if (formData.image && formData.image.trim() !== '') {
+          await uploadProductImage(response.data._id, formData.image);
+        }
+        
         alert(
           'Success',
           'Product added successfully!',
@@ -181,6 +254,77 @@ const VendorAddProductScreen: React.FC = () => {
       setLoading(false);
     }
   };
+
+  // Filter function for search
+  const getFilteredOptions = (options: string[], query: string) => {
+    if (!query) return options;
+    return options.filter(option => 
+      option.toLowerCase().includes(query.toLowerCase())
+    );
+  };
+
+  // Modal component for dropdown selection
+  const SelectionModal = ({ 
+    visible, 
+    onClose, 
+    title, 
+    options, 
+    onSelect, 
+    searchValue,
+    onSearchChange
+  }: {
+    visible: boolean;
+    onClose: () => void;
+    title: string;
+    options: string[];
+    onSelect: (option: string) => void;
+    searchValue: string;
+    onSearchChange: (value: string) => void;
+  }) => (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="slide"
+      onRequestClose={onClose}
+    >
+      <View style={styles.modalOverlay}>
+        <View style={styles.modalContent}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>{title}</Text>
+            <TouchableOpacity onPress={onClose}>
+              <Ionicons name="close" size={24} color="#333" />
+            </TouchableOpacity>
+          </View>
+          
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search..."
+            value={searchValue}
+            onChangeText={onSearchChange}
+            autoFocus
+          />
+          
+          <FlatList
+            data={getFilteredOptions(options, searchValue)}
+            keyExtractor={(item) => item}
+            renderItem={({ item }) => (
+              <TouchableOpacity
+                style={styles.optionItem}
+                onPress={() => {
+                  onSelect(item);
+                  onClose();
+                }}
+              >
+                <Text style={styles.optionText}>{item}</Text>
+              </TouchableOpacity>
+            )}
+            ItemSeparatorComponent={() => <View style={styles.optionSeparator} />}
+            style={styles.optionsList}
+          />
+        </View>
+      </View>
+    </Modal>
+  );
 
   if (loading) {
     return (
@@ -237,26 +381,41 @@ const VendorAddProductScreen: React.FC = () => {
           {/* Product Type */}
           <View style={styles.formGroup}>
             <Text style={styles.label}>Product Type*</Text>
-            <TextInput
-              style={styles.input}
-              value={formData.type}
-              onChangeText={(text) => handleInputChange('type', text)}
-              placeholder="Enter product type (e.g., Physical, Digital)"
-              placeholderTextColor={theme.colors.gray}
-            />
+            <TouchableOpacity
+              style={styles.dropdownInput}
+              onPress={() => {
+                if (formData.category) {
+                  setSearchQuery('');
+                  setShowTypeModal(true);
+                } else {
+                  alert('Select Category', 'Please select a category first to view available product types.');
+                }
+              }}
+              disabled={!formData.category}
+            >
+              <Text style={formData.type ? styles.dropdownText : styles.dropdownPlaceholder}>
+                {formData.type || "Select product type"}
+              </Text>
+              <Ionicons name="chevron-down" size={20} color={theme.colors.gray} />
+            </TouchableOpacity>
             {errors.type && <Text style={styles.errorText}>{errors.type}</Text>}
           </View>
 
           {/* Product Category */}
           <View style={styles.formGroup}>
             <Text style={styles.label}>Category*</Text>
-            <TextInput
-              style={styles.input}
-              value={formData.category}
-              onChangeText={(text) => handleInputChange('category', text)}
-              placeholder="Enter product category (e.g., Electronics, Cement)"
-              placeholderTextColor={theme.colors.gray}
-            />
+            <TouchableOpacity
+              style={styles.dropdownInput}
+              onPress={() => {
+                setSearchQuery('');
+                setShowCategoryModal(true);
+              }}
+            >
+              <Text style={formData.category ? styles.dropdownText : styles.dropdownPlaceholder}>
+                {formData.category || "Select product category"}
+              </Text>
+              <Ionicons name="chevron-down" size={20} color={theme.colors.gray} />
+            </TouchableOpacity>
             {errors.category && <Text style={styles.errorText}>{errors.category}</Text>}
           </View>
 
@@ -349,6 +508,31 @@ const VendorAddProductScreen: React.FC = () => {
           </TouchableOpacity>
         </Card3D>
       </KeyboardAwareScrollView>
+
+      {/* Category Selection Modal */}
+      <SelectionModal
+        visible={showCategoryModal}
+        onClose={() => setShowCategoryModal(false)}
+        title="Select Category"
+        options={CATEGORIES}
+        onSelect={(category) => {
+          handleInputChange('category', category);
+          handleInputChange('type', ''); // Reset type when category changes
+        }}
+        searchValue={searchQuery}
+        onSearchChange={setSearchQuery}
+      />
+
+      {/* Product Type Selection Modal */}
+      <SelectionModal
+        visible={showTypeModal}
+        onClose={() => setShowTypeModal(false)}
+        title="Select Product Type"
+        options={productTypes}
+        onSelect={(type) => handleInputChange('type', type)}
+        searchValue={searchQuery}
+        onSearchChange={setSearchQuery}
+      />
     </View>
   );
 };
@@ -511,6 +695,68 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: theme.colors.gray,
     fontStyle: 'italic',
+  },
+  dropdownInput: {
+    backgroundColor: theme.colors.white,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    borderRadius: theme.borderRadius.medium,
+    padding: theme.spacing.sm,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    height: 50,
+  },
+  dropdownText: {
+    fontSize: 16,
+    color: theme.colors.dark,
+  },
+  dropdownPlaceholder: {
+    fontSize: 16,
+    color: theme.colors.gray,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: 'white',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 20,
+    maxHeight: '80%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 15,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: theme.colors.dark,
+  },
+  searchInput: {
+    backgroundColor: '#f0f0f0',
+    borderRadius: 10,
+    padding: 10,
+    marginBottom: 15,
+  },
+  optionsList: {
+    maxHeight: 300,
+  },
+  optionItem: {
+    paddingVertical: 12,
+  },
+  optionText: {
+    fontSize: 16,
+    color: theme.colors.dark,
+  },
+  optionSeparator: {
+    height: 1,
+    backgroundColor: '#eee',
   },
 });
 

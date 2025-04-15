@@ -175,9 +175,12 @@ const cartSlice = createSlice({
       .addCase(updateCartItem.fulfilled, (state, action) => {
         state.loading = false;
         
-        const index = state.items.findIndex(item => item._id === action.payload._id);
+        const index = state.items.findIndex(item => item.product._id === action.payload.product._id);
         if (index !== -1) {
-          state.items[index] = action.payload;
+          // Create a new array to ensure the state is properly updated
+          state.items = state.items.map(item => 
+            item.product._id === action.payload.product._id ? action.payload : item
+          );
         }
         
         const { totalItems, totalAmount } = calculateCartTotals(state.items);
@@ -197,7 +200,7 @@ const cartSlice = createSlice({
       .addCase(removeFromCart.fulfilled, (state, action) => {
         state.loading = false;
         // Create new array to trigger re-render
-        state.items = state.items.filter(item => item._id !== action.payload);
+        state.items = state.items.filter(item => item.product._id !== action.payload);
         
         // Recalculate totals
         const { totalItems, totalAmount } = calculateCartTotals(state.items);

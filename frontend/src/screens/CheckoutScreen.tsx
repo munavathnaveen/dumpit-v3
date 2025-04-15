@@ -48,7 +48,7 @@ const CheckoutScreen: React.FC = () => {
   const [couponCode, setCouponCode] = useState('');
   const [couponApplied, setCouponApplied] = useState(false);
   const [couponDiscount, setCouponDiscount] = useState(0);
-  const [paymentMethod, setPaymentMethod] = useState('razorpay');
+  const [paymentMethod, setPaymentMethod] = useState('cash_on_delivery');
   const [notes, setNotes] = useState('');
   
   // Calculate totals
@@ -357,6 +357,11 @@ const CheckoutScreen: React.FC = () => {
               'razorpay',
               'Razorpay',
               <FontAwesome5 name="credit-card" size={24} color="#072654" />
+            )}
+            {renderPaymentMethodItem(
+              'cash_on_delivery',
+              'Cash on Delivery',
+              <MaterialIcons name="attach-money" size={24} color="#00C853" />
             )}
           </View>
         </View>

@@ -18,7 +18,7 @@ import Card3D from '../../components/Card3D';
 import ScreenHeader from '../../components/ScreenHeader';
 import { theme } from '../../theme';
 import { MainStackNavigationProp, MainStackParamList } from '../../navigation/types';
-import { getVendorOrder, updateOrderStatus } from '../../api/orderApi';
+import { getVendorOrder, updateOrderStatus, vendorOrderAction } from '../../api/orderApi';
 import { VendorOrder } from '../../api/orderApi';
 
 type OrderDetailsRouteProp = RouteProp<MainStackParamList, 'VendorOrderDetails'>;
@@ -56,6 +56,60 @@ const VendorOrderDetailsScreen: React.FC = () => {
 
   const handleStatusUpdate = () => {
     if (!order) return;
+
+    // For COD orders in pending status, use the accept/reject workflow
+    if (order.status === 'pending' && order.paymentMethod === 'cash_on_delivery') {
+      Alert.alert(
+        'Order Action Required',
+        'Do you want to accept or reject this order?',
+        [
+          {
+            text: 'Accept',
+            onPress: async () => {
+              try {
+                setUpdatingStatus(true);
+                await vendorOrderAction(orderId, 'accept');
+                
+                // Update local order state with new status
+                setOrder((prevOrder) => prevOrder ? { ...prevOrder, status: 'processing' } : null);
+                
+                Alert.alert('Success', 'Order accepted successfully.');
+              } catch (error) {
+                console.error('Failed to accept order:', error);
+                Alert.alert('Error', 'Failed to accept order.');
+              } finally {
+                setUpdatingStatus(false);
+              }
+            },
+          },
+          {
+            text: 'Reject',
+            onPress: async () => {
+              try {
+                setUpdatingStatus(true);
+                await vendorOrderAction(orderId, 'reject');
+                
+                // Update local order state with new status
+                setOrder((prevOrder) => prevOrder ? { ...prevOrder, status: 'cancelled' } : null);
+                
+                Alert.alert('Success', 'Order rejected successfully.');
+              } catch (error) {
+                console.error('Failed to reject order:', error);
+                Alert.alert('Error', 'Failed to reject order.');
+              } finally {
+                setUpdatingStatus(false);
+              }
+            },
+            style: 'destructive',
+          },
+          {
+            text: 'Cancel',
+            style: 'cancel',
+          },
+        ]
+      );
+      return;
+    }
 
     // Define possible next statuses based on current status
     let nextStatuses: { [key: string]: string } = {};

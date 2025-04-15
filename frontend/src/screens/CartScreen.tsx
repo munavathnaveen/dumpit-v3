@@ -85,7 +85,7 @@ const CartScreen = () => {
     }
 
     // Navigate to checkout screen with the total amount
-    navigation.navigate('CheckoutScreen', {
+    navigation.navigate('Checkout', {
       totalAmount: totalAmount + (totalAmount > 0 ? 50 : 0),
     })
   }

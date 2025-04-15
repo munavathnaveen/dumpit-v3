@@ -138,18 +138,19 @@ const VendorImportExportScreen: React.FC = () => {
     try {
       setLoading(`import-${dataType}`);
       setActionMessage(`Picking file for ${dataType} import...`);
-
+      
+      // Pick a document
       const result = await DocumentPicker.getDocumentAsync({
-        type: '*/*',
+        type: ['text/csv', 'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet','text/plain','*/*'],
         copyToCacheDirectory: true,
-      });
-
+      });      
+      
       if (result.canceled) {
         setLoading(null);
         setActionMessage('');
         return;
       }
-
+      
       const fileAsset = result.assets?.[0];
       if (!fileAsset) {
         setLoading(null);
@@ -157,49 +158,37 @@ const VendorImportExportScreen: React.FC = () => {
         return;
       }
 
-      const allowedExtensions = ['csv', 'xlsx'];
-      const fileExtension = fileAsset.name.split('.').pop()?.toLowerCase();
-
-      if (!fileExtension || !allowedExtensions.includes(fileExtension)) {
-        Alert.alert(
-          'Invalid File Type',
-          'Please select a valid CSV (.csv) or Excel (.xlsx) file.'
-        );
-        setLoading(null);
-        setActionMessage('');
-        return;
-      }
-
       setActionMessage(`Importing ${dataType}...`);
-
-      const fileInfo = {
-        uri: fileAsset.uri,
-        name: fileAsset.name,
-        type: fileAsset.mimeType ?? (fileExtension === 'csv'
-          ? 'text/csv'
-          : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'),
-      };
-
-      // Convert to blob for upload
-      const response = await fetch(fileInfo.uri);
-      const blob = await response.blob();
-      const file = new File([blob], fileInfo.name, { type: fileInfo.type });
-
-      const importResponse = await importData(dataType as 'products', file);
-
+      
+      // Create FormData for API upload
+      const formData = new FormData();
+      
+      // Properly format the file object for mobile upload
+      formData.append('csv', {
+        uri: Platform.OS === 'android' ? fileAsset.uri : fileAsset.uri.replace('file://', ''),
+        name: fileAsset.name || `${dataType}_import.csv`,
+        type: fileAsset.mimeType || 'text/csv'
+      } as any);
+      
+      // Upload the file directly using FormData
+      const importResponse = await importData(dataType as 'products', formData);
+      
       Alert.alert(
         'Import Successful',
         `Successfully imported ${importResponse.processed || 0} ${dataType}`,
         [{ text: 'OK' }]
       );
-
+      
+      // If importing products, refresh the products screen
       if (dataType === 'products') {
         navigation.navigate('VendorProducts');
       }
     } catch (error: any) {
       console.error(`Error importing ${dataType}:`, error);
-
+      
+      // Check if this is our structured error result with format guidance
       if (error && error.format) {
+        // Show format guidance modal
         setFormatGuidance({
           show: true,
           title: `${dataType.charAt(0).toUpperCase() + dataType.slice(1)} Import Format`,
@@ -207,7 +196,11 @@ const VendorImportExportScreen: React.FC = () => {
           fields: error.format.fields,
         });
       } else {
-        alert(error.message || `Failed to import ${dataType}. Please check your file format and try again.`);
+        // Show generic error
+        Alert.alert(
+          'Import Error', 
+          error.message || `Failed to import ${dataType}. Please check your file format and try again.`
+        );
       }
     } finally {
       setLoading(null);

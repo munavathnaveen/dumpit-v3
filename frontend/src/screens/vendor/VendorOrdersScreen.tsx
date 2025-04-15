@@ -17,7 +17,7 @@ import { theme } from '../../theme';
 import Card3D from '../../components/Card3D';
 import SegmentedControl from '../../components/SegmentedControl';
 import { MainStackNavigationProp } from '../../navigation/types';
-import { getVendorOrders, updateOrderStatus } from '../../api/orderApi';
+import { getVendorOrders, updateOrderStatus, vendorOrderAction } from '../../api/orderApi';
 import ScreenHeader from '../../components/ScreenHeader';
 import { RootState } from '../../store';
 import alert from '../../utils/alert';
@@ -224,7 +224,70 @@ const VendorOrdersScreen: React.FC = () => {
     navigation.navigate('Notifications');
   };
 
-  const handleOrderActions = (orderId: string, orderStatus: string) => {
+  const handleOrderActions = (orderId: string, orderStatus: OrderStatus, paymentMethod: string) => {
+    // Special handling for COD orders in pending status
+    if (orderStatus === 'pending' && paymentMethod === 'cash_on_delivery') {
+      alert(
+        'Cash on Delivery Order',
+        'What would you like to do with this order?',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'View Details',
+            onPress: () => navigation.navigate('VendorOrderDetails', { orderId }),
+          },
+          {
+            text: 'Accept Order',
+            onPress: async () => {
+              try {
+                setLoading(true);
+                await vendorOrderAction(orderId, 'accept');
+                
+                // Update order in local state
+                const updatedOrders = orders.map(order => 
+                  order._id === orderId ? { ...order, status: 'processing' as OrderStatus } : order
+                );
+                setOrders(updatedOrders);
+                filterOrders(updatedOrders, selectedFilter);
+                
+                alert('Success', 'Order accepted successfully');
+              } catch (error) {
+                console.error('Failed to accept order:', error);
+                alert('Error', 'Failed to accept order');
+              } finally {
+                setLoading(false);
+              }
+            },
+          },
+          {
+            text: 'Reject Order',
+            onPress: async () => {
+              try {
+                setLoading(true);
+                await vendorOrderAction(orderId, 'reject');
+                
+                // Update order in local state
+                const updatedOrders = orders.map(order => 
+                  order._id === orderId ? { ...order, status: 'cancelled' as OrderStatus } : order
+                );
+                setOrders(updatedOrders);
+                filterOrders(updatedOrders, selectedFilter);
+                
+                alert('Success', 'Order rejected successfully');
+              } catch (error) {
+                console.error('Failed to reject order:', error);
+                alert('Error', 'Failed to reject order');
+              } finally {
+                setLoading(false);
+              }
+            },
+            style: 'destructive',
+          },
+        ]
+      );
+      return;
+    }
+
     alert(
       'Order Actions',
       'What would you like to do with this order?',
@@ -324,7 +387,7 @@ const VendorOrdersScreen: React.FC = () => {
                 styles.actionButton,
                 (item.status === 'delivered' || item.status === 'cancelled') && styles.disabledButton
               ]}
-              onPress={() => handleOrderActions(item._id, item.status)}
+              onPress={() => handleOrderActions(item._id, item.status, item.paymentMethod)}
               disabled={item.status === 'delivered' || item.status === 'cancelled'}
             >
               <Text style={[

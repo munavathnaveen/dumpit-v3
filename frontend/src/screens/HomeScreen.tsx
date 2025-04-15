@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Image, ActivityIndicator, Dimensions, ImageBackground, Linking, Alert, useWindowDimensions } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Image, ActivityIndicator, Dimensions, ImageBackground, Linking, Alert, useWindowDimensions, TextInput } from 'react-native';
 import { useSelector, useDispatch } from 'react-redux';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -98,6 +98,11 @@ const HomeScreen: React.FC = () => {
     categories: true
   });
   const [currentAdIndex, setCurrentAdIndex] = useState(0);
+  
+  // Search functionality
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<Product[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
 
   // Responsive width calculations
   const cardWidth = dimensions.width < 380 ? dimensions.width * 0.85 : dimensions.width * 0.7;
@@ -549,101 +554,176 @@ const HomeScreen: React.FC = () => {
     );
   };
 
+  // Add search function
+  const handleSearch = async (query: string) => {
+    setSearchQuery(query);
+    
+    if (query.trim() === '') {
+      setIsSearching(false);
+      setSearchResults([]);
+      return;
+    }
+    
+    setIsSearching(true);
+    try {
+      // Search in products API with the query
+      const response = await productApi.getProducts(`search=${query}`);
+      if (response && response.data && Array.isArray(response.data)) {
+        const mappedResults: Product[] = response.data.map((item: any) => ({
+          _id: item._id,
+          name: item.name,
+          description: item.description || '',
+          rate: item.price || 0,
+          discount: item.discount || 0,
+          images: item.image ? [item.image] : [],
+          rating: item.rating || 0,
+          shop: item.shop || null
+        }));
+        setSearchResults(mappedResults);
+      } else {
+        setSearchResults([]);
+      }
+    } catch (error) {
+      console.error('Failed to search products:', error);
+      setSearchResults([]);
+    }
+  };
+
   return (
     <View style={styles.container}>
-      <Header 
+      <Header
         location={location}
         onProfilePress={handleProfilePress}
         onNotificationPress={handleNotificationPress}
         showLocation={true}
       />
       
+      {/* Search Bar */}
+      <View style={styles.searchContainer}>
+        <View style={styles.searchBar}>
+          <Ionicons name="search-outline" size={20} color={theme.colors.gray} style={styles.searchIcon} />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search products, shops, categories..."
+            value={searchQuery}
+            onChangeText={handleSearch}
+            returnKeyType="search"
+          />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity onPress={() => handleSearch('')} style={styles.clearButton}>
+              <Ionicons name="close-circle" size={20} color={theme.colors.gray} />
+            </TouchableOpacity>
+          )}
+        </View>
+      </View>
+      
       <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollViewContent}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}
       >
-        {/* Banner spacing */}
-        <View style={styles.headerSpacing} />
-        
-        {/* Current Ad Banner */}
-        {renderAdBanner()}
-        
-        {/* Categories Section - Show before featured products */}
-        <View style={styles.sectionContainer}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Browse Categories</Text>
-            <TouchableOpacity onPress={() => navigation.navigate('ProductsTab')}>
-              <Text style={styles.seeAllText}>See All</Text>
-            </TouchableOpacity>
+        {/* Display search results if searching */}
+        {isSearching ? (
+          <View style={styles.searchResultsContainer}>
+            <Text style={styles.sectionTitle}>Search Results</Text>
+            {searchResults.length > 0 ? (
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.productsContainer}
+              >
+                {searchResults.map(product => renderProductCard(product))}
+              </ScrollView>
+            ) : (
+              <Text style={styles.noResultsText}>No products found matching "{searchQuery}"</Text>
+            )}
           </View>
-          
-          {loading.categories ? (
-            <ActivityIndicator size="large" color={theme.colors.primary} />
-          ) : (
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.categoriesScrollContent}
-            >
-              {categories.slice(0, 8).map((category, index) => renderCategoryItem(category, index))}
-            </ScrollView>
-          )}
-        </View>
-        
-        {/* Featured Products Section */}
-        <View style={styles.sectionContainer}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Featured Products</Text>
-            <TouchableOpacity onPress={() => navigation.navigate('ProductsTab')}>
-              <Text style={styles.seeAllText}>See All</Text>
-            </TouchableOpacity>
-          </View>
-          
-          {loading.products ? (
-            <ActivityIndicator size="large" color={theme.colors.primary} />
-          ) : (
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.horizontalScrollContent}
-            >
-              {featuredProducts.length > 0 ? (
-                featuredProducts.map(product => renderProductCard(product))
+        ) : (
+          // Original content when not searching
+          <>
+            {/* Welcome section */}
+            <View style={styles.welcomeSection}>
+              <Text style={styles.welcomeText}>Welcome, {user?.name?.split(' ')[0] || 'Guest'}!</Text>
+              <Text style={styles.locationText}>
+                <Ionicons name="location" size={16} color={theme.colors.primary} />
+                {location}
+              </Text>
+            </View>
+            
+            {/* Rest of the content */}
+            {renderAdBanner()}
+            
+            {/* Categories section */}
+            <View style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionTitle}>Categories</Text>
+              </View>
+              
+              {loading.categories ? (
+                <ActivityIndicator size="small" color={theme.colors.primary} />
               ) : (
-                <Text style={styles.noDataText}>No products available</Text>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.categoriesContainer}
+                >
+                  {categories.map((category, index) => renderCategoryItem(category, index))}
+                </ScrollView>
               )}
-            </ScrollView>
-          )}
-        </View>
-        
-        {/* Nearby Shops Section */}
-        <View style={styles.sectionContainer}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Nearby Shops</Text>
-            <TouchableOpacity onPress={() => navigation.navigate('ShopsTab')}>
-              <Text style={styles.seeAllText}>See All</Text>
-            </TouchableOpacity>
-          </View>
-          
-          {loading.shops ? (
-            <ActivityIndicator size="large" color={theme.colors.primary} />
-          ) : (
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.horizontalScrollContent}
-            >
-              {nearbyShops.length > 0 ? (
-                nearbyShops.map(shop => renderShopCard(shop))
+            </View>
+            
+            {/* Featured Products section */}
+            <View style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionTitle}>Featured Products</Text>
+                <TouchableOpacity onPress={() => navigation.navigate('ProductsTab')}>
+                  <Text style={styles.viewAllText}>View All</Text>
+                </TouchableOpacity>
+              </View>
+              
+              {loading.products ? (
+                <ActivityIndicator size="small" color={theme.colors.primary} />
+              ) : featuredProducts.length > 0 ? (
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.productsContainer}
+                >
+                  {featuredProducts.map(product => renderProductCard(product))}
+                </ScrollView>
               ) : (
-                <Text style={styles.noDataText}>No shops available nearby</Text>
+                <Text style={styles.noDataText}>No featured products available</Text>
               )}
-            </ScrollView>
-          )}
-        </View>
-        
-        {/* App Information Section */}
-        {renderAppInfoSection()}
+            </View>
+            
+            {/* Nearby Shops section */}
+            <View style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionTitle}>Nearby Shops</Text>
+                <TouchableOpacity onPress={() => navigation.navigate('ShopsTab')}>
+                  <Text style={styles.viewAllText}>View All</Text>
+                </TouchableOpacity>
+              </View>
+              
+              {loading.shops ? (
+                <ActivityIndicator size="small" color={theme.colors.primary} />
+              ) : nearbyShops.length > 0 ? (
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.productsContainer}
+                >
+                  {nearbyShops.map(shop => renderShopCard(shop))}
+                </ScrollView>
+              ) : (
+                <Text style={styles.noDataText}>No nearby shops available</Text>
+              )}
+            </View>
+            
+            {/* App info section */}
+            {renderAppInfoSection()}
+          </>
+        )}
       </ScrollView>
     </View>
   );
@@ -654,11 +734,24 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: theme.colors.background,
   },
-  scrollContent: {
+  scrollView: {
+    flex: 1,
+  },
+  scrollViewContent: {
     paddingBottom: 120,
   },
-  headerSpacing: {
-    height: 16, // Add spacing after header
+  welcomeSection: {
+    padding: theme.spacing.md,
+  },
+  welcomeText: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: theme.colors.text,
+    marginBottom: theme.spacing.sm,
+  },
+  locationText: {
+    fontSize: 14,
+    color: theme.colors.primary,
   },
   adBannerContainer: {
     marginHorizontal: theme.spacing.lg,
@@ -731,7 +824,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     width: 16,
   },
-  sectionContainer: {
+  section: {
     marginBottom: theme.spacing.lg,
   },
   sectionHeader: {
@@ -746,12 +839,12 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: theme.colors.text,
   },
-  seeAllText: {
+  viewAllText: {
     fontSize: 14,
     color: theme.colors.primary,
     fontWeight: '600',
   },
-  horizontalScrollContent: {
+  productsContainer: {
     paddingLeft: theme.spacing.lg,
     paddingRight: theme.spacing.sm,
     paddingVertical: theme.spacing.md,
@@ -985,7 +1078,7 @@ const styles = StyleSheet.create({
     color: 'rgba(255, 255, 255, 0.8)',
     textAlign: 'center',
   },
-  categoriesScrollContent: {
+  categoriesContainer: {
     paddingLeft: theme.spacing.lg,
     paddingRight: theme.spacing.sm,
     paddingVertical: theme.spacing.md,
@@ -1018,6 +1111,39 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: theme.colors.gray,
     textAlign: 'center',
+  },
+  searchContainer: {
+    padding: theme.spacing.md,
+    backgroundColor: theme.colors.white,
+  },
+  searchBar: {
+    height: 48,
+    backgroundColor: theme.colors.lightGray,
+    borderRadius: 24,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: theme.spacing.md,
+  },
+  searchIcon: {
+    marginRight: theme.spacing.sm,
+  },
+  searchInput: {
+    flex: 1,
+    height: '100%',
+    fontSize: 16,
+    color: theme.colors.text,
+  },
+  clearButton: {
+    padding: theme.spacing.xs,
+  },
+  searchResultsContainer: {
+    padding: theme.spacing.md,
+  },
+  noResultsText: {
+    textAlign: 'center',
+    color: theme.colors.gray,
+    marginTop: theme.spacing.lg,
+    marginBottom: theme.spacing.xxl,
   },
 });
 

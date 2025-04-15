@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, ActivityIndicator, TouchableOpacity } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -21,40 +21,35 @@ const VendorDashboardScreen: React.FC = () => {
   const [analytics, setAnalytics] = useState<Analytics | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    let isMounted = true;
+  const loadAnalytics = useCallback(async () => {
+    // Only proceed if the user is authenticated
+    if (!isAuthenticated || !user) return;
     
-    const loadAnalytics = async () => {
-      // Only proceed if the user is authenticated
-      if (!isAuthenticated || !user) return;
-      
-      try {
-        setLoading(true);
-        const data = await fetchAnalytics();
-        // Only update state if component is still mounted and user is authenticated
-        if (isMounted && isAuthenticated) {
-          setAnalytics(data);
-          setError(null);
-        }
-      } catch (error) {
-        console.error('Failed to load analytics:', error);
-        if (isMounted && isAuthenticated) {
-          setError('Failed to load dashboard data');
-        }
-      } finally {
-        if (isMounted && isAuthenticated) {
-          setLoading(false);
-        }
-      }
-    };
+    try {
+      setLoading(true);
+      const data = await fetchAnalytics();
+      setAnalytics(data);
+      setError(null);
+    } catch (error) {
+      console.error('Failed to load analytics:', error);
+      setError('Failed to load dashboard data');
+    } finally {
+      setLoading(false);
+    }
+  }, [isAuthenticated, user]);
 
+  // Load analytics when component mounts
+  useEffect(() => {
     loadAnalytics();
     
-    // Cleanup function to prevent state updates after component unmount or logout
-    return () => {
-      isMounted = false;
-    };
-  }, [isAuthenticated, user]);
+    // Set up a navigation focus listener to reload analytics when screen comes into focus
+    const unsubscribe = navigation.addListener('focus', () => {
+      loadAnalytics();
+    });
+    
+    // Clean up the listener when component unmounts
+    return unsubscribe;
+  }, [loadAnalytics, navigation]);
 
   const handleNotificationPress = () => {
     navigation.navigate('Notifications');

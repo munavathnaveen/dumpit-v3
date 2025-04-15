@@ -98,11 +98,23 @@ export interface ImportResult {
   };
 }
 
-export const importData = async (dataType: 'products', file: File): Promise<ImportResult> => {
+export const importData = async (dataType: 'products', file: File | FormData): Promise<ImportResult> => {
   try {
-    const formData = new FormData();
-    formData.append('csv', file);
-    formData.append('shop', 'current'); // The backend will determine the current vendor's shop
+    let formData: FormData;
+    
+    // If file is already FormData (from mobile), use it directly
+    if (file instanceof FormData) {
+      formData = file;
+    } else {
+      // For web browsers, create new FormData and append the file
+      formData = new FormData();
+      formData.append('csv', file);
+    }
+    
+    // Add shop information if not already present
+    if (!formData.has('shop')) {
+      formData.append('shop', 'current'); // The backend will determine the current vendor's shop
+    }
 
     const response = await apiClient.post(`/analytics/import/${dataType}`, formData, {
       headers: {
