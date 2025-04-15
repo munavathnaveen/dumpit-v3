@@ -924,3 +924,97 @@ exports.getOrderTracking = async (req, res, next) => {
     next(err);
   }
 };
+
+// @desc    Vendor accept/reject order (for COD)
+// @route   PUT /api/v1/orders/:id/vendor-action
+// @access  Private (Vendor only)
+exports.vendorOrderAction = async (req, res, next) => {
+  try {
+    const { action } = req.body;
+
+    if (!action || (action !== 'accept' && action !== 'reject')) {
+      return next(new ErrorResponse('Invalid action. Must be either "accept" or "reject"', 400));
+    }
+
+    let order = await Order.findById(req.params.id).populate({
+      path: 'user',
+      select: 'name email notifications notificationSettings',
+    });
+
+    if (!order) {
+      return next(new ErrorResponse(`Order not found with id of ${req.params.id}`, 404));
+    }
+
+    // Check if user is authorized - must be a vendor
+    if (req.user.role !== config.constants.userRoles.VENDOR) {
+      return next(new ErrorResponse(`User ${req.user.id} is not authorized to perform this action`, 401));
+    }
+
+    // Check if it's a COD order
+    if (order.payment.method !== 'cash_on_delivery') {
+      return next(new ErrorResponse('This action is only valid for Cash on Delivery orders', 400));
+    }
+
+    // Check if order is in pending status
+    if (order.status !== config.constants.orderStatus.PENDING) {
+      return next(new ErrorResponse(`Order ${order._id} cannot be ${action}ed in ${order.status} status`, 400));
+    }
+
+    if (action === 'accept') {
+      // Update order status to processing for accepted orders
+      order.status = config.constants.orderStatus.PROCESSING;
+      // Keep payment status as pending for now - will be updated to completed on delivery
+    } else {
+      // Update order status to cancelled for rejected orders
+      order.status = config.constants.orderStatus.CANCELLED;
+      order.payment.status = config.constants.paymentStatus.FAILED;
+      
+      // Restore product stock for rejected orders
+      for (const item of order.items) {
+        await Product.findByIdAndUpdate(item.product, {
+          $inc: { stock: item.quantity },
+        });
+      }
+    }
+
+    await order.save();
+
+    // Send email notification to customer
+    if (order.user.notificationSettings?.email) {
+      try {
+        const emailSubject = action === 'accept' 
+          ? 'Your Order Has Been Accepted - Dumpit' 
+          : 'Your Order Has Been Cancelled - Dumpit';
+        
+        const emailMessage = action === 'accept'
+          ? emailTemplates.orderStatusUpdate(order.user.name, order._id, 'processing')
+          : emailTemplates.orderStatusUpdate(order.user.name, order._id, 'cancelled');
+        
+        await sendEmail({
+          email: order.user.email,
+          subject: emailSubject,
+          message: emailMessage,
+        });
+      } catch (err) {
+        console.log('Email could not be sent', err);
+      }
+    }
+
+    // Add notification to user
+    const notificationMessage = action === 'accept'
+      ? `Your order #${order._id} has been accepted and is being processed`
+      : `Your order #${order._id} has been rejected by the vendor`;
+    
+    order.user.notifications.push({
+      message: notificationMessage,
+    });
+    await order.user.save();
+
+    res.status(200).json({
+      success: true,
+      data: order,
+    });
+  } catch (err) {
+    next(err);
+  }
+};

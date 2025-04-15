@@ -11,13 +11,15 @@ const {
   getVendorOrder,
   getVendorOrderStats,
   updateOrderTracking,
-  getOrderTracking
+  getOrderTracking,
+  vendorOrderAction
 } = require('../controllers/orders')
 
 const {protect, authorize} = require('../middleware/auth')
 const validateRequest = require('../middleware/validator')
 const {orderSchema, updateOrderStatusSchema, updatePaymentSchema} = require('../validations/order')
 const config = require('../config')
+const Joi = require('joi')
 
 const router = express.Router()
 
@@ -47,6 +49,14 @@ router.put('/:id/tracking', authorize(config.constants.userRoles.VENDOR), update
 
 // Update order status
 router.put('/:id/status', updateOrderStatus)
+
+// Vendor accept/reject order (for COD)
+router.put('/:id/vendor-action', authorize(config.constants.userRoles.VENDOR), validateRequest(Joi.object({
+  action: Joi.string().valid('accept', 'reject').required().messages({
+    'string.empty': 'Action is required',
+    'any.only': 'Action must be either accept or reject',
+  }),
+})), vendorOrderAction)
 
 // Payment update route
 router.put('/:id/payment', validateRequest(updatePaymentSchema), updatePayment)
