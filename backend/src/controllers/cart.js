@@ -10,7 +10,7 @@ exports.getCartItems = async (req, res, next) => {
     const user = await User.findById(req.user.id).populate({
       path: 'cart.product'
     })
-
+   console.log(user.cart);
     res.status(200).json({
       success: true,
       count: user.cart.length,
@@ -40,7 +40,7 @@ exports.addCartItem = async (req, res, next) => {
 
     // Get quantity from request body, default to 1
     const quantity = req.body.quantity || 1
-
+    
     // Check if requested quantity is available
     if (quantity > product.stock) {
       return next(new ErrorResponse(`Requested quantity (${quantity}) exceeds available stock (${product.stock})`, 400))
@@ -51,7 +51,10 @@ exports.addCartItem = async (req, res, next) => {
 
     // Check if product is already in cart
     const cartItem = user.cart.find((item) => item.product.toString() === req.params.productId)
-
+    console.log("Debug Product Body ",req.body);
+    console.log("Debug Product params ",req.params);
+    console.log("Debug Cart Item",cartItem);
+    
     if (cartItem) {
       // If product is already in cart, update quantity
       cartItem.quantity = req.body.quantity || cartItem.quantity + 1
@@ -71,7 +74,7 @@ exports.addCartItem = async (req, res, next) => {
     }
 
     await user.save()
-
+    console.log("Debug : user cart ",user.cart);
     // Return updated cart
     res.status(200).json({
       success: true,
@@ -111,7 +114,9 @@ exports.updateCartItem = async (req, res, next) => {
 
     // Find the cart item
     const cartItemIndex = user.cart.findIndex((item) => item.product.toString() === req.params.productId)
-
+    console.log("Debug Product Body ",req.body);
+    console.log("Debug Product params ",req.params);
+    console.log("Debug Product ",product);
     if (cartItemIndex === -1) {
       return next(new ErrorResponse(`Product not found in cart`, 404))
     }
@@ -141,8 +146,10 @@ exports.removeCartItem = async (req, res, next) => {
 
     // Filter out the product to remove
     user.cart = user.cart.filter((item) => item.product.toString() !== req.params.productId)
-
+    console.log("Debug Product Body ",req.body);
+    console.log("Debug Product params ",req.params);
     await user.save()
+    console.log("Debug User Cart",user.cart);
 
     // Return updated cart
     res.status(200).json({
