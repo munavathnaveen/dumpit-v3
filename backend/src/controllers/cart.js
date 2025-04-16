@@ -10,7 +10,6 @@ exports.getCartItems = async (req, res, next) => {
     const user = await User.findById(req.user.id).populate({
       path: 'cart.product'
     })
-   console.log(user.cart);
     res.status(200).json({
       success: true,
       count: user.cart.length,
@@ -53,8 +52,8 @@ exports.addCartItem = async (req, res, next) => {
     const cartItem = user.cart.find((item) => item.product.toString() === req.params.productId)
     
     if (cartItem) {
-      // If product is already in cart, update quantity
-      cartItem.quantity = req.body.quantity || cartItem.quantity + 1
+      // If product is already in cart, replace quantity rather than adding to it
+      cartItem.quantity = quantity;
 
       // Make sure updated quantity doesn't exceed stock
       if (cartItem.quantity > product.stock) {

@@ -78,7 +78,6 @@ exports.register = async (req, res, next) => {
         { shop_id: shop._id },
         { new: true }
       );
-      console.log(updatedUser);
     }
 
     // Send welcome email

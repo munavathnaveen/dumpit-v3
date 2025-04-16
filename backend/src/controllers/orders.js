@@ -216,6 +216,7 @@ exports.createOrder = async (req, res, next) => {
       })
 
       // Add to total price
+      console.log("debug ",totalPrice,price,cartItem.quantity);
       totalPrice += price * cartItem.quantity
     }
 

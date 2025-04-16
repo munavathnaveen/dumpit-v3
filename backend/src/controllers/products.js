@@ -61,8 +61,8 @@ exports.getProducts = async (req, res, next) => {
 
     // Populate
     query = query.populate([
-      {path: 'vendor', select: 'name'},
-      {path: 'shop', select: 'name location address'},
+      {path: 'vendor'},
+      {path: 'shop'},
     ])
 
     // Executing query
@@ -102,9 +102,9 @@ exports.getProducts = async (req, res, next) => {
 exports.getProduct = async (req, res, next) => {
   try {
     const product = await Product.findById(req.params.id).populate([
-      {path: 'vendor', select: 'name'},
-      {path: 'shop', select: 'name location address'},
-      {path: 'reviews.user', select: 'name avatar_url'},
+      {path: 'vendor'},
+      {path: 'shop'},
+      {path: 'reviews.user'},
     ])
 
     if (!product) {
