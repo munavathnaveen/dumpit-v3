@@ -1,11 +1,11 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Image, ActivityIndicator, Dimensions, ImageBackground, Linking, Alert, useWindowDimensions, TextInput, Animated, Easing, Platform } from 'react-native';
 import { useSelector, useDispatch } from 'react-redux';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import * as Location from 'expo-location';
 import axios from 'axios';
-import { Feather, Ionicons, MaterialIcons, FontAwesome5 } from '@expo/vector-icons';
+import {  Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import Header from '../components/Header';
 import Button from '../components/Button';
@@ -19,8 +19,7 @@ import * as locationApi from '../api/locationApi';
 import * as productApi from '../api/productApi';
 import * as shopApi from '../api/shopApi';
 import { GOOGLE_MAPS_API_KEY } from '../utils/config';
-import { Product as ApiProduct } from '../types/product';
-import { LocationService } from '../services/LocationService';
+
 
 const { width } = Dimensions.get('window');
 const CARD_WIDTH = width * 0.7;
@@ -577,7 +576,7 @@ const HomeScreen: React.FC = () => {
       <View style={styles.searchContainer}>
         <TouchableOpacity 
           style={styles.searchBar}
-          onPress={() => navigation.navigate('Products')}
+          onPress={() => navigation.navigate('ProductsTab')}
         >
           <Ionicons name="search-outline" size={20} color={theme.colors.gray} style={styles.searchIcon} />
           <Text style={styles.searchPlaceholder}>Search for products</Text>

@@ -72,8 +72,13 @@ const OrdersScreen: React.FC = () => {
       setLoading(true);
       const response = await getOrders();
       if (response.success) {
-        setOrders(response.data);
-        setFilteredOrders(response.data);
+        const mappedOrders = response.data.map(order => ({
+          ...order,
+          orderNumber: order.orderNumber || order._id.toString().slice(-6).toUpperCase(),
+          totalAmount: order.totalAmount || (order as any).totalPrice || 0
+        }));
+        setOrders(mappedOrders);
+        setFilteredOrders(mappedOrders);
       }
     } catch (error) {
       console.error('Failed to load orders:', error);
@@ -124,45 +129,54 @@ const OrdersScreen: React.FC = () => {
     }
   };
 
-  const renderOrderItem = ({ item }: { item: Order }) => (
-    <Card3D style={styles.orderCard}>
-      <View style={styles.orderHeader}>
-        <Text style={styles.orderNumber}>Order #{item.orderNumber}</Text>
-        <View style={[styles.statusContainer, { backgroundColor: `${getStatusColor(item.status)}20` }]}>
-          <FontAwesome name={getStatusIcon(item.status)} size={14} color={getStatusColor(item.status)} />
-          <Text style={[styles.statusText, { color: getStatusColor(item.status) }]}>
-            {item.status.charAt(0).toUpperCase() + item.status.slice(1)}
+  const handleViewDetails = (orderId: string) => {
+    navigation.navigate('OrderDetails', { orderId });
+  };
+
+  const renderOrderItem = ({ item }: { item: Order }) => {
+    return (
+      <Card3D style={styles.orderCard}>
+        <View style={styles.orderHeader}>
+          <Text style={styles.orderNumber}>Order #{item.orderNumber}</Text>
+          <View style={[styles.statusContainer, { backgroundColor: `${getStatusColor(item.status)}20` }]}>
+            <FontAwesome name={getStatusIcon(item.status)} size={14} color={getStatusColor(item.status)} />
+            <Text style={[styles.statusText, { color: getStatusColor(item.status) }]}>
+              {item.status.charAt(0).toUpperCase() + item.status.slice(1)}
+            </Text>
+          </View>
+        </View>
+        
+        <View style={styles.orderDate}>
+          <FontAwesome name="calendar" size={14} color={theme.colors.textLight} />
+          <Text style={styles.dateText}>
+            {format(new Date(item.createdAt), 'dd MMM yyyy, hh:mm a')}
           </Text>
         </View>
-      </View>
-      
-      <View style={styles.orderDate}>
-        <FontAwesome name="calendar" size={14} color={theme.colors.textLight} />
-        <Text style={styles.dateText}>
-          {format(new Date(item.createdAt), 'dd MMM yyyy, hh:mm a')}
-        </Text>
-      </View>
-      
-      <View style={styles.itemsContainer}>
-        <Text style={styles.itemsTitle}>Items:</Text>
-        {item.items.map((orderItem, index) => (
-          <Text key={index} style={styles.itemText}>
-            {orderItem.quantity}x {orderItem.product.name}
+        
+        <View style={styles.itemsContainer}>
+          <Text style={styles.itemsTitle}>Items:</Text>
+          {item.items.map((orderItem, index) => (
+            <Text key={index} style={styles.itemText}>
+              {orderItem.quantity}x {orderItem.product.name}
+            </Text>
+          ))}
+        </View>
+        
+        <View style={styles.orderFooter}>
+          <Text style={styles.totalAmount}>
+            Total: ₹{item.totalAmount.toFixed(2)}
           </Text>
-        ))}
-      </View>
-      
-      <View style={styles.orderFooter}>
-        <Text style={styles.totalAmount}>
-          Total: ₹{item.totalAmount.toFixed(2)}
-        </Text>
-        <TouchableOpacity style={styles.detailsButton}>
-          <Text style={styles.detailsText}>View Details</Text>
-          <FontAwesome name="chevron-right" size={12} color={theme.colors.primary} />
-        </TouchableOpacity>
-      </View>
-    </Card3D>
-  );
+          <TouchableOpacity 
+            style={styles.detailsButton} 
+            onPress={() => handleViewDetails(item._id)}
+          >
+            <Text style={styles.detailsText}>View Details</Text>
+            <FontAwesome name="chevron-right" size={12} color={theme.colors.primary} />
+          </TouchableOpacity>
+        </View>
+      </Card3D>
+    );
+  };
 
   const handleShopNow = () => {
     navigation.navigate('TabNavigator', { screen: 'ShopsTab' });

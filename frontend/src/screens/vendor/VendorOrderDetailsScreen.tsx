@@ -8,11 +8,13 @@ import {
   ActivityIndicator,
   Alert,
   Image,
+  SafeAreaView,
+  Animated,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useRoute } from '@react-navigation/core';
 import { RouteProp } from '@react-navigation/native';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, MaterialIcons, FontAwesome5 } from '@expo/vector-icons';
 
 import Card3D from '../../components/Card3D';
 import ScreenHeader from '../../components/ScreenHeader';
@@ -32,175 +34,102 @@ const VendorOrderDetailsScreen: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [updatingStatus, setUpdatingStatus] = useState(false);
+  const [activeSection, setActiveSection] = useState('summary');
+
+  // Animation values
+  const scaleAnim = useState(new Animated.Value(0.95))[0];
+  const opacityAnim = useState(new Animated.Value(0))[0];
 
   useEffect(() => {
-    const fetchOrderDetails = async () => {
-      try {
-        setLoading(true);
-        const response = await getVendorOrder(orderId);
-        if (response.success) {
-          setOrder(response.data);
-        } else {
-          setError('Failed to load order details');
-        }
-      } catch (error) {
-        console.error('Failed to load order details:', error);
-        setError('Failed to load order details');
-      } finally {
-        setLoading(false);
-      }
-    };
-
+    // Run entrance animation
+    Animated.parallel([
+      Animated.spring(scaleAnim, {
+        toValue: 1,
+        friction: 8,
+        tension: 40,
+        useNativeDriver: true,
+      }),
+      Animated.timing(opacityAnim, {
+        toValue: 1,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+    ]).start();
+    
     fetchOrderDetails();
   }, [orderId]);
 
-  const handleStatusUpdate = () => {
-    if (!order) return;
-
-    // For COD orders in pending status, use the accept/reject workflow
-    if (order.status === 'pending' && order.paymentMethod === 'cash_on_delivery') {
-      Alert.alert(
-        'Order Action Required',
-        'Do you want to accept or reject this order?',
-        [
-          {
-            text: 'Accept',
-            onPress: async () => {
-              try {
-                setUpdatingStatus(true);
-                await vendorOrderAction(orderId, 'accept');
-                
-                // Update local order state with new status
-                setOrder((prevOrder) => prevOrder ? { ...prevOrder, status: 'processing' } : null);
-                
-                Alert.alert('Success', 'Order accepted successfully.');
-              } catch (error) {
-                console.error('Failed to accept order:', error);
-                Alert.alert('Error', 'Failed to accept order.');
-              } finally {
-                setUpdatingStatus(false);
-              }
-            },
-          },
-          {
-            text: 'Reject',
-            onPress: async () => {
-              try {
-                setUpdatingStatus(true);
-                await vendorOrderAction(orderId, 'reject');
-                
-                // Update local order state with new status
-                setOrder((prevOrder) => prevOrder ? { ...prevOrder, status: 'cancelled' } : null);
-                
-                Alert.alert('Success', 'Order rejected successfully.');
-              } catch (error) {
-                console.error('Failed to reject order:', error);
-                Alert.alert('Error', 'Failed to reject order.');
-              } finally {
-                setUpdatingStatus(false);
-              }
-            },
-            style: 'destructive',
-          },
-          {
-            text: 'Cancel',
-            style: 'cancel',
-          },
-        ]
-      );
-      return;
+  const fetchOrderDetails = async () => {
+    try {
+      setLoading(true);
+      const response = await getVendorOrder(orderId);
+      if (response.success) {
+        setOrder(response.data);
+      } else {
+        setError('Failed to load order details');
+      }
+    } catch (error) {
+      console.error('Failed to load order details:', error);
+      setError('Failed to load order details');
+    } finally {
+      setLoading(false);
     }
-
-    // Define possible next statuses based on current status
-    let nextStatuses: { [key: string]: string } = {};
-    
-    switch (order.status) {
-      case 'pending':
-        nextStatuses = {
-          'Accept Order': 'processing',
-          'Cancel Order': 'cancelled',
-        };
-        break;
-      case 'processing':
-        nextStatuses = {
-          'Mark as Shipped': 'shipped',
-          'Cancel Order': 'cancelled',
-        };
-        break;
-      case 'shipped':
-        nextStatuses = {
-          'Mark as Delivered': 'delivered',
-        };
-        break;
-      case 'delivered':
-      case 'cancelled':
-        // No further status changes allowed
-        Alert.alert('Status Locked', 'This order is in a final state and cannot be updated.');
-        return;
-    }
-
-    // Create alert options based on next possible statuses
-    const alertButtons = Object.entries(nextStatuses).map(([label, status]) => ({
-      text: label,
-      onPress: async () => {
-        try {
-          setUpdatingStatus(true);
-          await updateOrderStatus(orderId, status as any);
-          
-          // Update local order state with new status
-          setOrder((prevOrder) => prevOrder ? { ...prevOrder, status: status as any } : null);
-          
-          Alert.alert('Success', `Order ${status === 'cancelled' ? 'cancelled' : 'updated'} successfully`);
-        } catch (error) {
-          console.error('Failed to update order status:', error);
-          Alert.alert('Error', 'Failed to update order status');
-        } finally {
-          setUpdatingStatus(false);
-        }
-      },
-    }));
-
-    // Add cancel button
-    alertButtons.push({
-      text: 'Cancel',
-      // @ts-ignore
-      style: 'cancel',
-    });
-
-    Alert.alert(
-      'Update Order Status',
-      'What would you like to do with this order?',
-      alertButtons as any
-    );
   };
 
-  if (loading) {
-    return (
-      <View style={styles.container}>
-        <ScreenHeader title="Order Details" showBackButton={true} />
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={theme.colors.primary} />
-        </View>
-      </View>
-    );
-  }
+  const handleStatusUpdate = (newStatus: string) => {
+    if (!order) return;
 
-  if (error || !order) {
-    return (
-      <View style={styles.container}>
-        <ScreenHeader title="Order Details" showBackButton={true} />
-        <View style={styles.errorContainer}>
-          <Text style={styles.errorText}>{error || 'Order not found'}</Text>
-          <TouchableOpacity 
-            style={styles.retryButton}
-            onPress={() => navigation.goBack()}
-          >
-            <Text style={styles.retryButtonText}>Go Back</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    );
-  }
+    setUpdatingStatus(true);
+    
+    // For COD orders in pending status, use the accept/reject workflow
+    if (order.status === 'pending' && order.paymentMethod === 'cash_on_delivery' && 
+        (newStatus === 'processing' || newStatus === 'cancelled')) {
+      const action = newStatus === 'processing' ? 'accept' : 'reject';
+      
+      vendorOrderAction(orderId, action)
+        .then(() => {
+          // Update local order state with new status
+          setOrder((prevOrder) => {
+            if (!prevOrder) return null;
+            return {
+              ...prevOrder,
+              status: newStatus as any
+            };
+          });
+          Alert.alert('Success', `Order ${action === 'accept' ? 'accepted' : 'rejected'} successfully.`);
+        })
+        .catch((error) => {
+          console.error(`Failed to ${action} order:`, error);
+          Alert.alert('Error', `Failed to ${action} order.`);
+        })
+        .finally(() => {
+          setUpdatingStatus(false);
+        });
+      
+      return;
+    }
+    
+    // For other status updates
+    updateOrderStatus(orderId, newStatus as any)
+      .then(() => {
+        // Update local order state with new status
+        setOrder((prevOrder) => {
+          if (!prevOrder) return null;
+          return {
+            ...prevOrder,
+            status: newStatus as any
+          };
+        });
+        Alert.alert('Success', `Order status updated to ${newStatus} successfully.`);
+      })
+      .catch((error) => {
+        console.error('Failed to update order status:', error);
+        Alert.alert('Error', 'Failed to update order status.');
+      })
+      .finally(() => {
+        setUpdatingStatus(false);
+      });
+  };
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -213,175 +142,289 @@ const VendorOrderDetailsScreen: React.FC = () => {
     });
   };
 
+  const formatCurrency = (amount: number) => {
+    return amount.toLocaleString('en-IN', {
+      style: 'currency',
+      currency: 'INR',
+      minimumFractionDigits: 2,
+    });
+  };
+
+  const getNextPossibleStatuses = (): { label: string, value: string, icon: string }[] => {
+    if (!order) return [];
+    
+    switch (order.status) {
+      case 'pending':
+        return [
+          { label: 'Accept Order', value: 'processing', icon: 'thumbs-up' },
+          { label: 'Reject Order', value: 'cancelled', icon: 'thumbs-down' },
+        ];
+      case 'processing':
+        return [
+          { label: 'Mark as Shipped', value: 'shipped', icon: 'shipping-fast' },
+          { label: 'Cancel Order', value: 'cancelled', icon: 'ban' },
+        ];
+      case 'shipped':
+        return [
+          { label: 'Mark as Delivered', value: 'delivered', icon: 'check-circle' },
+        ];
+      default:
+        return [];
+    }
+  };
+
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <ScreenHeader title="Order Details" showBackButton={true} />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={theme.colors.primary} />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (error || !order) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <ScreenHeader title="Order Details" showBackButton={true} />
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorText}>{error || 'Order not found'}</Text>
+          <TouchableOpacity 
+            style={styles.retryButton}
+            onPress={() => navigation.goBack()}
+          >
+            <Text style={styles.retryButtonText}>Go Back</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.safeArea}>
       <ScreenHeader title="Order Details" showBackButton={true} />
       
-      <ScrollView contentContainerStyle={styles.contentContainer}>
-        {/* Order Summary Card */}
-        <Card3D style={styles.card} elevation="medium">
-          <View style={styles.orderHeader}>
-            <View>
-              <Text style={styles.orderNumber}>Order #{order.orderNumber}</Text>
-              <Text style={styles.orderDate}>{formatDate(order.createdAt)}</Text>
-            </View>
-            <View style={[
-              styles.statusBadge, 
-              { backgroundColor: getStatusColor(order.status) }
-            ]}>
-              <Text style={styles.statusText}>
-                {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
-              </Text>
-            </View>
-          </View>
-        </Card3D>
-
-        {/* Customer Info Card */}
-        <Card3D style={styles.card} elevation="medium">
-          <Text style={styles.cardTitle}>Customer Information</Text>
-          <View style={styles.infoRow}>
-            <Ionicons name="person-outline" size={18} color={theme.colors.gray} />
-            <Text style={styles.infoLabel}>Name:</Text>
-            <Text style={styles.infoValue}>{order.user.name}</Text>
-          </View>
-          <View style={styles.infoRow}>
-            <Ionicons name="mail-outline" size={18} color={theme.colors.gray} />
-            <Text style={styles.infoLabel}>Email:</Text>
-            <Text style={styles.infoValue}>{order.user.email}</Text>
-          </View>
-          <View style={styles.infoRow}>
-            <Ionicons name="call-outline" size={18} color={theme.colors.gray} />
-            <Text style={styles.infoLabel}>Phone:</Text>
-            <Text style={styles.infoValue}>{order.user.phone}</Text>
-          </View>
-        </Card3D>
-
-        {/* Shipping Address Card */}
-        <Card3D style={styles.card} elevation="medium">
-          <Text style={styles.cardTitle}>Shipping Address</Text>
-          <View style={styles.addressContainer}>
-            <Ionicons name="location-outline" size={24} color={theme.colors.primary} style={styles.addressIcon} />
-            <View style={styles.addressContent}>
-              <Text style={styles.addressText}>{order.shippingAddress.street}</Text>
-              <Text style={styles.addressText}>{order.shippingAddress.city}, {order.shippingAddress.state} {order.shippingAddress.pincode}</Text>
-              <Text style={styles.addressText}>Phone: {order.shippingAddress.phone}</Text>
-            </View>
-          </View>
-        </Card3D>
-
-        {/* Order Items Card */}
-        <Card3D style={styles.card} elevation="medium">
-          <Text style={styles.cardTitle}>Order Items</Text>
-          {order.items.map((item, index) => (
-            <View key={index} style={[
-              styles.orderItem,
-              index < order.items.length - 1 && styles.orderItemDivider
-            ]}>
-              <Image 
-                source={{ uri: item.product.image || 'https://via.placeholder.com/100' }} 
-                style={styles.productImage} 
-              />
-              <View style={styles.productDetails}>
-                <Text style={styles.productName}>{item.product.name}</Text>
-                <Text style={styles.productPrice}>₹{item.price.toFixed(2)} x {item.quantity}</Text>
-                <Text style={styles.productTotal}>
-                  Total: <Text style={styles.boldText}>₹{(item.price * item.quantity).toFixed(2)}</Text>
+      <Animated.View style={[
+        styles.animatedContainer,
+        {
+          opacity: opacityAnim,
+          transform: [{ scale: scaleAnim }],
+        }
+      ]}>
+        <ScrollView contentContainerStyle={styles.contentContainer}>
+          {/* Status Header */}
+          <Card3D style={styles.statusCard} elevation="medium">
+            <View style={styles.orderHeader}>
+              <View>
+                <Text style={styles.orderNumber}>Order #{order.orderNumber}</Text>
+                <Text style={styles.orderDate}>{formatDate(order.createdAt)}</Text>
+              </View>
+              <View style={[
+                styles.statusBadge, 
+                { backgroundColor: getStatusColor(order.status) }
+              ]}>
+                <Text style={styles.statusText}>
+                  {order.status.toUpperCase()}
                 </Text>
               </View>
             </View>
-          ))}
-          
-          <View style={styles.totalContainer}>
-            <Text style={styles.totalLabel}>Order Total:</Text>
-            <Text style={styles.totalValue}>₹{order.total.toFixed(2)}</Text>
-          </View>
-        </Card3D>
-
-        {/* Payment Info Card */}
-        <Card3D style={styles.card} elevation="medium">
-          <Text style={styles.cardTitle}>Payment Information</Text>
-          <View style={styles.infoRow}>
-            <Ionicons name="card-outline" size={18} color={theme.colors.gray} />
-            <Text style={styles.infoLabel}>Method:</Text>
-            <Text style={styles.infoValue}>{order.paymentMethod}</Text>
-          </View>
-          <View style={styles.infoRow}>
-            <Ionicons 
-              name={
-                order.paymentStatus === 'paid' 
-                  ? 'checkmark-circle-outline' 
-                  : order.paymentStatus === 'pending' 
-                    ? 'time-outline' 
-                    : 'close-circle-outline'
-              } 
-              size={18} 
-              color={
-                order.paymentStatus === 'paid' 
-                  ? theme.colors.success 
-                  : order.paymentStatus === 'pending' 
-                    ? theme.colors.warning 
-                    : theme.colors.error
-              } 
-            />
-            <Text style={styles.infoLabel}>Status:</Text>
-            <Text 
-              style={[
-                styles.infoValue, 
-                {
-                  color: order.paymentStatus === 'paid' 
-                    ? theme.colors.success 
-                    : order.paymentStatus === 'pending' 
-                      ? theme.colors.warning 
-                      : theme.colors.error
-                }
-              ]}
-            >
-              {order.paymentStatus.charAt(0).toUpperCase() + order.paymentStatus.slice(1)}
-            </Text>
-          </View>
-        </Card3D>
-
-        {/* Action Buttons */}
-        <View style={styles.actionButtonsContainer}>
-          <TouchableOpacity
-            style={[
-              styles.actionButton,
-              (order.status === 'delivered' || order.status === 'cancelled') && styles.disabledButton
-            ]}
-            onPress={handleStatusUpdate}
-            disabled={order.status === 'delivered' || order.status === 'cancelled' || updatingStatus}
-          >
-            {updatingStatus ? (
-              <ActivityIndicator size="small" color={theme.colors.white} />
-            ) : (
-              <>
-                <Ionicons name="refresh-outline" size={20} color={theme.colors.white} />
-                <Text style={styles.actionButtonText}>Update Status</Text>
-              </>
+            
+            {/* Quick Action Buttons */}
+            {getNextPossibleStatuses().length > 0 && (
+              <View style={styles.actionButtons}>
+                {getNextPossibleStatuses().map((statusOption) => (
+                  <TouchableOpacity
+                    key={statusOption.value}
+                    style={[
+                      styles.actionButton,
+                      { backgroundColor: getActionButtonColor(statusOption.value) }
+                    ]}
+                    onPress={() => handleStatusUpdate(statusOption.value)}
+                    disabled={updatingStatus}
+                  >
+                    <FontAwesome5 
+                      name={statusOption.icon} 
+                      size={16} 
+                      color="white" 
+                      style={styles.actionIcon} 
+                    />
+                    <Text style={styles.actionButtonText}>{statusOption.label}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
             )}
-          </TouchableOpacity>
+          </Card3D>
           
-          <TouchableOpacity
-            style={styles.printButton}
-            onPress={() => Alert.alert('Print', 'Invoice printing functionality would be implemented here.')}
-          >
-            <Ionicons name="print-outline" size={20} color={theme.colors.dark} />
-            <Text style={styles.printButtonText}>Print Invoice</Text>
-          </TouchableOpacity>
-        </View>
-      </ScrollView>
-    </View>
+          {/* Navigation Tabs */}
+          <View style={styles.tabContainer}>
+            <TouchableOpacity 
+              style={[
+                styles.tab, 
+                activeSection === 'summary' && styles.activeTab
+              ]}
+              onPress={() => setActiveSection('summary')}
+            >
+              <Text style={[
+                styles.tabText,
+                activeSection === 'summary' && styles.activeTabText
+              ]}>Summary</Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={[
+                styles.tab, 
+                activeSection === 'items' && styles.activeTab
+              ]}
+              onPress={() => setActiveSection('items')}
+            >
+              <Text style={[
+                styles.tabText,
+                activeSection === 'items' && styles.activeTabText
+              ]}>Items</Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={[
+                styles.tab, 
+                activeSection === 'customer' && styles.activeTab
+              ]}
+              onPress={() => setActiveSection('customer')}
+            >
+              <Text style={[
+                styles.tabText,
+                activeSection === 'customer' && styles.activeTabText
+              ]}>Customer</Text>
+            </TouchableOpacity>
+          </View>
+          
+          {/* Summary Section */}
+          {activeSection === 'summary' && (
+            <Card3D style={styles.card} elevation="medium">
+              <Text style={styles.cardTitle}>Order Summary</Text>
+              
+              <View style={styles.summaryRow}>
+                <View style={styles.summaryItem}>
+                  <Ionicons name="cart-outline" size={24} color={theme.colors.primary} />
+                  <Text style={styles.summaryLabel}>Items</Text>
+                  <Text style={styles.summaryValue}>{order.items.length}</Text>
+                </View>
+                
+                <View style={styles.summaryItem}>
+                  <Ionicons name="wallet-outline" size={24} color={theme.colors.primary} />
+                  <Text style={styles.summaryLabel}>Payment</Text>
+                  <Text style={styles.summaryValue}>
+                    {order.paymentMethod === 'cash_on_delivery' ? 'COD' : 'Online'}
+                  </Text>
+                </View>
+                
+                <View style={styles.summaryItem}>
+                  <Ionicons name="card-outline" size={24} color={theme.colors.primary} />
+                  <Text style={styles.summaryLabel}>Status</Text>
+                  <Text style={styles.summaryValue}>
+                    {order.paymentStatus === 'paid' ? 'Paid' : 'Pending'}
+                  </Text>
+                </View>
+              </View>
+              
+              <View style={styles.divider} />
+              
+              <View style={styles.priceRow}>
+                <Text style={styles.priceLabel}>Total Amount:</Text>
+                <Text style={styles.priceValue}>{formatCurrency(order.total)}</Text>
+              </View>
+            </Card3D>
+          )}
+          
+          {/* Items Section */}
+          {activeSection === 'items' && (
+            <Card3D style={styles.card} elevation="medium">
+              <Text style={styles.cardTitle}>Order Items</Text>
+              
+              {order.items.map((item, index) => (
+                <View key={index} style={styles.itemContainer}>
+                  <View style={styles.itemImageContainer}>
+                    {item.product.image ? (
+                      <Image 
+                        source={{ uri: item.product.image }} 
+                        style={styles.itemImage} 
+                        resizeMode="cover"
+                      />
+                    ) : (
+                      <View style={styles.noImageContainer}>
+                        <Ionicons name="image-outline" size={30} color={theme.colors.lightGray} />
+                      </View>
+                    )}
+                  </View>
+                  
+                  <View style={styles.itemDetails}>
+                    <Text style={styles.itemName}>{item.product.name}</Text>
+                    <Text style={styles.itemPrice}>{formatCurrency(item.price)} × {item.quantity}</Text>
+                  </View>
+                  
+                  <Text style={styles.itemTotal}>
+                    {formatCurrency(item.price * item.quantity)}
+                  </Text>
+                </View>
+              ))}
+            </Card3D>
+          )}
+          
+          {/* Customer Section */}
+          {activeSection === 'customer' && (
+            <Card3D style={styles.card} elevation="medium">
+              <Text style={styles.cardTitle}>Customer Information</Text>
+              
+              <View style={styles.infoRow}>
+                <Ionicons name="person-outline" size={18} color={theme.colors.gray} />
+                <Text style={styles.infoLabel}>Name:</Text>
+                <Text style={styles.infoValue}>{order.user.name}</Text>
+              </View>
+              
+              <View style={styles.infoRow}>
+                <Ionicons name="mail-outline" size={18} color={theme.colors.gray} />
+                <Text style={styles.infoLabel}>Email:</Text>
+                <Text style={styles.infoValue}>{order.user.email}</Text>
+              </View>
+              
+              <View style={styles.infoRow}>
+                <Ionicons name="call-outline" size={18} color={theme.colors.gray} />
+                <Text style={styles.infoLabel}>Phone:</Text>
+                <Text style={styles.infoValue}>{order.user.phone || order.shippingAddress.phone || 'N/A'}</Text>
+              </View>
+              
+              <View style={styles.divider} />
+              
+              <Text style={styles.addressTitle}>Shipping Address</Text>
+              
+              <View style={styles.addressContainer}>
+                <Ionicons name="location-outline" size={24} color={theme.colors.primary} style={styles.addressIcon} />
+                <View style={styles.addressDetails}>
+                  <Text style={styles.addressText}>
+                    {order.shippingAddress.street}, {order.shippingAddress.city}
+                  </Text>
+                  <Text style={styles.addressText}>
+                    {order.shippingAddress.state} - {order.shippingAddress.pincode}
+                  </Text>
+                  <Text style={styles.addressText}>
+                    Phone: {order.shippingAddress.phone}
+                  </Text>
+                </View>
+              </View>
+            </Card3D>
+          )}
+        </ScrollView>
+      </Animated.View>
+    </SafeAreaView>
   );
 };
 
 const getStatusColor = (status: string): string => {
-  switch (status.toLowerCase()) {
+  switch (status) {
     case 'pending':
       return theme.colors.warning;
     case 'processing':
       return theme.colors.info;
     case 'shipped':
-      return theme.colors.accent;
+      return theme.colors.secondary;
     case 'delivered':
       return theme.colors.success;
     case 'cancelled':
@@ -391,14 +434,32 @@ const getStatusColor = (status: string): string => {
   }
 };
 
+const getActionButtonColor = (status: string): string => {
+  switch (status) {
+    case 'processing':
+      return theme.colors.primary;
+    case 'shipped':
+      return theme.colors.info;
+    case 'delivered':
+      return theme.colors.success;
+    case 'cancelled':
+      return theme.colors.error;
+    default:
+      return theme.colors.primary;
+  }
+};
+
 const styles = StyleSheet.create({
-  container: {
+  safeArea: {
     flex: 1,
     backgroundColor: theme.colors.background,
   },
+  animatedContainer: {
+    flex: 1,
+  },
   contentContainer: {
-    padding: theme.spacing.md,
-    paddingBottom: theme.spacing.xl,
+    padding: 16,
+    paddingBottom: 32,
   },
   loadingContainer: {
     flex: 1,
@@ -409,183 +470,240 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: theme.spacing.lg,
+    padding: 20,
   },
   errorText: {
-    fontSize: 16,
+    fontSize: 18,
     color: theme.colors.error,
-    marginBottom: theme.spacing.md,
     textAlign: 'center',
+    marginBottom: 20,
   },
   retryButton: {
     backgroundColor: theme.colors.primary,
-    paddingVertical: theme.spacing.sm,
-    paddingHorizontal: theme.spacing.lg,
-    borderRadius: theme.borderRadius.medium,
+    padding: 12,
+    borderRadius: 8,
   },
   retryButtonText: {
     color: theme.colors.white,
-    fontWeight: 'bold',
+    fontSize: 16,
+    fontWeight: '600',
   },
   card: {
-    backgroundColor: theme.colors.white,
-    borderRadius: theme.borderRadius.medium,
-    marginBottom: theme.spacing.md,
-    padding: theme.spacing.md,
+    marginBottom: 16,
+    padding: 16,
+    borderRadius: 16,
+  },
+  statusCard: {
+    marginBottom: 16,
+    padding: 16,
+    borderRadius: 16,
+    backgroundColor: theme.colors.background,
   },
   orderHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
+    marginBottom: 16,
   },
   orderNumber: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: 'bold',
-    color: theme.colors.dark,
-    marginBottom: theme.spacing.xs,
+    color: theme.colors.text,
+    marginBottom: 4,
   },
   orderDate: {
     fontSize: 14,
     color: theme.colors.gray,
   },
   statusBadge: {
-    paddingHorizontal: theme.spacing.sm,
-    paddingVertical: 4,
-    borderRadius: theme.borderRadius.small,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   statusText: {
-    fontSize: 12,
-    fontWeight: '500',
     color: theme.colors.white,
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  actionButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginTop: 8,
+  },
+  actionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    marginHorizontal: 4,
+    flex: 1,
+  },
+  actionIcon: {
+    marginRight: 6,
+  },
+  actionButtonText: {
+    color: theme.colors.white,
+    fontWeight: '600',
+    fontSize: 14,
+  },
+  tabContainer: {
+    flexDirection: 'row',
+    marginBottom: 16,
+    backgroundColor: theme.colors.background,
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  tab: {
+    flex: 1,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  activeTab: {
+    backgroundColor: theme.colors.primary,
+  },
+  tabText: {
+    color: theme.colors.text,
+    fontWeight: '500',
+  },
+  activeTabText: {
+    color: theme.colors.white,
+    fontWeight: '600',
   },
   cardTitle: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: 'bold',
-    color: theme.colors.dark,
-    marginBottom: theme.spacing.md,
+    color: theme.colors.text,
+    marginBottom: 16,
+  },
+  summaryRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
+  summaryItem: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  summaryLabel: {
+    fontSize: 14,
+    color: theme.colors.gray,
+    marginTop: 8,
+    marginBottom: 4,
+  },
+  summaryValue: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: theme.colors.text,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: theme.colors.border,
+    marginVertical: 16,
+  },
+  priceRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  priceLabel: {
+    fontSize: 16,
+    color: theme.colors.text,
+    fontWeight: '600',
+  },
+  priceValue: {
+    fontSize: 18,
+    color: theme.colors.primary,
+    fontWeight: 'bold',
+  },
+  itemContainer: {
+    flexDirection: 'row',
+    padding: 12,
+    marginBottom: 8,
+    backgroundColor: theme.colors.lightGray,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  itemImageContainer: {
+    width: 60,
+    height: 60,
+    borderRadius: 8,
+    overflow: 'hidden',
+    backgroundColor: theme.colors.lightGray,
+  },
+  itemImage: {
+    width: '100%',
+    height: '100%',
+  },
+  noImageContainer: {
+    width: '100%',
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  itemDetails: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  itemName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: theme.colors.text,
+    marginBottom: 4,
+  },
+  itemPrice: {
+    fontSize: 14,
+    color: theme.colors.gray,
+  },
+  itemTotal: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: theme.colors.text,
   },
   infoRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: theme.spacing.sm,
+    marginBottom: 12,
   },
   infoLabel: {
-    fontSize: 14,
+    fontSize: 15,
     color: theme.colors.gray,
-    marginLeft: theme.spacing.xs,
-    width: 60,
+    marginLeft: 8,
+    marginRight: 8,
+    width: 50,
   },
   infoValue: {
-    fontSize: 14,
-    color: theme.colors.dark,
+    fontSize: 15,
+    color: theme.colors.text,
     flex: 1,
+  },
+  addressTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: theme.colors.text,
+    marginBottom: 12,
   },
   addressContainer: {
     flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: theme.colors.lightGray,
+    borderRadius: 12,
+    padding: 12,
   },
   addressIcon: {
-    marginRight: theme.spacing.sm,
+    marginRight: 12,
+    marginTop: 2,
   },
-  addressContent: {
+  addressDetails: {
     flex: 1,
   },
   addressText: {
     fontSize: 14,
-    color: theme.colors.dark,
-    marginBottom: theme.spacing.xs,
-  },
-  orderItem: {
-    flexDirection: 'row',
-    paddingVertical: theme.spacing.sm,
-  },
-  orderItemDivider: {
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.lightGray,
-  },
-  productImage: {
-    width: 60,
-    height: 60,
-    borderRadius: theme.borderRadius.small,
-    marginRight: theme.spacing.sm,
-  },
-  productDetails: {
-    flex: 1,
-  },
-  productName: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: theme.colors.dark,
-    marginBottom: theme.spacing.xs,
-  },
-  productPrice: {
-    fontSize: 13,
-    color: theme.colors.gray,
-    marginBottom: theme.spacing.xs,
-  },
-  productTotal: {
-    fontSize: 13,
-    color: theme.colors.dark,
-  },
-  boldText: {
-    fontWeight: 'bold',
-  },
-  totalContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    borderTopWidth: 1,
-    borderTopColor: theme.colors.lightGray,
-    paddingTop: theme.spacing.md,
-    marginTop: theme.spacing.sm,
-  },
-  totalLabel: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: theme.colors.dark,
-  },
-  totalValue: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: theme.colors.primary,
-  },
-  actionButtonsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  actionButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: theme.colors.primary,
-    padding: theme.spacing.md,
-    borderRadius: theme.borderRadius.medium,
-    marginRight: theme.spacing.sm,
-    ...theme.shadow.small,
-  },
-  actionButtonText: {
-    color: theme.colors.white,
-    fontWeight: 'bold',
-    marginLeft: theme.spacing.xs,
-  },
-  disabledButton: {
-    backgroundColor: theme.colors.lightGray,
-  },
-  printButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: theme.colors.white,
-    padding: theme.spacing.md,
-    borderRadius: theme.borderRadius.medium,
-    marginLeft: theme.spacing.sm,
-    borderWidth: 1,
-    borderColor: theme.colors.lightGray,
-  },
-  printButtonText: {
-    color: theme.colors.dark,
-    fontWeight: 'bold',
-    marginLeft: theme.spacing.xs,
+    color: theme.colors.text,
+    marginBottom: 4,
   },
 });
 

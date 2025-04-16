@@ -1,4 +1,4 @@
-import React, {useEffect, useState} from 'react'
+import React, {useEffect, useState, useCallback, useRef} from 'react'
 import {View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Image} from 'react-native'
 import {useDispatch, useSelector} from 'react-redux'
 import {RootState, AppDispatch} from '../store'
@@ -18,8 +18,9 @@ const CartScreen = () => {
   const navigation = useAppNavigation()
   const {items, loading, error, totalItems, totalAmount} = useSelector((state: RootState) => state.cart)
   const [isRefreshing, setIsRefreshing] = useState(false)
+  const isInitialMount = useRef(true)
 
-  const fetchCart = async () => {
+  const fetchCart = useCallback(async () => {
     try {
       await dispatch(getCart()).unwrap()
     } catch (error) {
@@ -29,17 +30,20 @@ const CartScreen = () => {
         text2: 'Failed to load cart items',
       })
     }
-  }
-
-  useEffect(() => {
-    fetchCart()
   }, [dispatch])
 
-  const handleRefresh = async () => {
+  useEffect(() => {
+    if (isInitialMount.current) {
+      fetchCart()
+      isInitialMount.current = false
+    }
+  }, [fetchCart])
+
+  const handleRefresh = useCallback(async () => {
     setIsRefreshing(true)
     await fetchCart()
     setIsRefreshing(false)
-  }
+  }, [fetchCart])
 
   const handleRemoveItem = async (itemId: string) => {
     try {
@@ -62,11 +66,6 @@ const CartScreen = () => {
     if (quantity > 0) {
       try {
         await dispatch(updateCartItem({itemId, quantity})).unwrap()
-        Toast.show({
-          type: 'success',
-          text1: 'Quantity Updated',
-          text2: 'Cart quantity has been updated',
-        })
       } catch (error) {
         Toast.show({
           type: 'error',
@@ -123,10 +122,14 @@ const CartScreen = () => {
     
     return (
       <View style={styles.cartItem}>
-        <Image source={{uri: item.product.image}} style={styles.productImage} />
+        <Image 
+          source={item.product.image ? {uri: item.product.image} : {uri: 'https://via.placeholder.com/100'}} 
+          style={styles.productImage} 
+          onError={(e) => console.log('Image loading error:', e.nativeEvent.error)}
+        />
         <View style={styles.itemDetails}>
           <Text style={styles.productName}>{item.product.name}</Text>
-          <Text style={styles.productPrice}>${price.toFixed(2)}</Text>
+          <Text style={styles.productPrice}>₹{price.toFixed(2)}</Text>
           <View style={styles.quantityContainer}>
             <TouchableOpacity
               onPress={() => handleUpdateQuantity(item.product._id, item.quantity - 1)}

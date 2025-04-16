@@ -68,7 +68,7 @@ export const searchProducts = async (searchTerm: string): Promise<ProductsRespon
 };
 
 // Enhanced client-side search that allows for fuzzy matching when backend search is too strict
-export const enhancedSearchProducts = async (searchTerm: string): Promise<ProductsResponse> => {
+export const enhancedSearchProducts = async (searchTerm: string, page = 1, limit = 10): Promise<ProductsResponse> => {
   try {
     // Try to get all products (with a reasonable limit) to enable client-side fuzzy search
     const response = await apiClient.get('/products?limit=100');
@@ -100,11 +100,27 @@ export const enhancedSearchProducts = async (searchTerm: string): Promise<Produc
       );
     });
     
+    // Implement basic pagination
+    const totalProducts = matchedProducts.length;
+    const totalPages = Math.ceil(totalProducts / limit);
+    const startIndex = (page - 1) * limit;
+    const endIndex = Math.min(startIndex + limit, totalProducts);
+    const paginatedProducts = matchedProducts.slice(startIndex, endIndex);
+    
+    // Create pagination object
+    const pagination = {
+      page,
+      limit,
+      total: totalProducts,
+      pages: totalPages
+    };
+    
     // Return in the same format as the API response
     return {
       ...allProducts,
-      data: matchedProducts,
-      count: matchedProducts.length
+      data: paginatedProducts,
+      count: paginatedProducts.length,
+      pagination
     };
   } catch (error) {
     console.error("Enhanced search failed:", error);

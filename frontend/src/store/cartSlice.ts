@@ -148,17 +148,14 @@ const cartSlice = createSlice({
       .addCase(addToCart.fulfilled, (state, action) => {
         state.loading = false;
         
-        // Check if item already exists, if so update quantity
+        // Check if item already exists
         const existingItemIndex = state.items.findIndex(
           item => item.product._id === action.payload.product._id
         );
         
         if (existingItemIndex !== -1) {
-          // Update existing item with new state
-          state.items[existingItemIndex] = {
-            ...state.items[existingItemIndex],
-            quantity: state.items[existingItemIndex].quantity + action.payload.quantity
-          };
+          // Replace existing item with new one (set to exact quantity, not add to it)
+          state.items[existingItemIndex] = action.payload;
         } else {
           // Add new item
           state.items.push(action.payload);
@@ -206,7 +203,7 @@ const cartSlice = createSlice({
       })
       .addCase(removeFromCart.fulfilled, (state, action) => {
         state.loading = false;
-        // Create new array to trigger re-render
+        // Create new array to trigger re-render, filtering by product ID
         state.items = state.items.filter(item => item.product._id !== action.payload);
         
         // Recalculate totals

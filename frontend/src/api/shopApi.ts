@@ -72,6 +72,20 @@ export type ShopsResponse = {
   success: boolean;
   count: number;
   data: Shop[];
+  pagination?: {
+    page: number;
+    limit: number;
+    total: number;
+    pages: number;
+    next?: {
+      page: number;
+      limit: number;
+    };
+    prev?: {
+      page: number;
+      limit: number;
+    };
+  };
 };
 
 export type SingleShopResponse = {
@@ -127,7 +141,7 @@ export const searchShops = async (searchTerm: string): Promise<ShopsResponse> =>
 };
 
 // Enhanced client-side shop search that enables fuzzy/substring matching
-export const enhancedSearchShops = async (searchTerm: string): Promise<ShopsResponse> => {
+export const enhancedSearchShops = async (searchTerm: string, page = 1, limit = 10): Promise<ShopsResponse> => {
   try {
     // Get a reasonable number of shops to search through
     const response = await apiClient.get('/shops?limit=100');
@@ -165,11 +179,27 @@ export const enhancedSearchShops = async (searchTerm: string): Promise<ShopsResp
       );
     });
     
+    // Implement basic pagination
+    const totalShops = matchedShops.length;
+    const totalPages = Math.ceil(totalShops / limit);
+    const startIndex = (page - 1) * limit;
+    const endIndex = Math.min(startIndex + limit, totalShops);
+    const paginatedShops = matchedShops.slice(startIndex, endIndex);
+    
+    // Create pagination object
+    const pagination = {
+      page,
+      limit,
+      total: totalShops,
+      pages: totalPages
+    };
+    
     // Return in the same format as the API response
     return {
       ...allShops,
-      data: matchedShops,
-      count: matchedShops.length
+      data: paginatedShops,
+      count: paginatedShops.length,
+      pagination
     };
   } catch (error) {
     console.error("Enhanced shop search failed:", error);

@@ -24,7 +24,7 @@ import { createProduct, uploadProductImage, ProductFormData } from '../../api/pr
 import ScreenHeader from '../../components/ScreenHeader';
 import alert from '../../utils/alert';
 import Card3D from '../../components/Card3D';
-import DropdownSelect from '../../components/DropdownSelect';
+import SimpleDropdown from '../../components/SimpleDropdown';
 
 // Categories and product types from the provided JSON
 interface ProductCategoriesMap {
@@ -173,6 +173,17 @@ const VendorAddProductScreen: React.FC = () => {
     }
   };
 
+  const handleCategorySelect = (category: string) => {
+    console.log('Selected category:', category);
+    handleInputChange('category', category);
+  };
+
+  const handleTypeSelect = (type: string) => {
+    
+    console.log('Selected type:', type);
+    handleInputChange('type', type);
+  };
+
   const handleImageChange = (url: string) => {
     setFormData({
       ...formData,
@@ -266,7 +277,9 @@ const VendorAddProductScreen: React.FC = () => {
       <KeyboardAwareScrollView 
         style={styles.scrollView}
         contentContainerStyle={styles.contentContainer}
-        keyboardShouldPersistTaps="handled"
+        keyboardShouldPersistTaps="always"
+        enableOnAndroid={true}
+        enableResetScrollToCoords={false}
       >
         <Card3D>
           <Text style={styles.formTitle}>Product Information</Text>
@@ -300,26 +313,22 @@ const VendorAddProductScreen: React.FC = () => {
           </View>
 
           {/* Product Category - Appears first now */}
-          <DropdownSelect
+          <SimpleDropdown
             label="Category"
             options={CATEGORIES}
             selectedValue={formData.category}
-            onSelect={(category) => {
-              handleInputChange('category', category);
-              // Reset type when category changes
-              handleInputChange('type', '');
-            }}
+            onSelect={handleCategorySelect}
             error={errors.category}
             placeholder="Select product category"
             required={true}
           />
 
           {/* Product Type - Appears after category */}
-          <DropdownSelect
+          <SimpleDropdown
             label="Product Type"
             options={productTypes}
             selectedValue={formData.type}
-            onSelect={(type) => handleInputChange('type', type)}
+            onSelect={handleTypeSelect}
             error={errors.type}
             placeholder="Select product type"
             required={true}
@@ -466,71 +475,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginTop: 4,
   },
-  categoryContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-  },
-  categoryButton: {
-    padding: theme.spacing.xs,
-    margin: theme.spacing.xs,
-    backgroundColor: theme.colors.white,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    borderRadius: theme.borderRadius.medium,
-  },
-  categoryButtonSelected: {
-    backgroundColor: theme.colors.primary,
-  },
-  categoryButtonText: {
-    fontSize: 16,
-    color: theme.colors.dark,
-  },
-  categoryButtonTextSelected: {
-    color: theme.colors.white,
-  },
-  imagesContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    marginTop: theme.spacing.xs,
-  },
-  imagePreviewContainer: {
-    position: 'relative',
-    width: 100,
-    height: 100,
-    margin: theme.spacing.xs,
-    borderRadius: theme.borderRadius.medium,
-    overflow: 'hidden',
-  },
-  imagePreview: {
-    width: '100%',
-    height: '100%',
-    borderRadius: theme.borderRadius.medium,
-  },
-  removeImageButton: {
-    position: 'absolute',
-    top: 5,
-    right: 5,
-    backgroundColor: theme.colors.white,
-    borderRadius: 12,
-    ...theme.shadow.small,
-  },
-  addImageButton: {
-    width: 100,
-    height: 100,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: theme.colors.white,
-    borderWidth: 1,
-    borderStyle: 'dashed',
-    borderColor: theme.colors.primary,
-    borderRadius: theme.borderRadius.medium,
-    margin: theme.spacing.xs,
-  },
-  addImageText: {
-    marginTop: theme.spacing.xs,
-    fontSize: 14,
-    color: theme.colors.primary,
-  },
   submitButton: {
     backgroundColor: theme.colors.primary,
     padding: theme.spacing.md,
@@ -577,68 +521,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: theme.colors.gray,
     fontStyle: 'italic',
-  },
-  dropdownInput: {
-    backgroundColor: theme.colors.white,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    borderRadius: theme.borderRadius.medium,
-    padding: theme.spacing.sm,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    height: 50,
-  },
-  dropdownText: {
-    fontSize: 16,
-    color: theme.colors.dark,
-  },
-  dropdownPlaceholder: {
-    fontSize: 16,
-    color: theme.colors.gray,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'flex-end',
-  },
-  modalContent: {
-    backgroundColor: 'white',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    padding: 20,
-    maxHeight: '80%',
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 15,
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: theme.colors.dark,
-  },
-  searchInput: {
-    backgroundColor: '#f0f0f0',
-    borderRadius: 10,
-    padding: 10,
-    marginBottom: 15,
-  },
-  optionsList: {
-    maxHeight: 300,
-  },
-  optionItem: {
-    paddingVertical: 12,
-  },
-  optionText: {
-    fontSize: 16,
-    color: theme.colors.dark,
-  },
-  optionSeparator: {
-    height: 1,
-    backgroundColor: '#eee',
   },
 });
 
