@@ -5,7 +5,6 @@ import {RootState, AppDispatch} from '../store'
 import {getCart, removeFromCart, updateCartItem, clearCart} from '../store/cartSlice'
 import {CartItem} from '../store/cartSlice'
 import {Ionicons} from '@expo/vector-icons'
-import {useNavigation} from '@react-navigation/native'
 import Toast from 'react-native-toast-message'
 
 import {theme} from '../theme'

@@ -21,7 +21,7 @@ import debounce from 'lodash.debounce';
 
 import { RootState, AppDispatch } from '../store';
 import { theme } from '../theme';
-import { getShops, getNearbyShops, ShopsResponse, getShopCategories, searchShops, Shop as ApiShop } from '../api/shopApi';
+import { getShops, getNearbyShops, ShopsResponse, getShopCategories, searchShops, Shop as ApiShop, enhancedSearchShops } from '../api/shopApi';
 import Card3D from '../components/Card3D';
 import SearchBar from '../components/SearchBar';
 import ScreenHeader from '../components/ScreenHeader';
@@ -313,9 +313,9 @@ const ShopsScreen: React.FC = () => {
       
       let response: ShopsResponse;
       
-      // If search query is provided, use the dedicated search endpoint
+      // If search query is provided, use the enhanced search function for better results
       if (isSearching && searchQuery.trim() !== '') {
-        response = await searchShops(searchQuery);
+        response = await enhancedSearchShops(searchQuery);
         const shopData = response.data.map(apiShop => ({
           ...apiShop,
           logo: apiShop.image, // Map image to logo for compatibility

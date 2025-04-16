@@ -21,7 +21,7 @@ import Card3D from '../../components/Card3D';
 import VendorLocationHeader from '../../components/VendorLocationHeader';
 import { theme } from '../../theme';
 import { MainStackNavigationProp } from '../../navigation/types';
-import { getShopDetails, updateShop, ShopSettings, createShop, Shop } from '../../api/shopApi';
+import { getShopDetails, updateShop, ShopSettings, createShop, Shop, uploadShopImage } from '../../api/shopApi';
 import alert from '../../utils/alert';
 import { RootState } from '../../store';
 import { useSelector } from 'react-redux';
@@ -274,10 +274,24 @@ const VendorShopSetupScreen: React.FC = () => {
       setSaving(true);
       try {
         if (shopId) {
-          await updateShop(shopId, apiData);
+          // First update the general shop details
+          const shopResponse = await updateShop(shopId, apiData);
+          
+          // If there's an image URL, specifically update the shop image
+          if (form.image && form.image.trim() !== '') {
+            await uploadShopImage(shopId, form.image);
+          }
         } else {
-          await createShop(apiData);
+          // For new shops, create and get the shop ID
+          const createResponse = await createShop(apiData);
+          const newShopId = createResponse.data._id;
+          
+          // If there's an image URL and we have a shop ID, update the image
+          if (form.image && form.image.trim() !== '' && newShopId) {
+            await uploadShopImage(newShopId, form.image);
+          }
         }
+        Alert.alert('Success', 'Shop details saved successfully!');
         navigation.goBack();
       } catch (error: any) {
         console.error('Error saving shop:', error);
@@ -434,6 +448,27 @@ const VendorShopSetupScreen: React.FC = () => {
                 value={form.image}
                 onChangeText={handleImageUrlChange}
               />
+              
+              {/* Image Preview */}
+              {form.image ? (
+                <View style={styles.imagePreviewContainer}>
+                  <Image 
+                    source={{ uri: form.image }} 
+                    style={styles.imagePreview}
+                    onError={() => {
+                      Alert.alert(
+                        'Invalid Image',
+                        'The image URL provided is invalid or inaccessible. Please check the URL and try again.'
+                      );
+                    }}
+                  />
+                  <Text style={styles.imagePreviewLabel}>Image Preview</Text>
+                </View>
+              ) : (
+                <Text style={styles.helperText}>
+                  Enter a valid image URL to display your shop logo/image
+                </Text>
+              )}
             </View>
             
             <View style={styles.formGroup}>
@@ -858,6 +893,22 @@ const styles = StyleSheet.create({
     color: theme.colors.textLight,
     textAlign: 'center',
     marginTop: 5,
+  },
+  imagePreviewContainer: {
+    marginTop: theme.spacing.sm,
+    alignItems: 'center',
+  },
+  imagePreview: {
+    width: 150,
+    height: 150,
+    borderRadius: 10,
+    marginBottom: theme.spacing.xs,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  imagePreviewLabel: {
+    fontSize: 14,
+    color: theme.colors.gray,
   },
 });
 

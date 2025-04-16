@@ -277,9 +277,9 @@ const ProductsScreen: React.FC = () => {
 
   const loadProducts = async () => {
     try {
-      // If search query is provided, use the dedicated search endpoint
+      // If search query is provided, use the enhanced search function for fuzzy matching
       if (isSearching && searchQuery.trim() !== '') {
-        const response = await productApi.searchProducts(searchQuery);
+        const response = await productApi.enhancedSearchProducts(searchQuery);
         setFilteredProducts(response.data);
         return;
       }

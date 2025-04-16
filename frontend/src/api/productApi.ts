@@ -62,8 +62,55 @@ export const getProductCategories = async (): Promise<{success: boolean, count: 
 };
 
 export const searchProducts = async (searchTerm: string): Promise<ProductsResponse> => {
-  const response = await apiClient.get(`/products/search/${encodeURIComponent(searchTerm)}`);
+  // Use query parameter for better compatibility with backend search optimization
+  const response = await apiClient.get(`/products?search=${encodeURIComponent(searchTerm)}`);
   return response.data;
+};
+
+// Enhanced client-side search that allows for fuzzy matching when backend search is too strict
+export const enhancedSearchProducts = async (searchTerm: string): Promise<ProductsResponse> => {
+  try {
+    // Try to get all products (with a reasonable limit) to enable client-side fuzzy search
+    const response = await apiClient.get('/products?limit=100');
+    const allProducts = response.data;
+    
+    // If no search term, just return all products
+    if (!searchTerm || searchTerm.trim() === '') {
+      return allProducts;
+    }
+    
+    // Normalize the search term (lowercase for case-insensitive matching)
+    const normalizedSearchTerm = searchTerm.toLowerCase().trim();
+    
+    // Filter products that match the search term in various fields
+    const matchedProducts = allProducts.data.filter((product: any) => {
+      // Check if any of the product fields contain the search term as a substring
+      return (
+        // Check product name
+        (product.name && product.name.toLowerCase().includes(normalizedSearchTerm)) ||
+        // Check product description
+        (product.description && product.description.toLowerCase().includes(normalizedSearchTerm)) ||
+        // Check product type
+        (product.type && product.type.toLowerCase().includes(normalizedSearchTerm)) ||
+        // Check product category
+        (product.category && product.category.toLowerCase().includes(normalizedSearchTerm)) ||
+        // Check shop name (if available)
+        (product.shop && product.shop.name && 
+         product.shop.name.toLowerCase().includes(normalizedSearchTerm))
+      );
+    });
+    
+    // Return in the same format as the API response
+    return {
+      ...allProducts,
+      data: matchedProducts,
+      count: matchedProducts.length
+    };
+  } catch (error) {
+    console.error("Enhanced search failed:", error);
+    // Fallback to standard search if enhanced search fails
+    return searchProducts(searchTerm);
+  }
 };
 
 // Vendor-specific API functions

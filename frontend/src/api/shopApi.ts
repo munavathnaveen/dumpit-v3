@@ -126,6 +126,58 @@ export const searchShops = async (searchTerm: string): Promise<ShopsResponse> =>
   return response.data;
 };
 
+// Enhanced client-side shop search that enables fuzzy/substring matching
+export const enhancedSearchShops = async (searchTerm: string): Promise<ShopsResponse> => {
+  try {
+    // Get a reasonable number of shops to search through
+    const response = await apiClient.get('/shops?limit=100');
+    const allShops = response.data;
+    
+    // If no search term, return all shops
+    if (!searchTerm || searchTerm.trim() === '') {
+      return allShops;
+    }
+    
+    // Normalize search term for case-insensitive matching
+    const normalizedSearchTerm = searchTerm.toLowerCase().trim();
+    
+    // Filter shops that match the search term in various fields
+    const matchedShops = allShops.data.filter((shop: Shop) => {
+      // Check for substring match in various shop fields
+      return (
+        // Check shop name
+        (shop.name && shop.name.toLowerCase().includes(normalizedSearchTerm)) ||
+        // Check shop description
+        (shop.description && shop.description.toLowerCase().includes(normalizedSearchTerm)) ||
+        // Check categories
+        (shop.categories && Array.isArray(shop.categories) && 
+          shop.categories.some(category => 
+            category.toLowerCase().includes(normalizedSearchTerm)
+          )) ||
+        // Check address fields if available as an object
+        (shop.address && typeof shop.address === 'object' && (
+          (shop.address.village && shop.address.village.toLowerCase().includes(normalizedSearchTerm)) ||
+          (shop.address.street && shop.address.street.toLowerCase().includes(normalizedSearchTerm)) ||
+          (shop.address.district && shop.address.district.toLowerCase().includes(normalizedSearchTerm)) ||
+          (shop.address.state && shop.address.state.toLowerCase().includes(normalizedSearchTerm)) ||
+          (shop.address.pincode && shop.address.pincode.includes(normalizedSearchTerm))
+        ))
+      );
+    });
+    
+    // Return in the same format as the API response
+    return {
+      ...allShops,
+      data: matchedShops,
+      count: matchedShops.length
+    };
+  } catch (error) {
+    console.error("Enhanced shop search failed:", error);
+    // Fallback to standard search if enhanced search fails
+    return searchShops(searchTerm);
+  }
+};
+
 // Vendor-specific API functions
 
 export const getVendorShop = async (userId: string): Promise<SingleShopResponse> => {

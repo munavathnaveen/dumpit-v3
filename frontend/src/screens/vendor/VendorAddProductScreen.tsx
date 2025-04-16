@@ -24,6 +24,7 @@ import { createProduct, uploadProductImage, ProductFormData } from '../../api/pr
 import ScreenHeader from '../../components/ScreenHeader';
 import alert from '../../utils/alert';
 import Card3D from '../../components/Card3D';
+import DropdownSelect from '../../components/DropdownSelect';
 
 // Categories and product types from the provided JSON
 interface ProductCategoriesMap {
@@ -108,12 +109,7 @@ const VendorAddProductScreen: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [uploading, setUploading] = useState(false);
-  
-  // State for dropdown functionality
-  const [showCategoryModal, setShowCategoryModal] = useState(false);
-  const [showTypeModal, setShowTypeModal] = useState(false);
   const [productTypes, setProductTypes] = useState<string[]>([]);
-  const [searchQuery, setSearchQuery] = useState('');
 
   // Effect to update product types when category changes
   useEffect(() => {
@@ -158,11 +154,6 @@ const VendorAddProductScreen: React.FC = () => {
     if (formData.discount !== undefined && (formData.discount < 0 || formData.discount > 100)) {
       newErrors.discount = 'Discount must be between 0 and 100%';
     }
-
-    // Images are now optional
-    // if (formData.images.length === 0) {
-    //   newErrors.images = 'Please add at least one image';
-    // }
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -211,8 +202,8 @@ const VendorAddProductScreen: React.FC = () => {
 
     setLoading(true);
     try {
-      // Create product data object matching backend requirements
-      const productData: ProductFormData = {
+      // Create product with basic data first
+      const response = await createProduct({
         name: formData.name,
         description: formData.description,
         type: formData.type,
@@ -221,17 +212,18 @@ const VendorAddProductScreen: React.FC = () => {
         units: formData.units,
         stock: formData.stock,
         discount: formData.discount,
-        // We'll specifically pass the image URL to make sure it reaches the backend
-        image: formData.image || undefined,
         isActive: formData.isActive
-      };
-
-      const response = await createProduct(productData);
+      });
       
       if (response.success) {
-        // If the product has an image URL and was created successfully, ensure the image is properly set
+        // If the product has an image URL and was created successfully, update the image
         if (formData.image && formData.image.trim() !== '') {
-          await uploadProductImage(response.data._id, formData.image);
+          try {
+            await uploadProductImage(response.data._id, formData.image);
+          } catch (imageError) {
+            console.error('Error uploading product image:', imageError);
+            // Continue with success even if image upload fails
+          }
         }
         
         alert(
@@ -254,77 +246,6 @@ const VendorAddProductScreen: React.FC = () => {
       setLoading(false);
     }
   };
-
-  // Filter function for search
-  const getFilteredOptions = (options: string[], query: string) => {
-    if (!query) return options;
-    return options.filter(option => 
-      option.toLowerCase().includes(query.toLowerCase())
-    );
-  };
-
-  // Modal component for dropdown selection
-  const SelectionModal = ({ 
-    visible, 
-    onClose, 
-    title, 
-    options, 
-    onSelect, 
-    searchValue,
-    onSearchChange
-  }: {
-    visible: boolean;
-    onClose: () => void;
-    title: string;
-    options: string[];
-    onSelect: (option: string) => void;
-    searchValue: string;
-    onSearchChange: (value: string) => void;
-  }) => (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="slide"
-      onRequestClose={onClose}
-    >
-      <View style={styles.modalOverlay}>
-        <View style={styles.modalContent}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>{title}</Text>
-            <TouchableOpacity onPress={onClose}>
-              <Ionicons name="close" size={24} color="#333" />
-            </TouchableOpacity>
-          </View>
-          
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Search..."
-            value={searchValue}
-            onChangeText={onSearchChange}
-            autoFocus
-          />
-          
-          <FlatList
-            data={getFilteredOptions(options, searchValue)}
-            keyExtractor={(item) => item}
-            renderItem={({ item }) => (
-              <TouchableOpacity
-                style={styles.optionItem}
-                onPress={() => {
-                  onSelect(item);
-                  onClose();
-                }}
-              >
-                <Text style={styles.optionText}>{item}</Text>
-              </TouchableOpacity>
-            )}
-            ItemSeparatorComponent={() => <View style={styles.optionSeparator} />}
-            style={styles.optionsList}
-          />
-        </View>
-      </View>
-    </Modal>
-  );
 
   if (loading) {
     return (
@@ -378,46 +299,32 @@ const VendorAddProductScreen: React.FC = () => {
             {errors.description && <Text style={styles.errorText}>{errors.description}</Text>}
           </View>
 
-          {/* Product Type */}
-          <View style={styles.formGroup}>
-            <Text style={styles.label}>Product Type*</Text>
-            <TouchableOpacity
-              style={styles.dropdownInput}
-              onPress={() => {
-                if (formData.category) {
-                  setSearchQuery('');
-                  setShowTypeModal(true);
-                } else {
-                  alert('Select Category', 'Please select a category first to view available product types.');
-                }
-              }}
-              disabled={!formData.category}
-            >
-              <Text style={formData.type ? styles.dropdownText : styles.dropdownPlaceholder}>
-                {formData.type || "Select product type"}
-              </Text>
-              <Ionicons name="chevron-down" size={20} color={theme.colors.gray} />
-            </TouchableOpacity>
-            {errors.type && <Text style={styles.errorText}>{errors.type}</Text>}
-          </View>
+          {/* Product Category - Appears first now */}
+          <DropdownSelect
+            label="Category"
+            options={CATEGORIES}
+            selectedValue={formData.category}
+            onSelect={(category) => {
+              handleInputChange('category', category);
+              // Reset type when category changes
+              handleInputChange('type', '');
+            }}
+            error={errors.category}
+            placeholder="Select product category"
+            required={true}
+          />
 
-          {/* Product Category */}
-          <View style={styles.formGroup}>
-            <Text style={styles.label}>Category*</Text>
-            <TouchableOpacity
-              style={styles.dropdownInput}
-              onPress={() => {
-                setSearchQuery('');
-                setShowCategoryModal(true);
-              }}
-            >
-              <Text style={formData.category ? styles.dropdownText : styles.dropdownPlaceholder}>
-                {formData.category || "Select product category"}
-              </Text>
-              <Ionicons name="chevron-down" size={20} color={theme.colors.gray} />
-            </TouchableOpacity>
-            {errors.category && <Text style={styles.errorText}>{errors.category}</Text>}
-          </View>
+          {/* Product Type - Appears after category */}
+          <DropdownSelect
+            label="Product Type"
+            options={productTypes}
+            selectedValue={formData.type}
+            onSelect={(type) => handleInputChange('type', type)}
+            error={errors.type}
+            placeholder="Select product type"
+            required={true}
+            disabled={!formData.category}
+          />
 
           {/* Price/Rate */}
           <View style={styles.formGroup}>
@@ -508,31 +415,6 @@ const VendorAddProductScreen: React.FC = () => {
           </TouchableOpacity>
         </Card3D>
       </KeyboardAwareScrollView>
-
-      {/* Category Selection Modal */}
-      <SelectionModal
-        visible={showCategoryModal}
-        onClose={() => setShowCategoryModal(false)}
-        title="Select Category"
-        options={CATEGORIES}
-        onSelect={(category) => {
-          handleInputChange('category', category);
-          handleInputChange('type', ''); // Reset type when category changes
-        }}
-        searchValue={searchQuery}
-        onSearchChange={setSearchQuery}
-      />
-
-      {/* Product Type Selection Modal */}
-      <SelectionModal
-        visible={showTypeModal}
-        onClose={() => setShowTypeModal(false)}
-        title="Select Product Type"
-        options={productTypes}
-        onSelect={(type) => handleInputChange('type', type)}
-        searchValue={searchQuery}
-        onSearchChange={setSearchQuery}
-      />
     </View>
   );
 };

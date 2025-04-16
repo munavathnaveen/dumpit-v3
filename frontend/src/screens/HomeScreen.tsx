@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Image, ActivityIndicator, Dimensions, ImageBackground, Linking, Alert, useWindowDimensions, TextInput } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Image, ActivityIndicator, Dimensions, ImageBackground, Linking, Alert, useWindowDimensions, TextInput, Animated, Easing, Platform } from 'react-native';
 import { useSelector, useDispatch } from 'react-redux';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -20,6 +20,7 @@ import * as productApi from '../api/productApi';
 import * as shopApi from '../api/shopApi';
 import { GOOGLE_MAPS_API_KEY } from '../utils/config';
 import { Product as ApiProduct } from '../types/product';
+import { LocationService } from '../services/LocationService';
 
 const { width } = Dimensions.get('window');
 const CARD_WIDTH = width * 0.7;
@@ -39,18 +40,31 @@ interface Product {
   shop: any;
 }
 
+// Updated Shop interface to match with shopApi
 interface Shop {
   _id: string;
   name: string;
-  address: {
-    village: string;
-    district: string;
-  };
+  description: string;
+  logo: string;
+  image: string;
   rating: number;
-  reviews: any[];
-  categories: string[];
+  numReviews: number;
   isOpen: boolean;
-  images: string[];
+  address: {
+    street: string;
+    city: string;
+    pincode: string;
+    phone: string;
+    // Add these fields to match usage in code
+    village?: string;
+    district?: string;
+  };
+  distance?: string | number;
+  categories?: string[];
+  // Add reviews field to match usage in code
+  reviews?: { length: number }[];
+  // Add images property to handle it in code
+  images?: string[];
 }
 
 // Ad data structure
@@ -99,11 +113,6 @@ const HomeScreen: React.FC = () => {
   });
   const [currentAdIndex, setCurrentAdIndex] = useState(0);
   
-  // Search functionality
-  const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<Product[]>([]);
-  const [isSearching, setIsSearching] = useState(false);
-
   // Responsive width calculations
   const cardWidth = dimensions.width < 380 ? dimensions.width * 0.85 : dimensions.width * 0.7;
   const shopCardWidth = dimensions.width < 380 ? dimensions.width * 0.9 : dimensions.width * 0.8;
@@ -210,6 +219,7 @@ const HomeScreen: React.FC = () => {
   const fetchCategories = async () => {
     try {
       setLoading(prev => ({ ...prev, categories: true }));
+      // Using productApi instead of categoryApi
       const response = await productApi.getProductCategories();
       setCategories(response.data);
     } catch (error) {
@@ -421,9 +431,9 @@ const HomeScreen: React.FC = () => {
             <View style={styles.shopImageContainer}>
               <Image 
                 source={{ 
-                  uri: shop.images && shop.images.length > 0 
-                    ? shop.images[0] 
-                    : 'https://i.ibb.co/rskZwbK/shop-placeholder.jpg' 
+                  uri: shop.image || 
+                       (shop.images && shop.images.length > 0 ? shop.images[0] : undefined) || 
+                       'https://i.ibb.co/rskZwbK/shop-placeholder.jpg' 
                 }}
                 style={styles.shopImage} 
                 resizeMode="cover"
@@ -442,7 +452,7 @@ const HomeScreen: React.FC = () => {
                 <Ionicons name="location-outline" size={16} color="#FFFFFF" />
                 <Text style={styles.shopAddress} numberOfLines={1}>
                   {shop.address 
-                    ? `${shop.address.village}, ${shop.address.district}` 
+                    ? `${shop.address.village || shop.address.city || ''}, ${shop.address.district || shop.address.street || ''}` 
                     : 'Location not available'}
                 </Text>
               </View>
@@ -554,41 +564,6 @@ const HomeScreen: React.FC = () => {
     );
   };
 
-  // Add search function
-  const handleSearch = async (query: string) => {
-    setSearchQuery(query);
-    
-    if (query.trim() === '') {
-      setIsSearching(false);
-      setSearchResults([]);
-      return;
-    }
-    
-    setIsSearching(true);
-    try {
-      // Search in products API with the query
-      const response = await productApi.getProducts(`search=${query}`);
-      if (response && response.data && Array.isArray(response.data)) {
-        const mappedResults: Product[] = response.data.map((item: any) => ({
-          _id: item._id,
-          name: item.name,
-          description: item.description || '',
-          rate: item.price || 0,
-          discount: item.discount || 0,
-          images: item.image ? [item.image] : [],
-          rating: item.rating || 0,
-          shop: item.shop || null
-        }));
-        setSearchResults(mappedResults);
-      } else {
-        setSearchResults([]);
-      }
-    } catch (error) {
-      console.error('Failed to search products:', error);
-      setSearchResults([]);
-    }
-  };
-
   return (
     <View style={styles.container}>
       <Header
@@ -600,21 +575,13 @@ const HomeScreen: React.FC = () => {
       
       {/* Search Bar */}
       <View style={styles.searchContainer}>
-        <View style={styles.searchBar}>
+        <TouchableOpacity 
+          style={styles.searchBar}
+          onPress={() => navigation.navigate('Products')}
+        >
           <Ionicons name="search-outline" size={20} color={theme.colors.gray} style={styles.searchIcon} />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Search products, shops, categories..."
-            value={searchQuery}
-            onChangeText={handleSearch}
-            returnKeyType="search"
-          />
-          {searchQuery.length > 0 && (
-            <TouchableOpacity onPress={() => handleSearch('')} style={styles.clearButton}>
-              <Ionicons name="close-circle" size={20} color={theme.colors.gray} />
-            </TouchableOpacity>
-          )}
-        </View>
+          <Text style={styles.searchPlaceholder}>Search for products</Text>
+        </TouchableOpacity>
       </View>
       
       <ScrollView
@@ -622,108 +589,90 @@ const HomeScreen: React.FC = () => {
         contentContainerStyle={styles.scrollViewContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* Display search results if searching */}
-        {isSearching ? (
-          <View style={styles.searchResultsContainer}>
-            <Text style={styles.sectionTitle}>Search Results</Text>
-            {searchResults.length > 0 ? (
+        {/* Original content when not searching */}
+        <>
+          {/* Welcome section */}
+          <View style={styles.welcomeSection}>
+            <Text style={styles.welcomeText}>Welcome, {user?.name?.split(' ')[0] || 'Guest'}!</Text>
+            <Text style={styles.locationText}>
+              <Ionicons name="location" size={16} color={theme.colors.primary} />
+              {location}
+            </Text>
+          </View>
+          
+          {/* Rest of the content */}
+          {renderAdBanner()}
+          
+          {/* Categories section */}
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Categories</Text>
+            </View>
+            
+            {loading.categories ? (
+              <ActivityIndicator size="small" color={theme.colors.primary} />
+            ) : (
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.categoriesContainer}
+              >
+                {categories.map((category, index) => renderCategoryItem(category, index))}
+              </ScrollView>
+            )}
+          </View>
+          
+          {/* Featured Products section */}
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Featured Products</Text>
+              <TouchableOpacity onPress={() => navigation.navigate('ProductsTab')}>
+                <Text style={styles.viewAllText}>View All</Text>
+              </TouchableOpacity>
+            </View>
+            
+            {loading.products ? (
+              <ActivityIndicator size="small" color={theme.colors.primary} />
+            ) : featuredProducts.length > 0 ? (
               <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
                 contentContainerStyle={styles.productsContainer}
               >
-                {searchResults.map(product => renderProductCard(product))}
+                {featuredProducts.map(product => renderProductCard(product))}
               </ScrollView>
             ) : (
-              <Text style={styles.noResultsText}>No products found matching "{searchQuery}"</Text>
+              <Text style={styles.noDataText}>No featured products available</Text>
             )}
           </View>
-        ) : (
-          // Original content when not searching
-          <>
-            {/* Welcome section */}
-            <View style={styles.welcomeSection}>
-              <Text style={styles.welcomeText}>Welcome, {user?.name?.split(' ')[0] || 'Guest'}!</Text>
-              <Text style={styles.locationText}>
-                <Ionicons name="location" size={16} color={theme.colors.primary} />
-                {location}
-              </Text>
+          
+          {/* Nearby Shops section */}
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Nearby Shops</Text>
+              <TouchableOpacity onPress={() => navigation.navigate('ShopsTab')}>
+                <Text style={styles.viewAllText}>View All</Text>
+              </TouchableOpacity>
             </View>
             
-            {/* Rest of the content */}
-            {renderAdBanner()}
-            
-            {/* Categories section */}
-            <View style={styles.section}>
-              <View style={styles.sectionHeader}>
-                <Text style={styles.sectionTitle}>Categories</Text>
-              </View>
-              
-              {loading.categories ? (
-                <ActivityIndicator size="small" color={theme.colors.primary} />
-              ) : (
-                <ScrollView
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={styles.categoriesContainer}
-                >
-                  {categories.map((category, index) => renderCategoryItem(category, index))}
-                </ScrollView>
-              )}
-            </View>
-            
-            {/* Featured Products section */}
-            <View style={styles.section}>
-              <View style={styles.sectionHeader}>
-                <Text style={styles.sectionTitle}>Featured Products</Text>
-                <TouchableOpacity onPress={() => navigation.navigate('ProductsTab')}>
-                  <Text style={styles.viewAllText}>View All</Text>
-                </TouchableOpacity>
-              </View>
-              
-              {loading.products ? (
-                <ActivityIndicator size="small" color={theme.colors.primary} />
-              ) : featuredProducts.length > 0 ? (
-                <ScrollView
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={styles.productsContainer}
-                >
-                  {featuredProducts.map(product => renderProductCard(product))}
-                </ScrollView>
-              ) : (
-                <Text style={styles.noDataText}>No featured products available</Text>
-              )}
-            </View>
-            
-            {/* Nearby Shops section */}
-            <View style={styles.section}>
-              <View style={styles.sectionHeader}>
-                <Text style={styles.sectionTitle}>Nearby Shops</Text>
-                <TouchableOpacity onPress={() => navigation.navigate('ShopsTab')}>
-                  <Text style={styles.viewAllText}>View All</Text>
-                </TouchableOpacity>
-              </View>
-              
-              {loading.shops ? (
-                <ActivityIndicator size="small" color={theme.colors.primary} />
-              ) : nearbyShops.length > 0 ? (
-                <ScrollView
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={styles.productsContainer}
-                >
-                  {nearbyShops.map(shop => renderShopCard(shop))}
-                </ScrollView>
-              ) : (
-                <Text style={styles.noDataText}>No nearby shops available</Text>
-              )}
-            </View>
-            
-            {/* App info section */}
-            {renderAppInfoSection()}
-          </>
-        )}
+            {loading.shops ? (
+              <ActivityIndicator size="small" color={theme.colors.primary} />
+            ) : nearbyShops.length > 0 ? (
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.productsContainer}
+              >
+                {nearbyShops.map(shop => renderShopCard(shop))}
+              </ScrollView>
+            ) : (
+              <Text style={styles.noDataText}>No nearby shops available</Text>
+            )}
+          </View>
+          
+          {/* App info section */}
+          {renderAppInfoSection()}
+        </>
       </ScrollView>
     </View>
   );
@@ -1127,23 +1076,12 @@ const styles = StyleSheet.create({
   searchIcon: {
     marginRight: theme.spacing.sm,
   },
-  searchInput: {
+  searchPlaceholder: {
     flex: 1,
     height: '100%',
     fontSize: 16,
-    color: theme.colors.text,
-  },
-  clearButton: {
-    padding: theme.spacing.xs,
-  },
-  searchResultsContainer: {
-    padding: theme.spacing.md,
-  },
-  noResultsText: {
-    textAlign: 'center',
     color: theme.colors.gray,
-    marginTop: theme.spacing.lg,
-    marginBottom: theme.spacing.xxl,
+    fontStyle: 'italic',
   },
 });
 
