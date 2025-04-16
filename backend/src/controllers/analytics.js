@@ -24,13 +24,22 @@ const storage = multer.diskStorage({
 })
 
 // Filter to only allow CSV files
+
 const csvFilter = (req, file, cb) => {
-  if (file.mimetype.includes('csv')) {
+  const allowedMimeTypes = ['text/csv', 'application/vnd.ms-excel', 'text/plain', 'application/octet-stream']
+  const ext = path.extname(file.originalname).toLowerCase()
+
+  console.log('Uploaded File MIME:', file.mimetype)
+  console.log('Uploaded File Name:', file.originalname)
+  console.log('Extracted Extension:', ext)
+
+  if (allowedMimeTypes.includes(file.mimetype) || ext === '.csv') {
     cb(null, true)
   } else {
     cb(new Error('Please upload only CSV files'), false)
   }
 }
+
 
 // Initialize upload
 exports.upload = multer({
