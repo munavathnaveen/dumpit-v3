@@ -172,7 +172,6 @@ exports.createOrder = async (req, res, next) => {
     // Get user
     const user = await User.findById(req.user.id).populate({
       path: 'cart.product',
-      select: 'name rate discount stock vendor shop',
     })
 
     // Check if cart is empty
@@ -201,7 +200,12 @@ exports.createOrder = async (req, res, next) => {
       }
 
       // Calculate price with discount
-      const price = cartItem.product.rate * (1 - cartItem.product.discount / 100)
+      const price = cartItem.product.price * (1 - cartItem.product.discount / 100)
+      
+      // Ensure price is a valid number
+      if (isNaN(price) || price < 0) {
+        return next(new ErrorResponse(`Invalid price for product ${cartItem.product.name}`, 400))
+      }
 
       // Add to order items
       orderItems.push({
@@ -213,6 +217,11 @@ exports.createOrder = async (req, res, next) => {
 
       // Add to total price
       totalPrice += price * cartItem.quantity
+    }
+
+    // Ensure total price is a valid number
+    if (isNaN(totalPrice) || totalPrice < 0) {
+      return next(new ErrorResponse('Invalid total price calculation', 400))
     }
 
     // Apply coupon if provided

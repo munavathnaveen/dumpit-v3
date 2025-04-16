@@ -51,9 +51,6 @@ exports.addCartItem = async (req, res, next) => {
 
     // Check if product is already in cart
     const cartItem = user.cart.find((item) => item.product.toString() === req.params.productId)
-    console.log("Debug Product Body ",req.body);
-    console.log("Debug Product params ",req.params);
-    console.log("Debug Cart Item",cartItem);
     
     if (cartItem) {
       // If product is already in cart, update quantity
@@ -74,11 +71,16 @@ exports.addCartItem = async (req, res, next) => {
     }
 
     await user.save()
-    console.log("Debug : user cart ",user.cart);
+    
+    // Get the updated user with populated cart
+    const updatedUser = await User.findById(req.user.id).populate({
+      path: 'cart.product'
+    })
+    
     // Return updated cart
     res.status(200).json({
       success: true,
-      data: user.cart,
+      data: updatedUser.cart,
     })
   } catch (err) {
     next(err)
@@ -114,9 +116,7 @@ exports.updateCartItem = async (req, res, next) => {
 
     // Find the cart item
     const cartItemIndex = user.cart.findIndex((item) => item.product.toString() === req.params.productId)
-    console.log("Debug Product Body ",req.body);
-    console.log("Debug Product params ",req.params);
-    console.log("Debug Product ",product);
+    
     if (cartItemIndex === -1) {
       return next(new ErrorResponse(`Product not found in cart`, 404))
     }
@@ -126,10 +126,15 @@ exports.updateCartItem = async (req, res, next) => {
 
     await user.save()
 
+    // Get the updated user with populated cart
+    const updatedUser = await User.findById(req.user.id).populate({
+      path: 'cart.product'
+    })
+
     // Return updated cart
     res.status(200).json({
       success: true,
-      data: user.cart,
+      data: updatedUser.cart,
     })
   } catch (err) {
     next(err)
@@ -146,15 +151,18 @@ exports.removeCartItem = async (req, res, next) => {
 
     // Filter out the product to remove
     user.cart = user.cart.filter((item) => item.product.toString() !== req.params.productId)
-    console.log("Debug Product Body ",req.body);
-    console.log("Debug Product params ",req.params);
+    
     await user.save()
-    console.log("Debug User Cart",user.cart);
+    
+    // Get the updated user with populated cart
+    const updatedUser = await User.findById(req.user.id).populate({
+      path: 'cart.product'
+    })
 
     // Return updated cart
     res.status(200).json({
       success: true,
-      data: user.cart,
+      data: updatedUser.cart,
     })
   } catch (err) {
     next(err)

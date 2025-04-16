@@ -1,4 +1,4 @@
-import React, {useEffect} from 'react'
+import React, {useEffect, useState} from 'react'
 import {View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Image} from 'react-native'
 import {useDispatch, useSelector} from 'react-redux'
 import {RootState, AppDispatch} from '../store'
@@ -18,10 +18,29 @@ const CartScreen = () => {
   const dispatch = useDispatch<AppDispatch>()
   const navigation = useAppNavigation()
   const {items, loading, error, totalItems, totalAmount} = useSelector((state: RootState) => state.cart)
+  const [isRefreshing, setIsRefreshing] = useState(false)
+
+  const fetchCart = async () => {
+    try {
+      await dispatch(getCart()).unwrap()
+    } catch (error) {
+      Toast.show({
+        type: 'error',
+        text1: 'Error',
+        text2: 'Failed to load cart items',
+      })
+    }
+  }
 
   useEffect(() => {
-    dispatch(getCart())
+    fetchCart()
   }, [dispatch])
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true)
+    await fetchCart()
+    setIsRefreshing(false)
+  }
 
   const handleRemoveItem = async (itemId: string) => {
     try {
@@ -94,31 +113,41 @@ const CartScreen = () => {
     navigation.navigate('TabNavigator', {screen: 'ShopsTab'})
   }
 
-  const renderItem = ({item}: {item: CartItem}) => (
-    <View style={styles.cartItem}>
-      <Image source={{uri: item.product?.image}} style={styles.productImage} />
-      <View style={styles.itemDetails}>
-        <Text style={styles.productName}>{item.product?.name}</Text>
-        <Text style={styles.productPrice}>${item.product?.price.toFixed(2)}</Text>
-        <View style={styles.quantityContainer}>
-          <TouchableOpacity
-            onPress={() => handleUpdateQuantity(item.product._id, item.quantity - 1)}
-            style={styles.quantityButton}>
-            <Ionicons name='remove' size={20} color='#000' />
-          </TouchableOpacity>
-          <Text style={styles.quantity}>{item.quantity}</Text>
-          <TouchableOpacity
-            onPress={() => handleUpdateQuantity(item.product._id, item.quantity + 1)}
-            style={styles.quantityButton}>
-            <Ionicons name='add' size={20} color='#000' />
-          </TouchableOpacity>
+  const renderItem = ({item}: {item: CartItem}) => {
+    // Ensure item.product exists before rendering
+    if (!item.product) {
+      return null;
+    }
+    
+    // Safe access to price with fallback to 0
+    const price = item.product.price || 0;
+    
+    return (
+      <View style={styles.cartItem}>
+        <Image source={{uri: item.product.image}} style={styles.productImage} />
+        <View style={styles.itemDetails}>
+          <Text style={styles.productName}>{item.product.name}</Text>
+          <Text style={styles.productPrice}>${price.toFixed(2)}</Text>
+          <View style={styles.quantityContainer}>
+            <TouchableOpacity
+              onPress={() => handleUpdateQuantity(item.product._id, item.quantity - 1)}
+              style={styles.quantityButton}>
+              <Ionicons name='remove' size={20} color='#000' />
+            </TouchableOpacity>
+            <Text style={styles.quantity}>{item.quantity}</Text>
+            <TouchableOpacity
+              onPress={() => handleUpdateQuantity(item.product._id, item.quantity + 1)}
+              style={styles.quantityButton}>
+              <Ionicons name='add' size={20} color='#000' />
+            </TouchableOpacity>
+          </View>
         </View>
+        <TouchableOpacity onPress={() => handleRemoveItem(item.product._id)} style={styles.removeButton}>
+          <Ionicons name='trash-outline' size={24} color='#ff4444' />
+        </TouchableOpacity>
       </View>
-      <TouchableOpacity onPress={() => handleRemoveItem(item.product._id)} style={styles.removeButton}>
-        <Ionicons name='trash-outline' size={24} color='#ff4444' />
-      </TouchableOpacity>
-    </View>
-  )
+    )
+  }
 
   if (loading) {
     return (
@@ -155,21 +184,25 @@ const CartScreen = () => {
               renderItem={renderItem}
               keyExtractor={(item) => item._id}
               contentContainerStyle={styles.listContainer}
+              refreshing={isRefreshing}
+              onRefresh={handleRefresh}
             />
 
             <Card3D style={styles.summaryCard}>
               <View style={styles.summaryRow}>
                 <Text style={styles.summaryLabel}>Total Items:</Text>
-                <Text style={styles.summaryValue}>{totalItems}</Text>
+                <Text style={styles.summaryValue}>{totalItems || 0}</Text>
               </View>
               <View style={styles.summaryRow}>
                 <Text style={styles.summaryLabel}>Total Amount:</Text>
-                <Text style={styles.summaryValue}>${totalAmount.toFixed(2)}</Text>
+                <Text style={styles.summaryValue}>${(totalAmount || 0).toFixed(2)}</Text>
               </View>
               <View style={styles.divider} />
               <View style={styles.summaryRow}>
                 <Text style={styles.totalLabel}>Total</Text>
-                <Text style={styles.totalValue}>${(totalAmount + (totalAmount > 0 ? 50 : 0)).toFixed(2)}</Text>
+                <Text style={styles.totalValue}>
+                  ${((totalAmount || 0) + ((totalAmount || 0) > 0 ? 50 : 0)).toFixed(2)}
+                </Text>
               </View>
 
               <TouchableOpacity style={styles.checkoutButton} onPress={handleCheckout}>

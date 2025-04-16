@@ -34,12 +34,19 @@ const initialState: CartState = {
 
 // Calculate cart totals
 const calculateCartTotals = (items: CartItem[]) => {
-  const totalItems = items.reduce((sum, item) => sum + item.quantity, 0);
+  const totalItems = items.reduce((sum, item) => sum + (item.quantity || 0), 0);
+  
   const totalAmount = items.reduce((sum, item) => {
-    if (!item.product) return sum;
-    return sum + (item.product.price * item.quantity);
+    if (!item.product || typeof item.product.price !== 'number') return sum;
+    const price = item.product.price || 0;
+    const quantity = item.quantity || 0;
+    return sum + (price * quantity);
   }, 0);
-  return { totalItems, totalAmount };
+  
+  return { 
+    totalItems, 
+    totalAmount: isNaN(totalAmount) ? 0 : totalAmount 
+  };
 };
 
 // Async thunks

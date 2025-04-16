@@ -127,7 +127,7 @@ ProductSchema.index({ shop: 1, featured: 1, isActive: 1 })
 
 // Calculate discounted price
 ProductSchema.virtual('discountedPrice').get(function () {
-  return this.rate - this.rate * (this.discount / 100)
+  return this.price - this.price * (this.discount / 100)
 })
 
 // Update product rating based on reviews

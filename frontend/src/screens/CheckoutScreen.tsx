@@ -53,13 +53,15 @@ const CheckoutScreen: React.FC = () => {
   
   // Calculate totals
   const subtotal = items.reduce((acc, item) => {
-    // Just use price directly since we removed discount from the interface
-    const price = item.product?.price || 0;
-    return acc + (price * item.quantity);
+    // Safely access price, default to 0 if not available
+    if (!item.product || typeof item.product.price !== 'number') return acc;
+    const price = item.product.price || 0;
+    const quantity = item.quantity || 0;
+    return acc + (price * quantity);
   }, 0);
   
   const deliveryFee = 40; // Fixed delivery fee
-  const total = subtotal + deliveryFee - couponDiscount;
+  const total = (subtotal || 0) + deliveryFee - (couponDiscount || 0);
 
   useEffect(() => {
     loadAddresses();
