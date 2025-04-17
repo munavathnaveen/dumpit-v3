@@ -30,7 +30,7 @@ exports.getShops = async (req, res, next) => {
     }
 
     // Fields to exclude
-    const removeFields = ['select', 'sort', 'page', 'limit']
+    const removeFields = ['select', 'sort', 'page', 'limit', 'search']
 
     // Loop over removeFields and delete them from reqQuery
     removeFields.forEach((param) => delete reqQuery[param])
@@ -41,8 +41,11 @@ exports.getShops = async (req, res, next) => {
     // Create operators ($gt, $gte, etc)
     queryStr = queryStr.replace(/\b(gt|gte|lt|lte|in)\b/g, (match) => `$${match}`)
 
-    // Finding resource
-    let query = Shop.find({ ...JSON.parse(queryStr), ...searchQuery }).populate('owner', 'name email phone')
+    // Finding resource with combined filters
+    let query = Shop.find({ 
+      ...JSON.parse(queryStr), 
+      ...(Object.keys(searchQuery).length > 0 ? searchQuery : {}) 
+    }).populate('owner', 'name email phone')
 
     // Select fields
     if (req.query.select) {
@@ -58,20 +61,33 @@ exports.getShops = async (req, res, next) => {
       query = query.sort('-createdAt')
     }
 
-    // Pagination
+    // Count documents for pagination before applying skip/limit
+    // Use the same filter criteria as the main query
+    const countQuery = Shop.countDocuments({ 
+      ...JSON.parse(queryStr), 
+      ...(Object.keys(searchQuery).length > 0 ? searchQuery : {}) 
+    });
+
+    // Pagination with better defaults
     const page = parseInt(req.query.page, 10) || 1
     const limit = parseInt(req.query.limit, 10) || 10
     const startIndex = (page - 1) * limit
     const endIndex = page * limit
-    const total = await Shop.countDocuments()
+    const total = await countQuery
 
+    // Apply pagination to query
     query = query.skip(startIndex).limit(limit)
 
     // Executing query
     const shops = await query
 
-    // Pagination result
-    const pagination = {}
+    // Pagination result with more information
+    const pagination = {
+      page,
+      limit,
+      total,
+      pages: Math.ceil(total / limit)
+    }
 
     if (endIndex < total) {
       pagination.next = {
@@ -343,25 +359,73 @@ exports.getNearbyShops = async (req, res, next) => {
     const longitude = parseFloat(req.query.longitude);
     const distance = parseInt(req.query.distance) || 10000; // Default 10km
     
+    // Pagination parameters
+    const page = parseInt(req.query.page, 10) || 1;
+    const limit = parseInt(req.query.limit, 10) || 10;
+    const startIndex = (page - 1) * limit;
+    
     // If coordinates are missing or invalid, return error or fallback
     if (isNaN(latitude) || isNaN(longitude)) {
       console.log('Using default location as coordinates are missing or invalid');
       // Either fall back to default coordinates or return all shops
+      
+      // Count total shops for pagination
+      const total = await Shop.countDocuments({ isActive: true });
+      
       const shops = await Shop.find({ isActive: true })
         .populate('owner', 'name')
         .select('name description address location rating images categories isOpen')
-        .limit(10);
+        .skip(startIndex)
+        .limit(limit);
+      
+      // Create pagination object
+      const pagination = {
+        page,
+        limit,
+        total,
+        pages: Math.ceil(total / limit)
+      };
+      
+      if (startIndex + limit < total) {
+        pagination.next = {
+          page: page + 1,
+          limit
+        };
+      }
+      
+      if (startIndex > 0) {
+        pagination.prev = {
+          page: page - 1,
+          limit
+        };
+      }
       
       return res.status(200).json({
         success: true,
         count: shops.length,
+        pagination,
         data: shops,
         usingDefault: true,
       });
     }
     
     // Find shops near the specified location using geospatial query
-    const shops = await Shop.find({
+    // First count total for pagination
+    const totalQuery = Shop.countDocuments({
+      location: {
+        $near: {
+          $geometry: {
+            type: 'Point',
+            coordinates: [longitude, latitude],
+          },
+          $maxDistance: distance,
+        },
+      },
+      isActive: true,
+    });
+    
+    // Main query with pagination
+    const shopsQuery = Shop.find({
       location: {
         $near: {
           $geometry: {
@@ -375,7 +439,11 @@ exports.getNearbyShops = async (req, res, next) => {
     })
     .populate('owner', 'name')
     .select('name description address location rating images categories isOpen')
-    .limit(10);
+    .skip(startIndex)
+    .limit(limit);
+    
+    // Execute both queries in parallel
+    const [total, shops] = await Promise.all([totalQuery, shopsQuery]);
     
     // Calculate and add distance information to each shop
     const shopsWithDistance = shops.map(shop => {
@@ -417,9 +485,32 @@ exports.getNearbyShops = async (req, res, next) => {
       return shopObj;
     });
     
+    // Create pagination object
+    const pagination = {
+      page,
+      limit,
+      total,
+      pages: Math.ceil(total / limit)
+    };
+    
+    if (startIndex + limit < total) {
+      pagination.next = {
+        page: page + 1,
+        limit
+      };
+    }
+    
+    if (startIndex > 0) {
+      pagination.prev = {
+        page: page - 1,
+        limit
+      };
+    }
+    
     res.status(200).json({
       success: true,
-      count: shops.length,
+      count: shopsWithDistance.length,
+      pagination,
       data: shopsWithDistance,
     });
   } catch (err) {
@@ -428,25 +519,57 @@ exports.getNearbyShops = async (req, res, next) => {
     // If there's an issue with the geospatial query, fallback to regular find
     if (err.name === 'MongoServerError' && (err.code === 2 || err.code === 16755)) {
       try {
+        // Pagination parameters
+        const page = parseInt(req.query.page, 10) || 1;
+        const limit = parseInt(req.query.limit, 10) || 10;
+        const startIndex = (page - 1) * limit;
+        
+        // Count total shops for pagination
+        const total = await Shop.countDocuments({ isActive: true });
+        
         const shops = await Shop.find({ isActive: true })
           .populate('owner', 'name')
           .select('name description address location rating images categories isOpen')
-          .limit(10);
+          .skip(startIndex)
+          .limit(limit);
+        
+        // Create pagination object
+        const pagination = {
+          page,
+          limit,
+          total,
+          pages: Math.ceil(total / limit)
+        };
+        
+        if (startIndex + limit < total) {
+          pagination.next = {
+            page: page + 1,
+            limit
+          };
+        }
+        
+        if (startIndex > 0) {
+          pagination.prev = {
+            page: page - 1,
+            limit
+          };
+        }
         
         return res.status(200).json({
           success: true,
           count: shops.length,
+          pagination,
           data: shops,
-          fallback: true,
+          usingFallback: true
         });
       } catch (fallbackErr) {
         return next(fallbackErr);
       }
+    } else {
+      return next(err);
     }
-    
-    next(err);
   }
-};
+}
 
 // @desc    Get all shop categories
 // @route   GET /api/v1/shops/categories

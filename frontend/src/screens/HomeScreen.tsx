@@ -247,10 +247,15 @@ const HomeScreen: React.FC = () => {
       setLocationData({ latitude, longitude });
 
       if (user?._id) {
-        try {
-          await locationApi.updateUserLocation({ latitude, longitude });
-        } catch (error) {
-          console.error('Failed to update location in backend:', error);
+        // Skip updating location in the backend when logging out
+        const isLoggingOut = !user._id; // If user ID is missing, we're in logout process
+        
+        if (!isLoggingOut) {
+          try {
+            await locationApi.updateUserLocation({ latitude, longitude });
+          } catch (error) {
+            console.error('Failed to update location in backend:', error);
+          }
         }
       }
 

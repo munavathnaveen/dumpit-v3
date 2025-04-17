@@ -143,13 +143,23 @@ export const searchShops = async (searchTerm: string): Promise<ShopsResponse> =>
 // Enhanced client-side shop search that enables fuzzy/substring matching
 export const enhancedSearchShops = async (searchTerm: string, page = 1, limit = 10): Promise<ShopsResponse> => {
   try {
+    // Try the backend search with pagination first
+    // This is more efficient than client-side filtering
+    try {
+      const backendSearchResponse = await apiClient.get(`/shops?search=${encodeURIComponent(searchTerm)}&page=${page}&limit=${limit}`);
+      return backendSearchResponse.data;
+    } catch (error) {
+      console.log('Backend search failed, falling back to client-side search:', error);
+      // If the backend search fails, continue with client-side search
+    }
+    
     // Get a reasonable number of shops to search through
     const response = await apiClient.get('/shops?limit=100');
     const allShops = response.data;
     
-    // If no search term, return all shops
+    // If no search term, return all shops with pagination
     if (!searchTerm || searchTerm.trim() === '') {
-      return allShops;
+      return paginateShops(allShops.data, page, limit);
     }
     
     // Normalize search term for case-insensitive matching
@@ -179,33 +189,37 @@ export const enhancedSearchShops = async (searchTerm: string, page = 1, limit = 
       );
     });
     
-    // Implement basic pagination
-    const totalShops = matchedShops.length;
-    const totalPages = Math.ceil(totalShops / limit);
-    const startIndex = (page - 1) * limit;
-    const endIndex = Math.min(startIndex + limit, totalShops);
-    const paginatedShops = matchedShops.slice(startIndex, endIndex);
-    
-    // Create pagination object
-    const pagination = {
-      page,
-      limit,
-      total: totalShops,
-      pages: totalPages
-    };
-    
-    // Return in the same format as the API response
-    return {
-      ...allShops,
-      data: paginatedShops,
-      count: paginatedShops.length,
-      pagination
-    };
+    return paginateShops(matchedShops, page, limit);
   } catch (error) {
     console.error("Enhanced shop search failed:", error);
     // Fallback to standard search if enhanced search fails
     return searchShops(searchTerm);
   }
+};
+
+// Helper function to paginate shops for client-side pagination
+const paginateShops = (shops: Shop[], page: number, limit: number): ShopsResponse => {
+  const totalShops = shops.length;
+  const totalPages = Math.ceil(totalShops / limit);
+  const startIndex = (page - 1) * limit;
+  const endIndex = Math.min(startIndex + limit, totalShops);
+  const paginatedShops = shops.slice(startIndex, endIndex);
+  
+  // Create pagination object
+  const pagination = {
+    page,
+    limit,
+    total: totalShops,
+    pages: totalPages
+  };
+  
+  // Return in the same format as the API response
+  return {
+    success: true,
+    data: paginatedShops,
+    count: paginatedShops.length,
+    pagination
+  };
 };
 
 // Vendor-specific API functions

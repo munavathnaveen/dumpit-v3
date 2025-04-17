@@ -70,13 +70,24 @@ export const searchProducts = async (searchTerm: string): Promise<ProductsRespon
 // Enhanced client-side search that allows for fuzzy matching when backend search is too strict
 export const enhancedSearchProducts = async (searchTerm: string, page = 1, limit = 10): Promise<ProductsResponse> => {
   try {
+    // Check if we can use the backend search with pagination directly
+    // This is more efficient than fetching all products for client-side filtering
+    try {
+      const backendSearchResponse = await apiClient.get(`/products?search=${encodeURIComponent(searchTerm)}&page=${page}&limit=${limit}`);
+      return backendSearchResponse.data;
+    } catch (error) {
+      console.log('Backend search failed, falling back to client-side search:', error);
+      // If the backend search fails, continue with client-side search
+    }
+    
     // Try to get all products (with a reasonable limit) to enable client-side fuzzy search
+    // For infinite scroll, we need a larger batch to perform client-side pagination
     const response = await apiClient.get('/products?limit=100');
     const allProducts = response.data;
     
-    // If no search term, just return all products
+    // If no search term, just return all products with pagination
     if (!searchTerm || searchTerm.trim() === '') {
-      return allProducts;
+      return paginateProducts(allProducts.data, page, limit);
     }
     
     // Normalize the search term (lowercase for case-insensitive matching)
@@ -100,33 +111,37 @@ export const enhancedSearchProducts = async (searchTerm: string, page = 1, limit
       );
     });
     
-    // Implement basic pagination
-    const totalProducts = matchedProducts.length;
-    const totalPages = Math.ceil(totalProducts / limit);
-    const startIndex = (page - 1) * limit;
-    const endIndex = Math.min(startIndex + limit, totalProducts);
-    const paginatedProducts = matchedProducts.slice(startIndex, endIndex);
-    
-    // Create pagination object
-    const pagination = {
-      page,
-      limit,
-      total: totalProducts,
-      pages: totalPages
-    };
-    
-    // Return in the same format as the API response
-    return {
-      ...allProducts,
-      data: paginatedProducts,
-      count: paginatedProducts.length,
-      pagination
-    };
+    return paginateProducts(matchedProducts, page, limit);
   } catch (error) {
     console.error("Enhanced search failed:", error);
     // Fallback to standard search if enhanced search fails
     return searchProducts(searchTerm);
   }
+};
+
+// Helper function to paginate products for client-side pagination
+const paginateProducts = (products: any[], page: number, limit: number): ProductsResponse => {
+  const totalProducts = products.length;
+  const totalPages = Math.ceil(totalProducts / limit);
+  const startIndex = (page - 1) * limit;
+  const endIndex = Math.min(startIndex + limit, totalProducts);
+  const paginatedProducts = products.slice(startIndex, endIndex);
+  
+  // Create pagination object
+  const pagination = {
+    page,
+    limit,
+    total: totalProducts,
+    pages: totalPages
+  };
+  
+  // Return in the same format as the API response
+  return {
+    success: true,
+    data: paginatedProducts,
+    count: paginatedProducts.length,
+    pagination
+  };
 };
 
 // Vendor-specific API functions

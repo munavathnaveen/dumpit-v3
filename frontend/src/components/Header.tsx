@@ -53,11 +53,16 @@ const Header: React.FC<HeaderProps> = ({
     if (onLogoutPress) {
       onLogoutPress();
     } else {
-      dispatch(logout());
+
       navigation.reset({
         index: 0,
         routes: [{ name: 'TabNavigator' }],
       });
+      
+      // Small delay to ensure navigation completes first
+      setTimeout(() => {
+        dispatch(logout());
+      }, 50);
     }
   };
 

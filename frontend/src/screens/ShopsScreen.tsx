@@ -62,6 +62,12 @@ const ShopsScreen: React.FC = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
   
+  // Pagination states for infinite scroll
+  const [currentPage, setCurrentPage] = useState(1);
+  const [hasMoreShops, setHasMoreShops] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [totalPages, setTotalPages] = useState(1);
+  
   // Filter states
   const [filterModalVisible, setFilterModalVisible] = useState(false);
   const [shopCategories, setShopCategories] = useState<string[]>([]);
@@ -94,6 +100,10 @@ const ShopsScreen: React.FC = () => {
 
   useEffect(() => {
     fetchShopCategories();
+    
+    // Reset pagination when the component mounts
+    setCurrentPage(1);
+    setHasMoreShops(true);
     
     // Initialize from route params
     if (route.params?.searchQuery) {
@@ -129,6 +139,11 @@ const ShopsScreen: React.FC = () => {
 
   // Load shops when search query or filters change
   useEffect(() => {
+    // Reset pagination when filters change
+    setCurrentPage(1);
+    setHasMoreShops(true);
+    setFilteredShops([]);
+    
     loadShops();
   }, [searchQuery, selectedCategory, onlyOpen, minRating, sortBy, showNearby, userLocation]);
 
@@ -309,72 +324,117 @@ const ShopsScreen: React.FC = () => {
 
   const loadShops = async () => {
     try {
-      setLoading(true);
+      if (currentPage === 1) {
+        setLoading(true);
+      } else {
+        setLoadingMore(true);
+      }
+      
+      console.log(`Loading shops page ${currentPage}`);
+      
+      // Build query string based on filters
+      let queryParams = [];
+      
+      // Add pagination parameters
+      queryParams.push(`page=${currentPage}`);
+      queryParams.push(`limit=10`);
+      
+      // Add category filter if selected
+      if (selectedCategory) {
+        queryParams.push(`categories=${selectedCategory}`);
+      }
+      
+      // Add rating filter if set
+      if (minRating > 0) {
+        queryParams.push(`rating[gte]=${minRating}`);
+      }
+      
+      // Add sort parameter if set
+      if (sortBy) {
+        queryParams.push(`sort=${sortBy}`);
+      }
+      
+      // Add isOpen filter if selected
+      if (onlyOpen) {
+        queryParams.push(`isOpen=true`);
+      }
+      
+      const queryString = queryParams.join('&');
+      console.log(`Query string: ${queryString}`);
       
       let response: ShopsResponse;
       
-      // If search query is provided, use the enhanced search function for better results
-      if (isSearching && searchQuery.trim() !== '') {
-        response = await enhancedSearchShops(searchQuery);
-        const shopData = response.data.map(apiShop => ({
-          ...apiShop,
-          logo: apiShop.image, // Map image to logo for compatibility
-        }));
-        setShops(shopData);
-        setFilteredShops(applyFiltersToShops(shopData));
-        setLoading(false);
-        return;
-      }
-      
-      // Build query params for filtering
-      const queryParams: Record<string, string> = {};
-      
-      if (selectedCategory) queryParams.category = selectedCategory;
-      if (onlyOpen) queryParams.isOpen = 'true';
-      if (minRating > 0) queryParams.minRating = minRating.toString();
-      if (sortBy) queryParams.sort = sortBy;
-      
-      // Convert to query string
-      const queryString = Object.entries(queryParams)
-        .map(([key, value]) => `${key}=${encodeURIComponent(value)}`)
-        .join('&');
-      
-      // Handle nearby shops filter
-      if (showNearby) {
-        if (userLocation) {
-          response = await getNearbyShops(userLocation);
+      if (searchQuery && searchQuery.trim() !== '') {
+        // Use search API if search query is provided
+        if (showNearby && userLocation) {
+          // Add location parameters for nearby search
+          const nearbyParams = `&latitude=${userLocation.latitude}&longitude=${userLocation.longitude}`;
+          response = await searchShops(searchQuery + nearbyParams);
         } else {
-          // If user location is not available but nearby filter is selected,
-          // try to get user location first
-          const locationCoords = await getUserLocation();
-          if (locationCoords) {
-            response = await getNearbyShops({
-              latitude: locationCoords.latitude,
-              longitude: locationCoords.longitude
-            });
-          } else {
-            // Fallback to regular shops if location not available
-            response = await getShops(queryString);
-          }
+          // Use enhanced search with pagination
+          response = await enhancedSearchShops(searchQuery, currentPage, 10);
         }
+      } else if (showNearby && userLocation) {
+        // Get nearby shops with location
+        response = await getNearbyShops(userLocation, 10000);
       } else {
-        // Normal shops query with filters
+        // Get regular shops with filters
         response = await getShops(queryString);
       }
       
-      const shopData = response.data.map(apiShop => ({
-        ...apiShop,
-        logo: apiShop.image, // Map image to logo for compatibility
-      }));
-      setShops(shopData);
-      setFilteredShops(applyFiltersToShops(shopData));
+      // Extract pagination info
+      if (response.pagination) {
+        setTotalPages(response.pagination.pages || 1);
+        setHasMoreShops(currentPage < (response.pagination.pages || 1));
+      } else {
+        setHasMoreShops(false);
+      }
+      
+      // Process and update the shops list
+      let shopsData = response.data;
+      
+      // Format shop addresses if needed (existing code)
+      // ...
+      
+      // Apply additional client-side filters if needed
+      shopsData = applyFiltersToShops(shopsData);
+      
+      // If loading the first page, replace the list
+      // Otherwise append to the existing list
+      if (currentPage === 1) {
+        setFilteredShops(shopsData);
+        // Keep a complete list for client-side filtering
+        setShops(response.data);
+      } else {
+        setFilteredShops(prevShops => [...prevShops, ...shopsData]);
+        setShops(prevShops => [...prevShops, ...response.data]);
+      }
+      
+      console.log(`Loaded ${shopsData.length} shops. Total: ${response.count}`);
     } catch (error) {
-      console.error('Failed to load shops:', error);
-      alert('Error', 'Failed to load shops. Please try again.');
+      console.error('Error loading shops:', error);
+      alert('Failed to load shops. Please try again.');
     } finally {
       setLoading(false);
+      setLoadingMore(false);
     }
   };
+
+  // Function to handle loading more when user reaches end of list
+  const handleLoadMore = () => {
+    if (!loading && !loadingMore && hasMoreShops) {
+      console.log(`Loading more shops. Current page: ${currentPage}, Total pages: ${totalPages}`);
+      setLoadingMore(true);
+      setCurrentPage(prevPage => prevPage + 1);
+    }
+  };
+  
+  // Watch for currentPage changes to load more data
+  useEffect(() => {
+    if (currentPage > 1) {
+      loadShops();
+    }
+  }, [currentPage]);
 
   // Apply client-side filters to shops
   const applyFiltersToShops = (shopsData: Shop[]) => {
@@ -408,6 +468,9 @@ const ShopsScreen: React.FC = () => {
   };
 
   const handleRefresh = async () => {
+    // Reset to first page when refreshing
+    setCurrentPage(1);
+    setHasMoreShops(true);
     setRefreshing(true);
     await loadShops();
     setRefreshing(false);
@@ -711,6 +774,18 @@ const ShopsScreen: React.FC = () => {
     </Modal>
   );
 
+  // Render a loading footer when loading more items
+  const renderFooter = () => {
+    if (!loadingMore) return null;
+    
+    return (
+      <View style={styles.footerLoader}>
+        <ActivityIndicator size="small" color={theme.colors.primary} />
+        <Text style={styles.footerText}>Loading more shops...</Text>
+      </View>
+    );
+  };
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
@@ -755,43 +830,39 @@ const ShopsScreen: React.FC = () => {
             </View>
           </View>
           
-          {loading && !refreshing ? (
-            <View style={styles.loadingContainer}>
+          {loading && currentPage === 1 ? (
+            <View style={styles.loaderContainer}>
               <ActivityIndicator size="large" color={theme.colors.primary} />
             </View>
           ) : (
-            <FlatList
-              data={filteredShops}
-              renderItem={renderShopItem}
-              keyExtractor={(item) => item._id}
-              contentContainerStyle={styles.shopsList}
-              showsVerticalScrollIndicator={false}
-              refreshControl={
-                <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
-              }
-              ListEmptyComponent={
+            <>
+              {filteredShops.length === 0 ? (
                 <View style={styles.emptyContainer}>
-                  <Ionicons name="storefront-outline" size={64} color={theme.colors.lightGray} />
-                  <Text style={styles.emptyText}>
-                    {isSearching 
-                      ? 'No shops match your search'
-                      : (selectedCategory || onlyOpen || minRating > 0 || sortBy || showNearby)
-                        ? 'No shops match your filters' 
-                        : 'No shops available'}
-                  </Text>
-                  {(isSearching || selectedCategory || onlyOpen || minRating > 0 || sortBy || showNearby) && (
-                    <TouchableOpacity 
-                      style={styles.clearButton}
+                  <Text style={styles.emptyText}>No shops found</Text>
+                  {searchQuery || selectedCategory || minRating > 0 || onlyOpen ? (
+                    <TouchableOpacity
+                      style={styles.clearFiltersButton}
                       onPress={clearAllFiltersAndSearch}
                     >
-                      <Text style={styles.clearButtonText}>
-                        Clear {isSearching ? 'Search & Filters' : 'Filters'}
-                      </Text>
+                      <Text style={styles.clearFiltersText}>Clear all filters</Text>
                     </TouchableOpacity>
-                  )}
+                  ) : null}
                 </View>
-              }
-            />
+              ) : (
+                <FlatList
+                  data={filteredShops}
+                  keyExtractor={(item) => item._id}
+                  renderItem={renderShopItem}
+                  refreshControl={
+                    <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
+                  }
+                  ListFooterComponent={renderFooter}
+                  onEndReached={handleLoadMore}
+                  onEndReachedThreshold={0.5}
+                  contentContainerStyle={styles.shopList}
+                />
+              )}
+            </>
           )}
         </View>
         
@@ -855,12 +926,12 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '500',
   },
-  loadingContainer: {
+  loaderContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  shopsList: {
+  shopList: {
     paddingBottom: 100,
   },
   emptyContainer: {
@@ -876,18 +947,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 16,
     marginBottom: 8,
-  },
-  clearButton: {
-    backgroundColor: theme.colors.primary,
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 8,
-    marginTop: 10,
-  },
-  clearButtonText: {
-    color: theme.colors.white,
-    fontSize: 16,
-    fontWeight: '600',
   },
   shopCard: {
     marginBottom: 16,
@@ -1126,6 +1185,17 @@ const styles = StyleSheet.create({
     color: theme.colors.primary,
     fontWeight: '500',
     marginLeft: 4,
+  },
+  footerLoader: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 20,
+    flexDirection: 'row',
+  },
+  footerText: {
+    marginLeft: 10,
+    fontSize: 14,
+    color: theme.colors.text,
   },
 });
 

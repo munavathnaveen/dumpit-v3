@@ -19,6 +19,7 @@ export interface CartItem {
 interface CartState {
   items: CartItem[];
   loading: boolean;
+  currentRequest: string | null; // Track current operation type
   error: string | null;
   totalItems: number;
   totalAmount: number;
@@ -27,6 +28,7 @@ interface CartState {
 const initialState: CartState = {
   items: [],
   loading: false,
+  currentRequest: null,
   error: null,
   totalItems: 0,
   totalAmount: 0,
@@ -119,6 +121,8 @@ const cartSlice = createSlice({
       state.totalItems = 0;
       state.totalAmount = 0;
       state.error = null;
+      state.loading = false;
+      state.currentRequest = null;
     },
   },
   extraReducers: (builder) => {
@@ -126,27 +130,38 @@ const cartSlice = createSlice({
       // Get Cart
       .addCase(getCart.pending, (state) => {
         state.loading = true;
+        state.currentRequest = 'getCart';
         state.error = null;
       })
       .addCase(getCart.fulfilled, (state, action) => {
-        state.loading = false;
+        if (state.currentRequest === 'getCart') {
+          state.loading = false;
+          state.currentRequest = null;
+        }
         state.items = action.payload;
         const { totalItems, totalAmount } = calculateCartTotals(state.items);
         state.totalItems = totalItems;
         state.totalAmount = totalAmount;
       })
       .addCase(getCart.rejected, (state, action) => {
-        state.loading = false;
+        if (state.currentRequest === 'getCart') {
+          state.loading = false;
+          state.currentRequest = null;
+        }
         state.error = action.payload as string;
       })
 
       // Add to Cart
       .addCase(addToCart.pending, (state) => {
         state.loading = true;
+        state.currentRequest = 'addToCart';
         state.error = null;
       })
       .addCase(addToCart.fulfilled, (state, action) => {
-        state.loading = false;
+        if (state.currentRequest === 'addToCart') {
+          state.loading = false;
+          state.currentRequest = null;
+        }
         
         // Check if item already exists
         const existingItemIndex = state.items.findIndex(
@@ -154,8 +169,13 @@ const cartSlice = createSlice({
         );
         
         if (existingItemIndex !== -1) {
-          // Replace existing item with new one (set to exact quantity, not add to it)
-          state.items[existingItemIndex] = action.payload;
+          // Update existing item quantity
+          state.items = state.items.map(item => {
+            if (item.product._id === action.payload.product._id) {
+              return action.payload;
+            }
+            return item;
+          });
         } else {
           // Add new item
           state.items.push(action.payload);
@@ -167,42 +187,54 @@ const cartSlice = createSlice({
         state.totalAmount = totalAmount;
       })
       .addCase(addToCart.rejected, (state, action) => {
-        state.loading = false;
+        if (state.currentRequest === 'addToCart') {
+          state.loading = false;
+          state.currentRequest = null;
+        }
         state.error = action.payload as string;
       })
 
       // Update Cart Item
       .addCase(updateCartItem.pending, (state) => {
         state.loading = true;
+        state.currentRequest = 'updateCartItem';
         state.error = null;
       })
       .addCase(updateCartItem.fulfilled, (state, action) => {
-        state.loading = false;
-        
-        const index = state.items.findIndex(item => item.product._id === action.payload.product._id);
-        if (index !== -1) {
-          // Create a new array to ensure the state is properly updated
-          state.items = state.items.map(item => 
-            item.product._id === action.payload.product._id ? action.payload : item
-          );
+        if (state.currentRequest === 'updateCartItem') {
+          state.loading = false;
+          state.currentRequest = null;
         }
+        
+        // Create a new array to ensure the state is properly updated
+        state.items = state.items.map(item => 
+          item.product._id === action.payload.product._id ? action.payload : item
+        );
         
         const { totalItems, totalAmount } = calculateCartTotals(state.items);
         state.totalItems = totalItems;
         state.totalAmount = totalAmount;
       })
       .addCase(updateCartItem.rejected, (state, action) => {
-        state.loading = false;
+        if (state.currentRequest === 'updateCartItem') {
+          state.loading = false;
+          state.currentRequest = null;
+        }
         state.error = action.payload as string;
       })
 
       // Remove from Cart
       .addCase(removeFromCart.pending, (state) => {
         state.loading = true;
+        state.currentRequest = 'removeFromCart';
         state.error = null;
       })
       .addCase(removeFromCart.fulfilled, (state, action) => {
-        state.loading = false;
+        if (state.currentRequest === 'removeFromCart') {
+          state.loading = false; 
+          state.currentRequest = null;
+        }
+        
         // Create new array to trigger re-render, filtering by product ID
         state.items = state.items.filter(item => item.product._id !== action.payload);
         
@@ -212,23 +244,33 @@ const cartSlice = createSlice({
         state.totalAmount = totalAmount;
       })
       .addCase(removeFromCart.rejected, (state, action) => {
-        state.loading = false;
+        if (state.currentRequest === 'removeFromCart') {
+          state.loading = false;
+          state.currentRequest = null;
+        }
         state.error = action.payload as string;
       })
 
       // Clear Cart
       .addCase(clearCart.pending, (state) => {
         state.loading = true;
+        state.currentRequest = 'clearCart';
         state.error = null;
       })
       .addCase(clearCart.fulfilled, (state) => {
-        state.loading = false;
+        if (state.currentRequest === 'clearCart') {
+          state.loading = false;
+          state.currentRequest = null;
+        }
         state.items = [];
         state.totalItems = 0;
         state.totalAmount = 0;
       })
       .addCase(clearCart.rejected, (state, action) => {
-        state.loading = false;
+        if (state.currentRequest === 'clearCart') {
+          state.loading = false;
+          state.currentRequest = null;
+        }
         state.error = action.payload as string;
       });
   },

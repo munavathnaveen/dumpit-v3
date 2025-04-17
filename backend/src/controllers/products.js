@@ -14,8 +14,23 @@ exports.getProducts = async (req, res, next) => {
     // Copy req.query
     const reqQuery = {...req.query}
 
+    // Handle search query (improved search capability)
+    let searchQuery = {};
+    if (req.query.search) {
+      const searchTerm = req.query.search;
+      searchQuery = {
+        $or: [
+          { name: { $regex: searchTerm, $options: 'i' } },
+          { description: { $regex: searchTerm, $options: 'i' } },
+          { category: { $regex: searchTerm, $options: 'i' } },
+          { type: { $regex: searchTerm, $options: 'i' } }
+        ]
+      };
+      delete reqQuery.search;
+    }
+
     // Fields to exclude
-    const removeFields = ['select', 'sort', 'page', 'limit']
+    const removeFields = ['select', 'sort', 'page', 'limit', 'search']
 
     // Loop over removeFields and delete them from reqQuery
     removeFields.forEach((param) => delete reqQuery[param])
@@ -30,10 +45,17 @@ exports.getProducts = async (req, res, next) => {
 
     // If shopId is provided, get products for that shop
     if (req.params.shopId) {
-      query = Product.find({shop: req.params.shopId, ...JSON.parse(queryStr)})
+      query = Product.find({
+        shop: req.params.shopId, 
+        ...JSON.parse(queryStr),
+        ...(Object.keys(searchQuery).length > 0 ? searchQuery : {})
+      })
     } else {
       // Otherwise, get all products
-      query = Product.find(JSON.parse(queryStr))
+      query = Product.find({
+        ...JSON.parse(queryStr),
+        ...(Object.keys(searchQuery).length > 0 ? searchQuery : {})
+      })
     }
 
     // Select fields
@@ -50,26 +72,48 @@ exports.getProducts = async (req, res, next) => {
       query = query.sort('-createdAt')
     }
 
-    // Pagination
+    // Count documents for pagination before applying skip/limit
+    // Use the same filter criteria as the main query
+    let countQuery;
+    if (req.params.shopId) {
+      countQuery = Product.countDocuments({
+        shop: req.params.shopId, 
+        ...JSON.parse(queryStr),
+        ...(Object.keys(searchQuery).length > 0 ? searchQuery : {})
+      });
+    } else {
+      countQuery = Product.countDocuments({
+        ...JSON.parse(queryStr),
+        ...(Object.keys(searchQuery).length > 0 ? searchQuery : {})
+      });
+    }
+    
+    // Pagination with better defaults
     const page = parseInt(req.query.page, 10) || 1
     const limit = parseInt(req.query.limit, 10) || 10
     const startIndex = (page - 1) * limit
     const endIndex = page * limit
-    const total = await Product.countDocuments(JSON.parse(queryStr))
+    const total = await countQuery
 
+    // Apply pagination to query
     query = query.skip(startIndex).limit(limit)
 
-    // Populate
+    // Populate with related data
     query = query.populate([
-      {path: 'vendor'},
-      {path: 'shop'},
+      {path: 'vendor', select: 'name email'},
+      {path: 'shop', select: 'name description image location rating categories'},
     ])
 
     // Executing query
     const products = await query
 
-    // Pagination result
-    const pagination = {}
+    // Pagination result with more information
+    const pagination = {
+      page,
+      limit,
+      total,
+      pages: Math.ceil(total / limit)
+    }
 
     if (endIndex < total) {
       pagination.next = {

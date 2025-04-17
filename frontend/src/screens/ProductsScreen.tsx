@@ -45,11 +45,18 @@ const ProductsScreen: React.FC = () => {
   const navigation = useNavigation();
   const route = useTabRoute<'ProductsTab'>();
   const dispatch = useDispatch<AppDispatch>();
-  const { products, loading, error } = useSelector((state: RootState) => state.product);
+  const { products, error } = useSelector((state: RootState) => state.product);
+  const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [internalSearchQuery, setInternalSearchQuery] = useState('');
   const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
+  
+  // Pagination states for infinite scroll
+  const [currentPage, setCurrentPage] = useState(1);
+  const [hasMoreProducts, setHasMoreProducts] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [totalPages, setTotalPages] = useState(1);
   
   // Filter states
   const [filterModalVisible, setFilterModalVisible] = useState(false);
@@ -87,6 +94,10 @@ const ProductsScreen: React.FC = () => {
   };
 
   useEffect(() => {
+    // Reset pagination when the component mounts or filter/search changes
+    setCurrentPage(1);
+    setHasMoreProducts(true);
+    
     // Log navigation params for debugging
     console.log("Route params:", route.params);
     
@@ -138,6 +149,11 @@ const ProductsScreen: React.FC = () => {
 
   // Only load products when relevant search or filter parameters change
   useEffect(() => {
+    // Reset pagination when filters change
+    setCurrentPage(1);
+    setHasMoreProducts(true);
+    setFilteredProducts([]);
+    
     loadProducts();
   }, [searchQuery, selectedCategory, selectedType, selectedShop, priceRange, sortBy, inStock, shopId]);
 
@@ -277,50 +293,115 @@ const ProductsScreen: React.FC = () => {
 
   const loadProducts = async () => {
     try {
-      // If search query is provided, use the enhanced search function for fuzzy matching
-      if (isSearching && searchQuery.trim() !== '') {
-        const response = await productApi.enhancedSearchProducts(searchQuery);
-        setFilteredProducts(response.data);
-        return;
+      setLoading(true);
+      
+      // Build the query string with all filters and pagination
+      let queryParams = [];
+      
+      // Include page and limit parameters for pagination
+      queryParams.push(`page=${currentPage}`);
+      queryParams.push(`limit=10`);
+      
+      if (shopId) {
+        queryParams.push(`shop=${shopId}`);
       }
       
-      // Otherwise, build query params based on filters
-      const queryParams: Record<string, string> = {};
+      if (selectedCategory) {
+        queryParams.push(`category=${selectedCategory}`);
+      }
       
-      if (selectedCategory) queryParams.category = selectedCategory;
-      if (selectedType) queryParams.type = selectedType;
-      if (selectedShop) queryParams.shop = selectedShop;
-      if (sortBy) queryParams.sort = sortBy;
-      if (priceRange[0] > 0) queryParams.minPrice = priceRange[0].toString();
-      if (priceRange[1] < 10000) queryParams.maxPrice = priceRange[1].toString();
-      if (inStock) queryParams.stock = 'gt:0';
+      if (selectedType) {
+        queryParams.push(`type=${selectedType}`);
+      }
       
-      // Add shopId filter if present
-      if (shopId) queryParams.shop = shopId;
+      if (selectedShop && !shopId) {
+        queryParams.push(`shop=${selectedShop}`);
+      }
       
-      // Add pagination params
-      queryParams.page = '1';
-      queryParams.limit = '20';
+      if (priceRange[0] > 0 || priceRange[1] < 10000) {
+        queryParams.push(`price[gte]=${priceRange[0]}`);
+        queryParams.push(`price[lte]=${priceRange[1]}`);
+      }
       
-      // Convert to query string
-      const queryString = Object.entries(queryParams)
-        .map(([key, value]) => `${key}=${encodeURIComponent(value)}`)
-        .join('&');
+      if (sortBy) {
+        queryParams.push(`sort=${sortBy}`);
+      }
       
-      let response = await productApi.getProducts(queryString);
+      if (inStock) {
+        queryParams.push(`stock[gt]=0`);
+      }
       
+      // Add search query if present
+      if (searchQuery) {
+        queryParams.push(`search=${encodeURIComponent(searchQuery)}`);
+      }
       
-      setFilteredProducts(response.data);
+      const queryString = queryParams.join('&');
+      console.log(`Loading products with query: ${queryString}`);
+      
+      // Use the appropriate API call
+      let response;
+      if (searchQuery && searchQuery.trim() !== '') {
+        // If there's a search query, we might need to use a specialized search endpoint
+        response = await productApi.enhancedSearchProducts(searchQuery, currentPage, 10);
+      } else {
+        // Otherwise use the standard products API
+        response = await productApi.getProducts(queryString);
+      }
+      
+      // Extract pagination info
+      if (response.pagination) {
+        setTotalPages(response.pagination.pages || 1);
+        setHasMoreProducts(currentPage < (response.pagination.pages || 1));
+      } else {
+        setHasMoreProducts(false);
+      }
+      
+      // Update products list
+      const newProducts = response.data;
+      
+      // If loading the first page, replace the list
+      // Otherwise append to the existing list
+      if (currentPage === 1) {
+        setFilteredProducts(newProducts);
+      } else {
+        setFilteredProducts(prevProducts => [...prevProducts, ...newProducts]);
+      }
+      
+      console.log(`Loaded ${newProducts.length} products. Total: ${response.count}`);
     } catch (error) {
-      console.error('Failed to load products:', error);
+      console.error('Error loading products:', error);
+      alert('Failed to load products. Please try again.');
+    } finally {
+      setLoading(false);
+      setLoadingMore(false);
     }
   };
 
   const handleRefresh = async () => {
+    // Reset to first page when refreshing
+    setCurrentPage(1);
+    setHasMoreProducts(true);
     setRefreshing(true);
     await loadProducts();
     setRefreshing(false);
   };
+  
+  // Function to handle loading more when user reaches end of list
+  const handleLoadMore = () => {
+    if (!loading && !loadingMore && hasMoreProducts) {
+      console.log(`Loading more products. Current page: ${currentPage}, Total pages: ${totalPages}`);
+      setLoadingMore(true);
+      setCurrentPage(prevPage => prevPage + 1);
+    }
+  };
+  
+  // Watch for currentPage changes to load more data
+  useEffect(() => {
+    if (currentPage > 1) {
+      loadProducts();
+    }
+  }, [currentPage]);
 
   const handleNotificationPress = () => {
     navigation.navigate('Notifications');
@@ -367,6 +448,18 @@ const ProductsScreen: React.FC = () => {
     if (!isSearching) {
       loadProducts();
     }
+  };
+
+  // Render a loading footer when loading more items
+  const renderFooter = () => {
+    if (!loadingMore) return null;
+    
+    return (
+      <View style={styles.footerLoader}>
+        <ActivityIndicator size="small" color={theme.colors.primary} />
+        <Text style={styles.footerText}>Loading more products...</Text>
+      </View>
+    );
   };
 
   const renderProductItem = ({ item }: { item: Product }) => (
@@ -645,7 +738,7 @@ const ProductsScreen: React.FC = () => {
     </Modal>
   );
 
-  if (loading && !refreshing && products.length === 0) {
+  if (loading && currentPage === 1 && products.length === 0) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color={theme.colors.primary} />
@@ -653,7 +746,7 @@ const ProductsScreen: React.FC = () => {
     );
   }
 
-  if (error && !refreshing && products.length === 0) {
+  if (error && currentPage === 1 && products.length === 0) {
     return (
       <View style={styles.errorContainer}>
         <Text style={styles.errorText}>{error}</Text>
@@ -740,42 +833,33 @@ const ProductsScreen: React.FC = () => {
             ))}
           </ScrollView>
           
-          {(loading && !refreshing) ? (
-            <View style={styles.loadingContainer}>
+          {loading && currentPage === 1 ? (
+            <View style={styles.loaderContainer}>
               <ActivityIndicator size="large" color={theme.colors.primary} />
             </View>
           ) : (
-            <FlatList
-              data={filteredProducts}
-              keyExtractor={(item) => item._id}
-              renderItem={renderProductItem}
-              contentContainerStyle={styles.productList}
-              showsVerticalScrollIndicator={false}
-              refreshControl={
-                <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
-              }
-              ListEmptyComponent={
+            <>
+              {filteredProducts.length === 0 ? (
                 <View style={styles.emptyContainer}>
-                  <Ionicons name="basket-outline" size={64} color={theme.colors.lightGray} />
-                  <Text style={styles.emptyText}>
-                    {isSearching ? 'No products match your search' : 'No products available'}
-                  </Text>
-                  {isSearching && (
-                    <TouchableOpacity 
-                      style={styles.clearSearchButton}
-                      onPress={() => {
-                        setInternalSearchQuery('');
-                        setSearchQuery('');
-                        setIsSearching(false);
-                        loadProducts();
-                      }}
-                    >
-                      <Text style={styles.clearSearchText}>Clear Search</Text>
-                    </TouchableOpacity>
-                  )}
+                  <Text style={styles.emptyText}>No products found</Text>
                 </View>
-              }
-            />
+              ) : (
+                <FlatList
+                  data={filteredProducts}
+                  keyExtractor={(item) => item._id}
+                  renderItem={renderProductItem}
+                  numColumns={2}
+                  refreshControl={
+                    <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
+                  }
+                  ListFooterComponent={renderFooter}
+                  onEndReached={handleLoadMore}
+                  onEndReachedThreshold={0.5}
+                  columnWrapperStyle={styles.columnWrapper}
+                  contentContainerStyle={styles.productList}
+                />
+              )}
+            </>
           )}
         </View>
         
@@ -849,7 +933,6 @@ const styles = StyleSheet.create({
     marginBottom: theme.spacing.sm,
   },
   sortOption: {
- 
     marginRight: theme.spacing.sm,
     backgroundColor: theme.colors.white,
     minWidth: 70,
@@ -1137,17 +1220,24 @@ const styles = StyleSheet.create({
     color: theme.colors.primary,
     fontWeight: '500',
   },
-  clearSearchButton: {
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    backgroundColor: theme.colors.primary,
-    borderRadius: 8,
-    marginTop: 10,
+  footerLoader: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 20,
+    flexDirection: 'row',
   },
-  clearSearchText: {
-    color: theme.colors.white,
-    fontSize: 16,
-    fontWeight: '600',
+  footerText: {
+    marginLeft: 10,
+    fontSize: 14,
+    color: theme.colors.text,
+  },
+  loaderContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  columnWrapper: {
+    justifyContent: 'space-between',
   },
 });
 

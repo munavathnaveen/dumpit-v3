@@ -16,9 +16,10 @@ import {useNavigation as useAppNavigation} from '../navigation/hooks'
 const CartScreen = () => {
   const dispatch = useDispatch<AppDispatch>()
   const navigation = useAppNavigation()
-  const {items, loading, error, totalItems, totalAmount} = useSelector((state: RootState) => state.cart)
+  const {items, loading, currentRequest, error, totalItems, totalAmount} = useSelector((state: RootState) => state.cart)
   const [isRefreshing, setIsRefreshing] = useState(false)
   const isInitialMount = useRef(true)
+  const [updatingItemId, setUpdatingItemId] = useState<string | null>(null)
 
   const fetchCart = useCallback(async () => {
     try {
@@ -47,6 +48,7 @@ const CartScreen = () => {
 
   const handleRemoveItem = async (itemId: string) => {
     try {
+      setUpdatingItemId(itemId)
       await dispatch(removeFromCart(itemId)).unwrap()
       Toast.show({
         type: 'success',
@@ -59,12 +61,15 @@ const CartScreen = () => {
         text1: 'Error',
         text2: 'Failed to remove item from cart',
       })
+    } finally {
+      setUpdatingItemId(null)
     }
   }
 
   const handleUpdateQuantity = async (itemId: string, quantity: number) => {
     if (quantity > 0) {
       try {
+        setUpdatingItemId(itemId)
         await dispatch(updateCartItem({itemId, quantity})).unwrap()
       } catch (error) {
         Toast.show({
@@ -72,6 +77,8 @@ const CartScreen = () => {
           text1: 'Error',
           text2: 'Failed to update quantity',
         })
+      } finally {
+        setUpdatingItemId(null)
       }
     } else {
       handleRemoveItem(itemId)
@@ -119,6 +126,7 @@ const CartScreen = () => {
     
     // Safe access to price with fallback to 0
     const price = item.product.price || 0;
+    const isUpdatingThisItem = updatingItemId === item.product._id;
     
     return (
       <View style={styles.cartItem}>
@@ -131,27 +139,43 @@ const CartScreen = () => {
           <Text style={styles.productName}>{item.product.name}</Text>
           <Text style={styles.productPrice}>₹{price.toFixed(2)}</Text>
           <View style={styles.quantityContainer}>
-            <TouchableOpacity
-              onPress={() => handleUpdateQuantity(item.product._id, item.quantity - 1)}
-              style={styles.quantityButton}>
-              <Ionicons name='remove' size={20} color='#000' />
-            </TouchableOpacity>
-            <Text style={styles.quantity}>{item.quantity}</Text>
-            <TouchableOpacity
-              onPress={() => handleUpdateQuantity(item.product._id, item.quantity + 1)}
-              style={styles.quantityButton}>
-              <Ionicons name='add' size={20} color='#000' />
-            </TouchableOpacity>
+            {isUpdatingThisItem ? (
+              <ActivityIndicator size="small" color={theme.colors.primary} style={{width: 80}} />
+            ) : (
+              <>
+                <TouchableOpacity
+                  onPress={() => handleUpdateQuantity(item.product._id, item.quantity - 1)}
+                  style={styles.quantityButton}
+                  disabled={isUpdatingThisItem}>
+                  <Ionicons name='remove' size={20} color='#000' />
+                </TouchableOpacity>
+                <Text style={styles.quantity}>{item.quantity}</Text>
+                <TouchableOpacity
+                  onPress={() => handleUpdateQuantity(item.product._id, item.quantity + 1)}
+                  style={styles.quantityButton}
+                  disabled={isUpdatingThisItem || (item.product.stock !== undefined && item.quantity >= item.product.stock)}>
+                  <Ionicons name='add' size={20} color='#000' />
+                </TouchableOpacity>
+              </>
+            )}
           </View>
         </View>
-        <TouchableOpacity onPress={() => handleRemoveItem(item.product._id)} style={styles.removeButton}>
-          <Ionicons name='trash-outline' size={24} color='#ff4444' />
+        <TouchableOpacity 
+          onPress={() => handleRemoveItem(item.product._id)} 
+          style={styles.removeButton}
+          disabled={isUpdatingThisItem}>
+          {isUpdatingThisItem ? (
+            <ActivityIndicator size="small" color="#ff4444" />
+          ) : (
+            <Ionicons name='trash-outline' size={24} color='#ff4444' />
+          )}
         </TouchableOpacity>
       </View>
     )
   }
 
-  if (loading) {
+  // Only show full screen loader on initial load, not for item updates
+  if (loading && currentRequest === 'getCart' && items.length === 0) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size='large' color='#0000ff' />
@@ -197,22 +221,36 @@ const CartScreen = () => {
               </View>
               <View style={styles.summaryRow}>
                 <Text style={styles.summaryLabel}>Total Amount:</Text>
-                <Text style={styles.summaryValue}>${(totalAmount || 0).toFixed(2)}</Text>
+                <Text style={styles.summaryValue}>₹{(totalAmount || 0).toFixed(2)}</Text>
               </View>
               <View style={styles.divider} />
               <View style={styles.summaryRow}>
                 <Text style={styles.totalLabel}>Total</Text>
                 <Text style={styles.totalValue}>
-                  ${((totalAmount || 0) + ((totalAmount || 0) > 0 ? 50 : 0)).toFixed(2)}
+                  ₹{((totalAmount || 0) + ((totalAmount || 0) > 0 ? 50 : 0)).toFixed(2)}
                 </Text>
               </View>
 
-              <TouchableOpacity style={styles.checkoutButton} onPress={handleCheckout}>
-                <Text style={styles.checkoutButtonText}>Proceed to Checkout</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.clearButton} onPress={handleClearCart}>
-                <Text style={styles.clearButtonText}>Clear Cart</Text>
-              </TouchableOpacity>
+              {loading && currentRequest === 'clearCart' ? (
+                <View style={styles.checkoutButton}>
+                  <ActivityIndicator size="small" color="#ffffff" />
+                </View>
+              ) : (
+                <>
+                  <TouchableOpacity 
+                    style={styles.checkoutButton} 
+                    onPress={handleCheckout}
+                    disabled={loading}>
+                    <Text style={styles.checkoutButtonText}>Proceed to Checkout</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity 
+                    style={styles.clearButton} 
+                    onPress={handleClearCart}
+                    disabled={loading}>
+                    <Text style={styles.clearButtonText}>Clear Cart</Text>
+                  </TouchableOpacity>
+                </>
+              )}
             </Card3D>
           </>
         )}

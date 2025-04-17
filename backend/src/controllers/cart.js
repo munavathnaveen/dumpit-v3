@@ -40,11 +40,6 @@ exports.addCartItem = async (req, res, next) => {
     // Get quantity from request body, default to 1
     const quantity = req.body.quantity || 1
     
-    // Check if requested quantity is available
-    if (quantity > product.stock) {
-      return next(new ErrorResponse(`Requested quantity (${quantity}) exceeds available stock (${product.stock})`, 400))
-    }
-
     // Get user
     const user = await User.findById(req.user.id)
 
@@ -52,15 +47,17 @@ exports.addCartItem = async (req, res, next) => {
     const cartItem = user.cart.find((item) => item.product.toString() === req.params.productId)
     
     if (cartItem) {
-      // If product is already in cart, replace quantity rather than adding to it
-      cartItem.quantity = quantity;
+      // If product is already in cart, increment the quantity
+      const newQuantity = cartItem.quantity + quantity;
 
       // Make sure updated quantity doesn't exceed stock
-      if (cartItem.quantity > product.stock) {
+      if (newQuantity > product.stock) {
         return next(
-          new ErrorResponse(`Requested quantity (${cartItem.quantity}) exceeds available stock (${product.stock})`, 400)
+          new ErrorResponse(`Requested quantity (${newQuantity}) exceeds available stock (${product.stock})`, 400)
         )
       }
+      
+      cartItem.quantity = newQuantity;
     } else {
       // If product is not in cart, add it
       user.cart.push({

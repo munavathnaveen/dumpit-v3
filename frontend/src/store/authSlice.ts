@@ -157,10 +157,18 @@ const authSlice = createSlice({
         state.user = null;
       })
       // Logout case
+      .addCase(logout.pending, (state) => {
+        state.loading = true;
+      })
       .addCase(logout.fulfilled, (state) => {
         state.token = null;
         state.isAuthenticated = false;
         state.user = null;
+        state.loading = false;
+      })
+      .addCase(logout.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload as string;
       })
       // Forgot password cases
       .addCase(forgotPassword.pending, (state) => {
