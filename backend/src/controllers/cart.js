@@ -38,17 +38,24 @@ exports.addCartItem = async (req, res, next) => {
     }
 
     // Get quantity from request body, default to 1
-    const quantity = req.body.quantity || 1
+    const quantity = parseInt(req.body.quantity) || 1
+    
+    // Validate quantity is positive
+    if (quantity <= 0) {
+      return next(new ErrorResponse('Quantity must be a positive number', 400))
+    }
     
     // Get user
     const user = await User.findById(req.user.id)
 
     // Check if product is already in cart
-    const cartItem = user.cart.find((item) => item.product.toString() === req.params.productId)
+    const cartItemIndex = user.cart.findIndex(
+      (item) => item.product.toString() === req.params.productId
+    )
     
-    if (cartItem) {
+    if (cartItemIndex >= 0) {
       // If product is already in cart, increment the quantity
-      const newQuantity = cartItem.quantity + quantity;
+      const newQuantity = user.cart[cartItemIndex].quantity + quantity;
 
       // Make sure updated quantity doesn't exceed stock
       if (newQuantity > product.stock) {
@@ -57,8 +64,16 @@ exports.addCartItem = async (req, res, next) => {
         )
       }
       
-      cartItem.quantity = newQuantity;
+      // Update quantity
+      user.cart[cartItemIndex].quantity = newQuantity;
     } else {
+      // Make sure requested quantity doesn't exceed stock
+      if (quantity > product.stock) {
+        return next(
+          new ErrorResponse(`Requested quantity (${quantity}) exceeds available stock (${product.stock})`, 400)
+        )
+      }
+      
       // If product is not in cart, add it
       user.cart.push({
         product: req.params.productId,
@@ -73,12 +88,22 @@ exports.addCartItem = async (req, res, next) => {
       path: 'cart.product'
     })
     
-    // Return updated cart
+    // Find the updated or added cart item to return
+    const updatedCartItem = updatedUser.cart.find(
+      item => item.product._id.toString() === req.params.productId
+    )
+    
+    if (!updatedCartItem) {
+      return next(new ErrorResponse('Cart item not found after update', 500))
+    }
+    
+    // Return the updated cart item
     res.status(200).json({
       success: true,
-      data: updatedUser.cart,
+      data: updatedCartItem,
     })
   } catch (err) {
+    console.error('Error adding to cart:', err);
     next(err)
   }
 }
@@ -95,15 +120,18 @@ exports.updateCartItem = async (req, res, next) => {
       return next(new ErrorResponse(`Product not found with id of ${req.params.productId}`, 404))
     }
 
-    // Check if quantity was provided
-    if (!req.body.quantity) {
-      return next(new ErrorResponse('Please provide a quantity', 400))
+    // Parse and validate quantity
+    const quantity = parseInt(req.body.quantity);
+    
+    // Check if quantity was provided and is a valid number
+    if (isNaN(quantity) || quantity <= 0) {
+      return next(new ErrorResponse('Please provide a valid positive quantity', 400))
     }
 
     // Check if requested quantity is available
-    if (req.body.quantity > product.stock) {
+    if (quantity > product.stock) {
       return next(
-        new ErrorResponse(`Requested quantity (${req.body.quantity}) exceeds available stock (${product.stock})`, 400)
+        new ErrorResponse(`Requested quantity (${quantity}) exceeds available stock (${product.stock})`, 400)
       )
     }
 
@@ -118,7 +146,7 @@ exports.updateCartItem = async (req, res, next) => {
     }
 
     // Update quantity
-    user.cart[cartItemIndex].quantity = req.body.quantity
+    user.cart[cartItemIndex].quantity = quantity
 
     await user.save()
 
@@ -126,13 +154,23 @@ exports.updateCartItem = async (req, res, next) => {
     const updatedUser = await User.findById(req.user.id).populate({
       path: 'cart.product'
     })
+    
+    // Get the updated cart item
+    const updatedCartItem = updatedUser.cart.find(
+      item => item.product._id.toString() === req.params.productId
+    )
+    
+    if (!updatedCartItem) {
+      return next(new ErrorResponse('Cart item not found after update', 500))
+    }
 
-    // Return updated cart
+    // Return the updated cart item only
     res.status(200).json({
       success: true,
-      data: updatedUser.cart,
+      data: updatedCartItem,
     })
   } catch (err) {
+    console.error('Error updating cart item:', err);
     next(err)
   }
 }
@@ -142,25 +180,35 @@ exports.updateCartItem = async (req, res, next) => {
 // @access  Private
 exports.removeCartItem = async (req, res, next) => {
   try {
+    // Validate that product exists (optional but helps provide better error messages)
+    const product = await Product.findById(req.params.productId)
+
+    if (!product) {
+      return next(new ErrorResponse(`Product not found with id of ${req.params.productId}`, 404))
+    }
+    
     // Get user
     const user = await User.findById(req.user.id)
 
+    // Check if the product exists in the cart
+    const itemExists = user.cart.some(item => item.product.toString() === req.params.productId)
+    
+    if (!itemExists) {
+      return next(new ErrorResponse(`Product not found in cart`, 404))
+    }
+    
     // Filter out the product to remove
     user.cart = user.cart.filter((item) => item.product.toString() !== req.params.productId)
     
     await user.save()
     
-    // Get the updated user with populated cart
-    const updatedUser = await User.findById(req.user.id).populate({
-      path: 'cart.product'
-    })
-
-    // Return updated cart
+    // Return success response with the product ID that was removed
     res.status(200).json({
       success: true,
-      data: updatedUser.cart,
+      data: req.params.productId
     })
   } catch (err) {
+    console.error('Error removing cart item:', err);
     next(err)
   }
 }

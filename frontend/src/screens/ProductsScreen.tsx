@@ -857,6 +857,9 @@ const ProductsScreen: React.FC = () => {
                   onEndReachedThreshold={0.5}
                   columnWrapperStyle={styles.columnWrapper}
                   contentContainerStyle={styles.productList}
+                  windowSize={5}
+                  maxToRenderPerBatch={10}
+                  initialNumToRender={6}
                 />
               )}
             </>
@@ -1012,10 +1015,14 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   productList: {
-    paddingBottom: 100,
+   
+  },
+  columnWrapper: {
+   
   },
   productCard: {
-    marginBottom: 16,
+    width: '100%',
+    marginVertical: 8,
     borderRadius: 12,
     overflow: 'hidden',
     backgroundColor: theme.colors.white,
@@ -1027,50 +1034,73 @@ const styles = StyleSheet.create({
   },
   productImage: {
     width: '100%',
-    height: 180,
+    height: 160,
     resizeMode: 'cover',
   },
   productInfo: {
-    padding: 16,
+    padding: 10,
   },
   productName: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: 'bold',
-    marginBottom: 6,
+    marginBottom: 4,
     color: theme.colors.text,
+    height: 40, // Fixed height for consistency
   },
   categoryChip: {
     backgroundColor: theme.colors.accent,
-    paddingHorizontal: 8,
+    paddingHorizontal: 6,
     paddingVertical: 2,
-    borderRadius: 12,
+    borderRadius: 10,
     alignSelf: 'flex-start',
-    marginBottom: 6,
+    marginBottom: 4,
   },
   categoryChipText: {
     color: theme.colors.white,
-    fontSize: 12,
+    fontSize: 10,
   },
   productDescription: {
-    fontSize: 14,
+    fontSize: 12,
     color: theme.colors.textLight,
-    marginBottom: 8,
+    marginBottom: 6,
+    height: 32, // Fixed height for consistency
+  },
+  shopInfoContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+    flexWrap: 'wrap',
+  },
+  shopName: {
+    fontSize: 12,
+    color: theme.colors.textLight,
+    marginLeft: 4,
+    flex: 1,
+  },
+  distanceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  distanceText: {
+    fontSize: 10,
+    color: theme.colors.primary,
   },
   productBottom: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    marginTop: 'auto',
   },
   productPrice: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: 'bold',
     color: theme.colors.primary,
   },
   addButton: {
     backgroundColor: theme.colors.primary,
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -1199,27 +1229,6 @@ const styles = StyleSheet.create({
     color: theme.colors.white,
     fontWeight: 'bold',
   },
-  shopInfoContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginVertical: 4,
-    flexWrap: 'wrap',
-  },
-  shopName: {
-    fontSize: 12,
-    color: theme.colors.gray,
-    marginLeft: 4,
-    marginRight: 2,
-  },
-  distanceRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  distanceText: {
-    fontSize: 12,
-    color: theme.colors.primary,
-    fontWeight: '500',
-  },
   footerLoader: {
     alignItems: 'center',
     justifyContent: 'center',
@@ -1235,9 +1244,6 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  columnWrapper: {
-    justifyContent: 'space-between',
   },
 });
 

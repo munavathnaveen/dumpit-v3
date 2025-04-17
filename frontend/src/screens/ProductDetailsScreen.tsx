@@ -165,10 +165,39 @@ const ProductDetailsScreen: React.FC = () => {
   // Use merged product data (preferring local product with distance info if available)
   const productData = localProduct || product;
   
-  const handleAddToCart = () => {
-    if (productData) {
-      dispatch(addToCart({ productId, quantity }));
+  const handleAddToCart = async () => {
+    if (!productData) {
+      toast.error('Error', 'Product data not available');
+      return;
+    }
+    
+    try {
+      // Check if the product is in stock
+      if (productData.stock <= 0) {
+        toast.error('Out of Stock', 'This product is currently unavailable');
+        return;
+      }
+      
+      // Check if quantity is valid
+      if (quantity <= 0 || quantity > productData.stock) {
+        toast.error('Invalid Quantity', `Please select a quantity between 1 and ${productData.stock}`);
+        return;
+      }
+      
+      // Dispatch the add to cart action and await its result
+      await dispatch(addToCart({ 
+        productId: productId, 
+        quantity: quantity 
+      })).unwrap();
+      
+      // Show success message
       toast.success('Added to Cart', `${quantity} item(s) added to your cart`);
+      
+      // Optionally reset quantity to 1 after successful add
+      setQuantity(1);
+    } catch (error) {
+      console.error('Error adding to cart:', error);
+      toast.error('Add to Cart Failed', 'Unable to add product to cart. Please try again.');
     }
   };
   

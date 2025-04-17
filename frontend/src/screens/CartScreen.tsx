@@ -1,8 +1,8 @@
 import React, {useEffect, useState, useCallback, useRef} from 'react'
-import {View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Image} from 'react-native'
+import {View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Image, SafeAreaView} from 'react-native'
 import {useDispatch, useSelector} from 'react-redux'
 import {RootState, AppDispatch} from '../store'
-import {getCart, removeFromCart, updateCartItem, clearCart} from '../store/cartSlice'
+import {getCart, removeFromCart, updateCartItem, clearCart, clearCartError} from '../store/cartSlice'
 import {CartItem} from '../store/cartSlice'
 import {Ionicons} from '@expo/vector-icons'
 import Toast from 'react-native-toast-message'
@@ -20,11 +20,37 @@ const CartScreen = () => {
   const [isRefreshing, setIsRefreshing] = useState(false)
   const isInitialMount = useRef(true)
   const [updatingItemId, setUpdatingItemId] = useState<string | null>(null)
+  const [renderError, setRenderError] = useState<string | null>(null)
+
+  // Clear any cart errors when component mounts or unmounts
+  useEffect(() => {
+    dispatch(clearCartError())
+    return () => {
+      dispatch(clearCartError())
+    }
+  }, [dispatch])
+
+  // Show error as toast if present
+  useEffect(() => {
+    if (error) {
+      console.error('Cart error:', error)
+      Toast.show({
+        type: 'error',
+        text1: 'Error',
+        text2: error,
+      })
+      // Clear the error from the state after showing it
+      dispatch(clearCartError())
+    }
+  }, [error, dispatch])
 
   const fetchCart = useCallback(async () => {
     try {
+      console.log('Fetching cart items...')
       await dispatch(getCart()).unwrap()
+      console.log('Cart items fetched successfully')
     } catch (error) {
+      console.error('Failed to fetch cart items:', error)
       Toast.show({
         type: 'error',
         text1: 'Error',
@@ -48,14 +74,17 @@ const CartScreen = () => {
 
   const handleRemoveItem = async (itemId: string) => {
     try {
+      console.log(`Removing item from cart: ${itemId}`)
       setUpdatingItemId(itemId)
       await dispatch(removeFromCart(itemId)).unwrap()
+      console.log(`Item removed successfully: ${itemId}`)
       Toast.show({
         type: 'success',
         text1: 'Item Removed',
         text2: 'Item has been removed from your cart',
       })
     } catch (error) {
+      console.error(`Failed to remove item ${itemId} from cart:`, error)
       Toast.show({
         type: 'error',
         text1: 'Error',
@@ -67,11 +96,14 @@ const CartScreen = () => {
   }
 
   const handleUpdateQuantity = async (itemId: string, quantity: number) => {
+    console.log(`Updating quantity for item ${itemId} to ${quantity}`)
     if (quantity > 0) {
       try {
         setUpdatingItemId(itemId)
         await dispatch(updateCartItem({itemId, quantity})).unwrap()
+        console.log(`Quantity updated successfully for item ${itemId}: ${quantity}`)
       } catch (error) {
+        console.error(`Failed to update quantity for item ${itemId}:`, error)
         Toast.show({
           type: 'error',
           text1: 'Error',
@@ -87,13 +119,16 @@ const CartScreen = () => {
 
   const handleClearCart = async () => {
     try {
+      console.log('Clearing cart...')
       await dispatch(clearCart()).unwrap()
+      console.log('Cart cleared successfully')
       Toast.show({
         type: 'success',
         text1: 'Cart Cleared',
         text2: 'Your cart has been cleared',
       })
     } catch (error) {
+      console.error('Failed to clear cart:', error)
       Toast.show({
         type: 'error',
         text1: 'Error',
@@ -107,7 +142,7 @@ const CartScreen = () => {
       alert('Empty Cart', 'Please add items to your cart before checkout.')
       return
     }
-
+    console.log('Proceeding to checkout with total amount:', totalAmount + (totalAmount > 0 ? 50 : 0))
     // Navigate to checkout screen with the total amount
     navigation.navigate('Checkout', {
       totalAmount: totalAmount + (totalAmount > 0 ? 50 : 0),
@@ -115,88 +150,146 @@ const CartScreen = () => {
   }
 
   const handleShopNow = () => {
+    console.log('Navigating to ShopsTab')
     navigation.navigate('TabNavigator', {screen: 'ShopsTab'})
   }
 
   const renderItem = ({item}: {item: CartItem}) => {
-    // Ensure item.product exists before rendering
-    if (!item.product) {
-      return null;
-    }
-    
-    // Safe access to price with fallback to 0
-    const price = item.product.price || 0;
-    const isUpdatingThisItem = updatingItemId === item.product._id;
-    
-    return (
-      <View style={styles.cartItem}>
-        <Image 
-          source={item.product.image ? {uri: item.product.image} : {uri: 'https://via.placeholder.com/100'}} 
-          style={styles.productImage} 
-          onError={(e) => console.log('Image loading error:', e.nativeEvent.error)}
-        />
-        <View style={styles.itemDetails}>
-          <Text style={styles.productName}>{item.product.name}</Text>
-          <Text style={styles.productPrice}>₹{price.toFixed(2)}</Text>
-          <View style={styles.quantityContainer}>
-            {isUpdatingThisItem ? (
-              <ActivityIndicator size="small" color={theme.colors.primary} style={{width: 80}} />
-            ) : (
-              <>
-                <TouchableOpacity
-                  onPress={() => handleUpdateQuantity(item.product._id, item.quantity - 1)}
-                  style={styles.quantityButton}
-                  disabled={isUpdatingThisItem}>
-                  <Ionicons name='remove' size={20} color='#000' />
-                </TouchableOpacity>
-                <Text style={styles.quantity}>{item.quantity}</Text>
-                <TouchableOpacity
-                  onPress={() => handleUpdateQuantity(item.product._id, item.quantity + 1)}
-                  style={styles.quantityButton}
-                  disabled={isUpdatingThisItem || (item.product.stock !== undefined && item.quantity >= item.product.stock)}>
-                  <Ionicons name='add' size={20} color='#000' />
-                </TouchableOpacity>
-              </>
-            )}
+    try {
+      // Ensure item.product exists before rendering
+      if (!item.product || !item.product._id) {
+        console.warn('Invalid cart item:', item)
+        return null;
+      }
+      
+      // Safe access to price with fallback to 0
+      const price = item.product.price || 0;
+      const isUpdatingThisItem = updatingItemId === item.product._id;
+      const productId = item.product._id;
+      const productName = item.product.name || 'Unknown Product';
+      const imageUri = item.product.image || 'https://via.placeholder.com/100';
+      const quantity = item.quantity || 0;
+      const stock = item.product.stock || 0;
+      
+      return (
+        <View style={styles.cartItem}>
+          <Image 
+            source={{uri: imageUri}}
+            style={styles.productImage} 
+            onError={(e) => console.log('Image loading error:', e.nativeEvent.error)}
+          />
+          <View style={styles.itemDetails}>
+            <Text style={styles.productName}>{productName}</Text>
+            <Text style={styles.productPrice}>₹{price.toFixed(2)}</Text>
+            <View style={styles.quantityContainer}>
+              {isUpdatingThisItem ? (
+                <ActivityIndicator size="small" color={theme.colors.primary} style={{width: 80}} />
+              ) : (
+                <>
+                  <TouchableOpacity
+                    onPress={() => handleUpdateQuantity(productId, quantity - 1)}
+                    style={styles.quantityButton}
+                    disabled={isUpdatingThisItem}>
+                    <Ionicons name='remove' size={20} color='#000' />
+                  </TouchableOpacity>
+                  <Text style={styles.quantity}>{quantity}</Text>
+                  <TouchableOpacity
+                    onPress={() => handleUpdateQuantity(productId, quantity + 1)}
+                    style={styles.quantityButton}
+                    disabled={isUpdatingThisItem || (stock !== undefined && quantity >= stock)}>
+                    <Ionicons name='add' size={20} color='#000' />
+                  </TouchableOpacity>
+                </>
+              )}
+            </View>
           </View>
+          <TouchableOpacity 
+            onPress={() => handleRemoveItem(productId)} 
+            style={styles.removeButton}
+            disabled={isUpdatingThisItem}>
+            {isUpdatingThisItem ? (
+              <ActivityIndicator size="small" color="#ff4444" />
+            ) : (
+              <Ionicons name='trash-outline' size={24} color='#ff4444' />
+            )}
+          </TouchableOpacity>
         </View>
-        <TouchableOpacity 
-          onPress={() => handleRemoveItem(item.product._id)} 
-          style={styles.removeButton}
-          disabled={isUpdatingThisItem}>
-          {isUpdatingThisItem ? (
-            <ActivityIndicator size="small" color="#ff4444" />
-          ) : (
-            <Ionicons name='trash-outline' size={24} color='#ff4444' />
-          )}
-        </TouchableOpacity>
-      </View>
-    )
+      )
+    } catch (error) {
+      console.error('Error rendering cart item:', error)
+      return (
+        <View style={styles.errorItem}>
+          <Text style={styles.errorText}>Error displaying this item</Text>
+          <TouchableOpacity 
+            onPress={() => handleRemoveItem(item.product?._id || '')}
+            style={styles.errorButton}>
+            <Text style={styles.errorButtonText}>Remove</Text>
+          </TouchableOpacity>
+        </View>
+      )
+    }
+  }
+
+  // Safe rendering of the FlatList items
+  const safeRenderList = () => {
+    try {
+      return (
+        <FlatList
+          data={items}
+          renderItem={renderItem}
+          keyExtractor={(item) => item.product?._id || Math.random().toString()}
+          contentContainerStyle={styles.listContainer}
+          refreshing={isRefreshing}
+          onRefresh={handleRefresh}
+        />
+      )
+    } catch (error) {
+      console.error('Error rendering list:', error)
+      setRenderError('Failed to display cart items. Please try refreshing.')
+      return (
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorText}>{renderError}</Text>
+          <TouchableOpacity 
+            style={styles.refreshButton} 
+            onPress={handleRefresh}>
+            <Text style={styles.refreshButtonText}>Refresh</Text>
+          </TouchableOpacity>
+        </View>
+      )
+    }
   }
 
   // Only show full screen loader on initial load, not for item updates
   if (loading && currentRequest === 'getCart' && items.length === 0) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size='large' color='#0000ff' />
-      </View>
+      <SafeAreaView style={styles.container}>
+        <ScreenHeader title='My Cart' />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size='large' color={theme.colors.primary} />
+        </View>
+      </SafeAreaView>
     )
   }
 
-  if (error) {
-    return (
-      <View style={styles.errorContainer}>
-        <Text style={styles.errorText}>{error}</Text>
-      </View>
-    )
-  }
-
+  // Main render
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
       <ScreenHeader title='My Cart' />
 
       <View style={styles.contentContainer}>
-        {items.length === 0 ? (
+        {renderError ? (
+          <View style={styles.errorContainer}>
+            <Text style={styles.errorText}>{renderError}</Text>
+            <TouchableOpacity 
+              style={styles.refreshButton} 
+              onPress={() => {
+                setRenderError(null)
+                handleRefresh()
+              }}>
+              <Text style={styles.refreshButtonText}>Refresh</Text>
+            </TouchableOpacity>
+          </View>
+        ) : items.length === 0 ? (
           <View style={styles.emptyContainer}>
             <Text style={styles.emptyText}>Your cart is empty</Text>
             <TouchableOpacity style={styles.shopNowButton} onPress={handleShopNow}>
@@ -205,14 +298,7 @@ const CartScreen = () => {
           </View>
         ) : (
           <>
-            <FlatList
-              data={items}
-              renderItem={renderItem}
-              keyExtractor={(item) => item._id}
-              contentContainerStyle={styles.listContainer}
-              refreshing={isRefreshing}
-              onRefresh={handleRefresh}
-            />
+            {safeRenderList()}
 
             <Card3D style={styles.summaryCard}>
               <View style={styles.summaryRow}>
@@ -255,7 +341,7 @@ const CartScreen = () => {
           </>
         )}
       </View>
-    </View>
+    </SafeAreaView>
   )
 }
 
@@ -284,6 +370,37 @@ const styles = StyleSheet.create({
     color: '#ff4444',
     fontSize: 16,
     textAlign: 'center',
+    marginBottom: 20,
+  },
+  refreshButton: {
+    backgroundColor: theme.colors.primary,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 25,
+  },
+  refreshButtonText: {
+    color: theme.colors.white,
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  errorItem: {
+    padding: 16,
+    backgroundColor: '#ffeeee',
+    borderRadius: 8,
+    marginBottom: 8,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  errorButton: {
+    backgroundColor: '#ff4444',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+  },
+  errorButtonText: {
+    color: '#fff',
+    fontWeight: 'bold',
   },
   emptyContainer: {
     flex: 1,
