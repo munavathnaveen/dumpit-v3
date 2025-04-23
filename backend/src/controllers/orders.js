@@ -439,64 +439,94 @@ exports.updatePayment = async (req, res, next) => {
 // @access  Private
 exports.cancelOrder = async (req, res, next) => {
   try {
-    const order = await Order.findById(req.params.id).populate({
-      path: 'user',
-      select: 'name email notifications notificationSettings',
-    })
+    const order = await Order.findById(req.params.id).populate([
+      {
+        path: 'user',
+        select: 'name email notifications notificationSettings',
+      },
+      {
+        path: 'items.product',
+        select: 'name stock',
+      }
+    ]);
 
     if (!order) {
-      return next(new ErrorResponse(`Order not found with id of ${req.params.id}`, 404))
+      return next(new ErrorResponse(`Order not found with id of ${req.params.id}`, 404));
     }
 
-    // Check if user is authorized
-    if (req.user.id !== order.user._id.toString() && req.user.role !== config.constants.userRoles.VENDOR) {
-      return next(new ErrorResponse(`User ${req.user.id} is not authorized to cancel this order`, 401))
+    // Check if user is authorized (either the customer who placed the order or a vendor)
+    const isCustomer = req.user.id === order.user._id.toString();
+    let isVendor = false;
+
+    // Check if vendor has products in this order
+    if (req.user.role === config.constants.userRoles.VENDOR) {
+      const vendorProducts = await Product.find({ vendor: req.user.id }).select('_id');
+      const vendorProductIds = vendorProducts.map(product => product._id.toString());
+      
+      isVendor = order.items.some(item => 
+        vendorProductIds.includes(item.product._id.toString())
+      );
     }
 
-    // Check if order can be cancelled (only pending or processing orders can be cancelled)
-    if (
-      order.status !== config.constants.orderStatus.PENDING &&
-      order.status !== config.constants.orderStatus.PROCESSING
-    ) {
-      return next(new ErrorResponse(`Order ${order._id} cannot be cancelled in ${order.status} status`, 400))
+    if (!isCustomer && !isVendor) {
+      return next(new ErrorResponse(`User ${req.user.id} is not authorized to cancel this order`, 401));
+    }
+
+    // Check if order can be cancelled based on status
+    if (order.status === config.constants.orderStatus.COMPLETED) {
+      return next(new ErrorResponse(`Completed orders cannot be cancelled`, 400));
+    }
+    
+    if (order.status === config.constants.orderStatus.CANCELLED) {
+      return next(new ErrorResponse(`Order is already cancelled`, 400));
+    }
+
+    // Check if order is in delivery or tracking status (for frontend usage)
+    const inDelivery = order.tracking && ['in_transit', 'delivered'].includes(order.tracking.status);
+    if (inDelivery && order.tracking.status === 'delivered') {
+      return next(new ErrorResponse(`Delivered orders cannot be cancelled`, 400));
     }
 
     // Update order status to cancelled
-    order.status = config.constants.orderStatus.CANCELLED
-    await order.save()
+    order.status = config.constants.orderStatus.CANCELLED;
+    
+    // Record who cancelled the order (for audit)
+    order.notes = order.notes || '';
+    order.notes += `\nCancelled by ${isCustomer ? 'customer' : 'vendor'} on ${new Date().toISOString()}`;
+    
+    await order.save();
 
     // Restore product stock
     for (const item of order.items) {
-      await Product.findByIdAndUpdate(item.product, {
-        $inc: {stock: item.quantity},
-      })
-    }
-
-    // Send order cancellation email
-    if (order.user.notificationSettings.email) {
-      try {
-        await sendEmail({
-          email: order.user.email,
-          subject: 'Order Cancelled - Dumpit',
-          message: emailTemplates.orderStatusUpdate(order.user.name, order._id, 'cancelled'),
-        })
-      } catch (err) {
-        console.log('Email could not be sent', err)
+      if (item.product) {
+        await Product.findByIdAndUpdate(item.product._id, {
+          $inc: { stock: item.quantity },
+        });
       }
     }
 
-    // Add notification to user
-    order.user.notifications.push({
-      message: `Your order #${order._id} has been cancelled`,
-    })
-    await order.user.save()
+    // Send notification to user about order cancellation
+    try {
+      // Add notification to user
+      if (order.user && order.user.notifications) {
+        order.user.notifications.push({
+          title: 'Order Cancelled',
+          message: `Your order #${order._id.toString().slice(-6).toUpperCase()} has been cancelled`,
+          type: 'info',
+          createdAt: new Date()
+        });
+        await order.user.save();
+      }
+    } catch (err) {
+      console.log('Error sending notification:', err);
+    }
 
     res.status(200).json({
       success: true,
       data: order,
-    })
+    });
   } catch (err) {
-    next(err)
+    next(err);
   }
 }
 

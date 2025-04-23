@@ -294,21 +294,19 @@ exports.uploadShopImage = async (req, res, next) => {
       return next(new ErrorResponse(`User ${req.user.id} is not authorized to update this shop`, 401));
     }
 
-    // Get the image URL from request body
-    const imageUrl = req.body.image;
-    
-    if (!imageUrl) {
-      return next(new ErrorResponse('Please provide an image URL', 400));
+    // Check if req.body contains an image URL or base64 data
+    if (!req.body.image) {
+      return next(new ErrorResponse('Please provide an image URL or base64 data', 400));
     }
 
     // Update shop image
-    shop.image = imageUrl;
+    shop.image = req.body.image;
     await shop.save();
 
     res.status(200).json({
       success: true,
       data: {
-        image: imageUrl
+        image: shop.image
       }
     });
   } catch (err) {

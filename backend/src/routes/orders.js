@@ -61,7 +61,8 @@ router.put('/:id/vendor-action', authorize(config.constants.userRoles.VENDOR), v
 // Payment update route
 router.put('/:id/payment', validateRequest(updatePaymentSchema), updatePayment)
 
-// Cancel order route
+// Cancel order routes - one for general users, one specifically for vendors
 router.put('/:id/cancel', cancelOrder)
+router.put('/:id/vendor-cancel', authorize(config.constants.userRoles.VENDOR), cancelOrder)
 
 module.exports = router
