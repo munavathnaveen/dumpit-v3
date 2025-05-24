@@ -153,6 +153,7 @@ export const getVendorProducts = async (): Promise<Product[]> => {
 
 export const createProduct = async (productData: ProductFormData): Promise<SingleProductResponse> => {
     const response = await apiClient.post('/products', productData);
+    console.log("ADD Product ",response,productData)
   return response.data;
 };
 

@@ -142,10 +142,9 @@ const CartScreen = () => {
       alert('Empty Cart', 'Please add items to your cart before checkout.')
       return
     }
-    console.log('Proceeding to checkout with total amount:', totalAmount + (totalAmount > 0 ? 50 : 0))
     // Navigate to checkout screen with the total amount
     navigation.navigate('Checkout', {
-      totalAmount: totalAmount + (totalAmount > 0 ? 50 : 0),
+      totalAmount: totalAmount + (totalAmount > 0 ? 40 : 0),
     })
   }
 
@@ -313,7 +312,7 @@ const CartScreen = () => {
               <View style={styles.summaryRow}>
                 <Text style={styles.totalLabel}>Total</Text>
                 <Text style={styles.totalValue}>
-                  ₹{((totalAmount || 0) + ((totalAmount || 0) > 0 ? 50 : 0)).toFixed(2)}
+                  ₹{((totalAmount || 0) + ((totalAmount || 0) > 0 ? 40 : 0)).toFixed(2)}
                 </Text>
               </View>
 

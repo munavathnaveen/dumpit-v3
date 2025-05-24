@@ -31,7 +31,7 @@ interface Product {
   price: number;
   discountPrice?: number;
   stock: number;
-  images: string[];
+  image: string;
   category: string;
   description: string;
   isActive: boolean;
@@ -54,7 +54,6 @@ const VendorProductsScreen: React.FC = () => {
     try {
       setError(null);
       const data = await getVendorProducts();
-      
       // Map the API response to match our Product interface
       const formattedProducts: Product[] = data.map((item: any) => ({
         _id: item._id,
@@ -62,7 +61,7 @@ const VendorProductsScreen: React.FC = () => {
         price: item.price,
         discountPrice: undefined,
         stock: item.stock,
-        images: item.images || [],
+        image: item.image || [],
         category: item.category,
         description: item.description,
         isActive: item.isActive || false,
@@ -167,9 +166,7 @@ const VendorProductsScreen: React.FC = () => {
       <View style={styles.productContent}>
         <Image 
           source={{ 
-            uri: item.images && item.images.length > 0 
-              ? item.images[0] 
-              : 'https://via.placeholder.com/150' 
+            uri: item.image
           }} 
           style={styles.productImage}
           defaultSource={require('../../../assets/logo.png')}

@@ -560,16 +560,17 @@ exports.getVendorDashboard = async (req, res, next) => {
     const products = await Product.find({ vendor: vendorId });
     const productIds = products.map(product => product._id);
 
-    // Get orders containing vendor's products
+    // Get all orders containing vendor's products
     const orders = await Order.find({
       'items.product': { $in: productIds }
     }).populate('user', 'name');
 
-    // Calculate total revenue
-    let totalRevenue = 0;
+    // Filter only completed orders for revenue calculation
+    const completedOrdersOnly = orders.filter(order => order.status === 'completed');
 
-    // Process orders
-    orders.forEach(order => {
+    // Calculate total revenue from completed orders
+    let totalRevenue = 0;
+    completedOrdersOnly.forEach(order => {
       order.items.forEach(item => {
         if (productIds.some(id => id.toString() === item.product.toString())) {
           totalRevenue += item.price * item.quantity;
@@ -580,16 +581,16 @@ exports.getVendorDashboard = async (req, res, next) => {
     // Get order counts by status
     const pendingOrders = orders.filter(order => order.status === 'pending').length;
     const processingOrders = orders.filter(order => order.status === 'processing').length;
-    const completedOrders = orders.filter(order => order.status === 'completed').length;
+    const completedOrders = completedOrdersOnly.length;
     const cancelledOrders = orders.filter(order => order.status === 'cancelled').length;
 
-    // Generate daily, weekly, and monthly revenue data
-    const revenueData = await generateRevenueData(orders, productIds);
+    // Generate revenue data (pass only completed orders)
+    const revenueData = await generateRevenueData(completedOrdersOnly, productIds);
 
-    // Get top selling products
-    const topProducts = getTopSellingProducts(orders, products, productIds);
+    // Get top selling products (based on completed orders)
+    const topProducts = getTopSellingProducts(completedOrdersOnly, products, productIds);
 
-    // Format recent orders
+    // Format recent orders (can be all, not just completed)
     const recentOrders = orders
       .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
       .slice(0, 5)
@@ -631,6 +632,7 @@ exports.getVendorDashboard = async (req, res, next) => {
     next(err);
   }
 };
+
 
 // Helper function to generate revenue data for charts
 const generateRevenueData = async (orders, productIds) => {

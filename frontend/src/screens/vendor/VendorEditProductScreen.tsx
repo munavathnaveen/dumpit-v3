@@ -66,7 +66,7 @@ const VendorEditProductScreen: React.FC = () => {
         setLoading(true);
         const response = await getProduct(productId);
         const product = response.data;
-        
+        console.log("Edit Product ",product);
         setFormData({
           name: product.name,
           description: product.description,
