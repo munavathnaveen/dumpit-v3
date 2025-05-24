@@ -352,52 +352,32 @@ exports.getShopsInRadius = async (req, res, next) => {
 // @access  Public
 exports.getNearbyShops = async (req, res, next) => {
   try {
-    // Get coordinates from query or use defaults
     const latitude = parseFloat(req.query.latitude);
     const longitude = parseFloat(req.query.longitude);
-    const distance = parseInt(req.query.distance) || 10000; // Default 10km
-    
-    // Pagination parameters
+    const distance = parseInt(req.query.distance) || 10000; // in meters
     const page = parseInt(req.query.page, 10) || 1;
     const limit = parseInt(req.query.limit, 10) || 10;
     const startIndex = (page - 1) * limit;
-    
-    // If coordinates are missing or invalid, return error or fallback
+
     if (isNaN(latitude) || isNaN(longitude)) {
-      console.log('Using default location as coordinates are missing or invalid');
-      // Either fall back to default coordinates or return all shops
-      
-      // Count total shops for pagination
+      // Fallback when coordinates invalid or missing, return paginated shops normally
       const total = await Shop.countDocuments({ isActive: true });
-      
       const shops = await Shop.find({ isActive: true })
         .populate('owner', 'name')
         .select('name description address location rating images categories isOpen')
         .skip(startIndex)
         .limit(limit);
-      
-      // Create pagination object
+
       const pagination = {
         page,
         limit,
         total,
         pages: Math.ceil(total / limit)
       };
-      
-      if (startIndex + limit < total) {
-        pagination.next = {
-          page: page + 1,
-          limit
-        };
-      }
-      
-      if (startIndex > 0) {
-        pagination.prev = {
-          page: page - 1,
-          limit
-        };
-      }
-      
+
+      if (startIndex + limit < total) pagination.next = { page: page + 1, limit };
+      if (startIndex > 0) pagination.prev = { page: page - 1, limit };
+
       return res.status(200).json({
         success: true,
         count: shops.length,
@@ -406,168 +386,89 @@ exports.getNearbyShops = async (req, res, next) => {
         usingDefault: true,
       });
     }
-    
-    // Find shops near the specified location using geospatial query
-    // First count total for pagination
-    const totalQuery = Shop.countDocuments({
-      location: {
-        $near: {
-          $geometry: {
-            type: 'Point',
-            coordinates: [longitude, latitude],
-          },
-          $maxDistance: distance,
-        },
+
+    // Use aggregation pipeline with $geoNear as first stage
+    const pipeline = [
+      {
+        $geoNear: {
+          near: { type: 'Point', coordinates: [longitude, latitude] },
+          distanceField: 'distance',
+          maxDistance: distance,
+          spherical: true,
+          query: { isActive: true }
+        }
       },
-      isActive: true,
-    });
-    
-    // Main query with pagination
-    const shopsQuery = Shop.find({
-      location: {
-        $near: {
-          $geometry: {
-            type: 'Point',
-            coordinates: [longitude, latitude],
-          },
-          $maxDistance: distance,
-        },
+      { $skip: startIndex },
+      { $limit: limit },
+      {
+        $lookup: {
+          from: 'users',        // or the collection name for 'owner'
+          localField: 'owner',
+          foreignField: '_id',
+          as: 'owner'
+        }
       },
-      isActive: true,
-    })
-    .populate('owner', 'name')
-    .select('name description address location rating images categories isOpen')
-    .skip(startIndex)
-    .limit(limit);
-    
-    // Execute both queries in parallel
-    const [total, shops] = await Promise.all([totalQuery, shopsQuery]);
-    
-    // Calculate and add distance information to each shop
-    const shopsWithDistance = shops.map(shop => {
-      // Skip shops without valid location data
-      if (!shop.location || !shop.location.coordinates || shop.location.coordinates.length !== 2) {
-        return shop;
+      {
+        $unwind: '$owner'
+      },
+      {
+        $project: {
+          name: 1,
+          description: 1,
+          address: 1,
+          location: 1,
+          rating: 1,
+          images: 1,
+          categories: 1,
+          isOpen: 1,
+          'owner.name': 1,
+          distance: 1
+        }
       }
-      
-      // Calculate distance using Haversine formula
-      const shopLng = shop.location.coordinates[0];
-      const shopLat = shop.location.coordinates[1];
-      
-      // Earth's radius in meters
-      const R = 6371000;
-      
-      // Convert to radians
-      const lat1 = latitude * Math.PI / 180;
-      const lat2 = shopLat * Math.PI / 180;
-      const lng1 = longitude * Math.PI / 180;
-      const lng2 = shopLng * Math.PI / 180;
-      
-      // Calculate differences
-      const dLat = lat2 - lat1;
-      const dLng = lng2 - lng1;
-      
-      // Haversine formula
-      const a = Math.sin(dLat/2) * Math.sin(dLat/2) + 
-                Math.cos(lat1) * Math.cos(lat2) * 
-                Math.sin(dLng/2) * Math.sin(dLng/2);
-      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-      const distanceInMeters = R * c;
-      
-      // Convert shop to plain object if it's a Mongoose document
-      const shopObj = shop.toObject ? shop.toObject() : { ...shop };
-      
-      // Add the distance field
-      shopObj.distance = Math.round(distanceInMeters);
-      
-      return shopObj;
-    });
-    
-    // Create pagination object
+    ];
+
+    // Count total matching documents for pagination (without skip & limit)
+    const totalAgg = [
+      {
+        $geoNear: {
+          near: { type: 'Point', coordinates: [longitude, latitude] },
+          distanceField: 'distance',
+          maxDistance: distance,
+          spherical: true,
+          query: { isActive: true }
+        }
+      },
+      { $count: 'total' }
+    ];
+
+    const [resultTotal] = await Shop.aggregate(totalAgg);
+    const total = resultTotal ? resultTotal.total : 0;
+
+    const shops = await Shop.aggregate(pipeline);
+
     const pagination = {
       page,
       limit,
       total,
-      pages: Math.ceil(total / limit)
+      pages: Math.ceil(total / limit),
     };
-    
-    if (startIndex + limit < total) {
-      pagination.next = {
-        page: page + 1,
-        limit
-      };
-    }
-    
-    if (startIndex > 0) {
-      pagination.prev = {
-        page: page - 1,
-        limit
-      };
-    }
-    
-    res.status(200).json({
+
+    if (startIndex + limit < total) pagination.next = { page: page + 1, limit };
+    if (startIndex > 0) pagination.prev = { page: page - 1, limit };
+
+    return res.status(200).json({
       success: true,
-      count: shopsWithDistance.length,
+      count: shops.length,
       pagination,
-      data: shopsWithDistance,
+      data: shops,
     });
+
   } catch (err) {
     console.error('Error in getNearbyShops:', err);
-    
-    // If there's an issue with the geospatial query, fallback to regular find
-    if (err.name === 'MongoServerError' && (err.code === 2 || err.code === 16755)) {
-      try {
-        // Pagination parameters
-        const page = parseInt(req.query.page, 10) || 1;
-        const limit = parseInt(req.query.limit, 10) || 10;
-        const startIndex = (page - 1) * limit;
-        
-        // Count total shops for pagination
-        const total = await Shop.countDocuments({ isActive: true });
-        
-        const shops = await Shop.find({ isActive: true })
-          .populate('owner', 'name')
-          .select('name description address location rating images categories isOpen')
-          .skip(startIndex)
-          .limit(limit);
-        
-        // Create pagination object
-        const pagination = {
-          page,
-          limit,
-          total,
-          pages: Math.ceil(total / limit)
-        };
-        
-        if (startIndex + limit < total) {
-          pagination.next = {
-            page: page + 1,
-            limit
-          };
-        }
-        
-        if (startIndex > 0) {
-          pagination.prev = {
-            page: page - 1,
-            limit
-          };
-        }
-        
-        return res.status(200).json({
-          success: true,
-          count: shops.length,
-          pagination,
-          data: shops,
-          usingFallback: true
-        });
-      } catch (fallbackErr) {
-        return next(fallbackErr);
-      }
-    } else {
-      return next(err);
-    }
+    return next(err);
   }
-}
+};
+
 
 // @desc    Get all shop categories
 // @route   GET /api/v1/shops/categories

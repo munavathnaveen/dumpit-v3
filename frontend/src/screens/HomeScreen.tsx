@@ -265,7 +265,6 @@ const HomeScreen: React.FC = () => {
           setLocation('Location service unavailable');
           return;
         }
-        
         const response = await axios.get(
           `https://maps.googleapis.com/maps/api/geocode/json?latlng=${latitude},${longitude}&key=${apiKey}`
         );
