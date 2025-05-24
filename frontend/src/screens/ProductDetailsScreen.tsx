@@ -264,7 +264,7 @@ const ProductDetailsScreen: React.FC = () => {
       </View>
     );
   };
-  
+  console.log(productData);
   const openGoogleMaps = () => {
     if (!productData?.shop?.location?.coordinates || !userLocation) return;
     

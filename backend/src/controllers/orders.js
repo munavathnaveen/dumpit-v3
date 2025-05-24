@@ -250,7 +250,7 @@ exports.createOrder = async (req, res, next) => {
       discountAmount = coupon.calculateDiscount(totalPrice)
       totalPrice -= discountAmount
       appliedCoupon = coupon.code
-
+      totalPrice += 40;
       // Increment coupon usage count
       coupon.usedCount += 1
       await coupon.save()
