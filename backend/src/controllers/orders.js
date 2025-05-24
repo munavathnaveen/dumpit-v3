@@ -351,6 +351,9 @@ exports.updateOrderStatus = async (req, res, next) => {
     }
 
     // Update order status
+    if(order.status==='cancelled'){
+       return next(new ErrorResponse(`Order Already Cancelled Cannot Update Status `));s
+    }
     order.status = status
     await order.save()
 
