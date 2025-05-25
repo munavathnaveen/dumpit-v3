@@ -1,29 +1,29 @@
-const nodemailer = require('nodemailer')
-const config = require('../config')
+const nodemailer = require("nodemailer");
+const config = require("../config");
 
 const sendEmail = async (options) => {
-  // Create a transporter
-  const transporter = nodemailer.createTransport({
-    service: config.email.service,
-    auth: {
-      user: config.email.username,
-      pass: config.email.password,
-    },
-  })
+    // Create a transporter
+    const transporter = nodemailer.createTransport({
+        service: config.email.service,
+        auth: {
+            user: config.email.username,
+            pass: config.email.password,
+        },
+    });
 
-  // Define email options
-  const mailOptions = {
-    from: `Dumpit <${config.email.from}>`,
-    to: options.email,
-    subject: options.subject,
-    html: options.message,
-  }
+    // Define email options
+    const mailOptions = {
+        from: `Dumpit <${config.email.from}>`,
+        to: options.email,
+        subject: options.subject,
+        html: options.message,
+    };
 
-  // Send email
-  const info = await transporter.sendMail(mailOptions)
+    // Send email
+    const info = await transporter.sendMail(mailOptions);
 
-  return info
-}
+    return info;
+};
 
 // Common styles for all emails
 const emailStyles = `
@@ -139,9 +139,9 @@ const emailStyles = `
 
 // Email templates
 const emailTemplates = {
-  // Welcome email template
-  welcome: (name) => {
-    return `
+    // Welcome email template
+    welcome: (name) => {
+        return `
       <!DOCTYPE html>
       <html>
       <head>
@@ -175,11 +175,11 @@ const emailTemplates = {
       </body>
       </html>
     `;
-  },
+    },
 
-  // Password reset template
-  resetPassword: (name, webUrl, resetToken) => {
-    return `
+    // Password reset template
+    resetPassword: (name, webUrl, resetToken) => {
+        return `
       <!DOCTYPE html>
       <html>
       <head>
@@ -220,11 +220,11 @@ const emailTemplates = {
       </body>
       </html>
     `;
-  },
+    },
 
-  // Order confirmation template
-  orderConfirmation: (name, orderNumber, orderDetails) => {
-    return `
+    // Order confirmation template
+    orderConfirmation: (name, orderNumber, orderDetails) => {
+        return `
       <!DOCTYPE html>
       <html>
       <head>
@@ -281,11 +281,11 @@ const emailTemplates = {
       </body>
       </html>
     `;
-  },
+    },
 
-  // Order status update template
-  orderStatusUpdate: (name, orderNumber, status) => {
-    return `
+    // Order status update template
+    orderStatusUpdate: (name, orderNumber, status) => {
+        return `
       <!DOCTYPE html>
       <html>
       <head>
@@ -340,10 +340,10 @@ const emailTemplates = {
       </body>
       </html>
     `;
-  },
+    },
 };
 
 module.exports = {
-  sendEmail,
-  emailTemplates,
+    sendEmail,
+    emailTemplates,
 };

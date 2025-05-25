@@ -11,45 +11,29 @@ const errorHandler = require("./middleware/error");
 
 // Initialize Express app
 const app = express();
-
-// Connect to database
 connectDB();
 
-// Body parser middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-
-// Cookie parser
 app.use(cookieParser());
-
-// Security middleware
 app.use(helmet());
-
-// Enable CORS
 app.use(cors());
 
 // Request logging in development
 app.use(
-  morgan((tokens, req, res) => {
-    return [
-      colors.cyan(tokens.method(req, res)),
-      colors.yellow(tokens.url(req, res)),
-      colors.green(tokens.status(req, res)),
-      colors.red(tokens["response-time"](req, res) + " ms"),
-    ].join(" ");
-  })
+    morgan((tokens, req, res) => {
+        return [colors.cyan(tokens.method(req, res)), colors.yellow(tokens.url(req, res)), colors.green(tokens.status(req, res)), colors.red(tokens["response-time"](req, res) + " ms")].join(" ");
+    })
 );
 
-// Rate limiting
 const limiter = rateLimit({
-  windowMs:  1* 60 * 1000, // 1 minutes
-  max: 60, // Limit each IP to 60 requests per windowMs
-  message: "Too many requests from this IP, please try again after 15 minutes",
+    windowMs: 1 * 60 * 1000, // 1 minutes
+    max: 60, // Limit each IP to 60 requests per windowMs
+    message: "Too many requests from this IP, please try again after 15 minutes",
 });
 app.use("/api", limiter);
 
 // Routes
-// Import and use route files
 app.use("/api/v1/auth", require("./routes/auth"));
 app.use("/api/v1/users", require("./routes/users"));
 app.use("/api/v1/addresses", require("./routes/addresses"));
@@ -63,26 +47,19 @@ app.use("/api/v1/location", require("./routes/location"));
 
 // Root route
 app.get("/", (req, res) => {
-  res.send("Dumpit API Server is running...");
+    res.send("Dumpit API Server is running...");
 });
 
-// Error handling middleware
 app.use(errorHandler);
 
-// Start server
 const PORT = config.port;
 const HOST = config.host;
-const server = app.listen(PORT,HOST, () => {
-  console.log(
-    colors.yellow.bold(
-      `Server running on http://${process.env.HOST}:${process.env.PORT}`
-    )
-  );
+const server = app.listen(PORT, HOST, () => {
+    console.log(colors.yellow.bold(`Server running on http://${process.env.HOST}:${process.env.PORT}`));
 });
 
 // Handle unhandled promise rejections
 process.on("unhandledRejection", (err) => {
-  console.error(colors.red.bold(`Error: ${err.message}`));
-  // Close server & exit process
-  server.close(() => process.exit(1));
+    console.error(colors.red.bold(`Error: ${err.message}`));
+    server.close(() => process.exit(1));
 });

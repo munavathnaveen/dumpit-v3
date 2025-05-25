@@ -1,60 +1,60 @@
 export interface Product {
-  _id: string;
-  name: string;
-  description: string;
-  type: string;
-  category: string;
-  price: number;
-  units: string;
-  stock: number;
-  discount: number;
-  rating: number;
-  image: string;
-  vendor: {
     _id: string;
     name: string;
-  };
-  shop: {
-    _id: string;
-    name: string;
-    distance?: number | string;
-    location?: {
-      type: string;
-      coordinates: number[];
-    };
-    address?: {
-      street: string;
-      village: string;
-      district: string;
-      state: string;
-      pincode: string;
-      phone: string;
-    };
-  };
-  reviews: Array<{
-    user: {
-      _id: string;
-      name: string;
-      avatar_url?: string;
-    };
+    description: string;
+    type: string;
+    category: string;
+    price: number;
+    units: string;
+    stock: number;
+    discount: number;
     rating: number;
-    text: string;
+    image: string;
+    vendor: {
+        _id: string;
+        name: string;
+    };
+    shop: {
+        _id: string;
+        name: string;
+        distance?: number | string;
+        location?: {
+            type: string;
+            coordinates: number[];
+        };
+        address?: {
+            street: string;
+            village: string;
+            district: string;
+            state: string;
+            pincode: string;
+            phone: string;
+        };
+    };
+    reviews: Array<{
+        user: {
+            _id: string;
+            name: string;
+            avatar_url?: string;
+        };
+        rating: number;
+        text: string;
+        createdAt: string;
+    }>;
+    featured: boolean;
+    isActive: boolean;
     createdAt: string;
-  }>;
-  featured: boolean;
-  isActive: boolean;
-  createdAt: string;
-  updatedAt: string;
+    updatedAt: string;
 }
 
 export interface ProductFilters {
-  category?: string;
-  minPrice?: number;
-  maxPrice?: number;
-  rating?: number;
-  search?: string;
-  sort?: string;
-  page?: number;
-  limit?: number;
-  query?: string;
-} 
+    category?: string;
+    minPrice?: number;
+    maxPrice?: number;
+    rating?: number;
+    search?: string;
+    sort?: string;
+    page?: number;
+    limit?: number;
+    query?: string;
+}

@@ -1,28 +1,28 @@
-const express = require('express')
-const {getCartItems, addCartItem, updateCartItem, removeCartItem, clearCart} = require('../controllers/cart')
+const express = require("express");
+const { getCartItems, addCartItem, updateCartItem, removeCartItem, clearCart } = require("../controllers/cart");
 
-const {protect} = require('../middleware/auth')
-const validateRequest = require('../middleware/validator')
-const {cartItemSchema} = require('../validations/cart')
+const { protect } = require("../middleware/auth");
+const validateRequest = require("../middleware/validator");
+const { cartItemSchema } = require("../validations/cart");
 
-const router = express.Router()
+const router = express.Router();
 
 // Protect all routes
-router.use(protect)
+router.use(protect);
 
 // Get cart items
-router.get('/', getCartItems)
+router.get("/", getCartItems);
 
 // Clear cart
-router.delete('/', clearCart)
+router.delete("/", clearCart);
 
 // Add item to cart
-router.post('/:productId', validateRequest(cartItemSchema), addCartItem)
+router.post("/:productId", validateRequest(cartItemSchema), addCartItem);
 
 // Update cart item
-router.put('/:productId', validateRequest(cartItemSchema), updateCartItem)
+router.put("/:productId", validateRequest(cartItemSchema), updateCartItem);
 
 // Remove cart item
-router.delete('/:productId', removeCartItem)
+router.delete("/:productId", removeCartItem);
 
-module.exports = router
+module.exports = router;
