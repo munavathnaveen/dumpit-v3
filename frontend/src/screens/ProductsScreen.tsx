@@ -449,19 +449,23 @@ const ProductsScreen: React.FC = () => {
     const renderProductItem = ({ item }: { item: Product }) => (
         <Card3D style={styles.productCard}>
             <TouchableOpacity onPress={() => navigation.navigate("ProductDetails", { productId: item._id })} activeOpacity={0.9}>
-                <Image source={{ uri: item.image || "https://via.placeholder.com/150" }} style={styles.productImage} />
+                <View style={styles.imageContainer}>
+                    <Image source={{ uri: item.image || "https://via.placeholder.com/150" }} style={styles.circularImage} />
+                </View>
             </TouchableOpacity>
-            <View style={styles.productInfo}>
-                <Text style={styles.productName}>{item.name}</Text>
 
-                {/* Shop name and info */}
+            <View style={styles.productInfo}>
+                <Text style={styles.productName} numberOfLines={1}>
+                    {item.name}
+                </Text>
+
                 {item.shop && !shopId && (
                     <TouchableOpacity style={styles.shopInfoContainer} onPress={() => navigation.navigate("ShopDetails", { shopId: item.shop._id })}>
                         <Ionicons name="storefront-outline" size={14} color={theme.colors.gray} />
                         <Text style={styles.shopName} numberOfLines={1}>
                             {item.shop.name}
                         </Text>
-                        {item.shop.distance || shopDistances[item.shop._id] ? (
+                        {(item.shop.distance || shopDistances[item.shop._id]) && (
                             <View style={styles.distanceRow}>
                                 <Text style={{ color: theme.colors.gray }}>•</Text>
                                 <FontAwesome name="map-marker" size={12} color={theme.colors.primary} style={{ marginHorizontal: 2 }} />
@@ -469,7 +473,7 @@ const ProductsScreen: React.FC = () => {
                                     {typeof item.shop.distance === "number" ? LocationService.formatDistance(item.shop.distance) : item.shop.distance || shopDistances[item.shop._id]} away
                                 </Text>
                             </View>
-                        ) : null}
+                        )}
                     </TouchableOpacity>
                 )}
 
@@ -478,9 +482,11 @@ const ProductsScreen: React.FC = () => {
                         <Text style={styles.categoryChipText}>{item.category}</Text>
                     </View>
                 )}
+
                 <Text style={styles.productDescription} numberOfLines={2}>
                     {item.description}
                 </Text>
+
                 <View style={styles.productBottom}>
                     <Text style={styles.productPrice}>₹{item.price.toFixed(2)}</Text>
                     <TouchableOpacity style={styles.addButton} onPress={() => handleAddToCart(item._id)}>
@@ -714,9 +720,6 @@ const ProductsScreen: React.FC = () => {
                                     onEndReachedThreshold={0.5}
                                     columnWrapperStyle={styles.columnWrapper}
                                     contentContainerStyle={styles.productList}
-                                    windowSize={5}
-                                    maxToRenderPerBatch={10}
-                                    initialNumToRender={6}
                                 />
                             )}
                         </>
@@ -746,6 +749,10 @@ const styles = StyleSheet.create({
     },
     searchContainer: {
         padding: theme.spacing.sm,
+    },
+    imageContainer: {
+        alignItems: "center",
+        marginTop: 10,
     },
     searchBar: {
         marginBottom: theme.spacing.sm,
@@ -872,7 +879,9 @@ const styles = StyleSheet.create({
         fontWeight: "600",
     },
     productList: {},
-    columnWrapper: {},
+    columnWrapper: {
+        display: "contents",
+    },
     productCard: {
         width: "100%",
         marginVertical: 8,
@@ -899,6 +908,14 @@ const styles = StyleSheet.create({
         marginBottom: 4,
         color: theme.colors.text,
         height: 40, // Fixed height for consistency
+    },
+    circularImage: {
+        width: 100,
+        height: 100,
+        borderRadius: 50,
+        resizeMode: "cover",
+        borderWidth: 1,
+        borderColor: theme.colors.lightGray,
     },
     categoryChip: {
         backgroundColor: theme.colors.accent,

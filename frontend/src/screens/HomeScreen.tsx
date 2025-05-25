@@ -118,7 +118,7 @@ const HomeScreen: React.FC = () => {
     const [locationData, setLocationData] = useState<{ latitude: number; longitude: number } | null>(null);
 
     // State for products and shops
-    const [featuredProducts, setFeaturedProducts] = useState<Product[]>([]);
+    const [Products, setProducts] = useState<Product[]>([]);
     const [nearbyShops, setNearbyShops] = useState<Shop[]>([]);
     const [categories, setCategories] = useState<string[]>([]);
     const [loading, setLoading] = useState({
@@ -131,13 +131,14 @@ const HomeScreen: React.FC = () => {
     // Responsive width calculations
     const cardWidth = dimensions.width < 380 ? dimensions.width * 0.85 : dimensions.width * 0.7;
     const shopCardWidth = dimensions.width < 380 ? dimensions.width * 0.9 : dimensions.width * 0.8;
-    const categoryCardWidth = dimensions.width < 380 ? dimensions.width * 0.3 : dimensions.width * 0.28;
+    const productCardWidth = dimensions.width * 0.4; // For 2 columns of products
+    const categoryCardWidth = dimensions.width < 380 ? dimensions.width * 0.2 : dimensions.width * 0.18; // Made categories smaller
 
     useEffect(() => {
         getLocation();
-        fetchFeaturedProducts();
-        fetchNearbyShops();
         fetchCategories();
+        fetchNearbyShops();
+        fetchProducts();
 
         // Auto rotate ads
         const adInterval = setInterval(() => {
@@ -147,11 +148,11 @@ const HomeScreen: React.FC = () => {
         return () => clearInterval(adInterval);
     }, []);
 
-    const fetchFeaturedProducts = async () => {
+    const fetchProducts = async () => {
         try {
             setLoading((prev) => ({ ...prev, products: true }));
             // Use a more specific query to get featured products with limit
-            const response = await productApi.getProducts("featured=true&limit=10&sort=-createdAt");
+            const response = await productApi.getProducts("sort=-createdAt");
 
             // Ensure we have valid data and handle potential API response structure issues
             if (response && response.data && Array.isArray(response.data)) {
@@ -166,14 +167,14 @@ const HomeScreen: React.FC = () => {
                     rating: item.rating || 0,
                     shop: item.shop || null,
                 }));
-                setFeaturedProducts(mappedProducts);
+                setProducts(mappedProducts);
             } else {
                 console.warn("Invalid featured products data structure:", response);
-                setFeaturedProducts([]);
+                setProducts([]);
             }
         } catch (error) {
             console.error("Failed to fetch featured products:", error);
-            setFeaturedProducts([]);
+            setProducts([]);
         } finally {
             setLoading((prev) => ({ ...prev, products: false }));
         }
@@ -369,36 +370,43 @@ const HomeScreen: React.FC = () => {
         const discountedPrice = originalPrice - originalPrice * (discountPercent / 100);
 
         return (
-            <TouchableOpacity key={product._id} style={[styles.productCardWrapper, { width: cardWidth }]} onPress={() => navigateToProductDetails(product._id)} activeOpacity={0.8}>
+            <TouchableOpacity key={product._id} style={{ margin: 8, width: productCardWidth }} onPress={() => navigateToProductDetails(product._id)}>
                 <Card3D style={styles.productCard}>
-                    <View style={styles.productImageContainer}>
-                        <Image source={{ uri: imageUrl }} style={styles.productImage} resizeMode="cover" />
-                        {discountPercent > 0 && (
-                            <View style={styles.discountBadge}>
-                                <Text style={styles.discountText}>{discountPercent}% OFF</Text>
-                            </View>
-                        )}
-                    </View>
-
-                    <View style={styles.productInfo}>
-                        <Text style={styles.productName} numberOfLines={1}>
-                            {product.name}
-                        </Text>
-
-                        {product.shop && (
-                            <View style={styles.shopInfo}>
-                                <Ionicons name="storefront-outline" size={12} color={theme.colors.gray} />
-                                <Text style={styles.shopName} numberOfLines={1}>
-                                    {product.shop.name}
-                                </Text>
-                            </View>
-                        )}
-
-                        <View style={styles.productPriceContainer}>
-                            <Text style={styles.productPrice}>₹{discountedPrice.toFixed(2)}</Text>
-                            {discountPercent > 0 && <Text style={styles.originalPrice}>₹{originalPrice.toFixed(2)}</Text>}
+                    <LinearGradient
+                        colors={["#d4e2ff", "#e3d1ff"]} // bluish to violet gradient
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
+                        style={styles.gradientBackground}
+                    >
+                        <View style={styles.productImageContainer}>
+                            <Image source={{ uri: imageUrl }} style={styles.productImage} resizeMode="cover" />
+                            {discountPercent > 0 && (
+                                <View style={styles.discountBadge}>
+                                    <Text style={styles.discountText}>{discountPercent}% OFF</Text>
+                                </View>
+                            )}
                         </View>
-                    </View>
+
+                        <View style={styles.productInfo}>
+                            <Text style={styles.productName} numberOfLines={1}>
+                                {product.name}
+                            </Text>
+
+                            {product.shop && (
+                                <View style={styles.shopInfo}>
+                                    <Ionicons name="storefront-outline" size={12} color={theme.colors.gray} />
+                                    <Text style={styles.shopName} numberOfLines={1}>
+                                        {product.shop.name}
+                                    </Text>
+                                </View>
+                            )}
+
+                            <View style={styles.productPriceContainer}>
+                                <Text style={styles.productPrice}>₹{discountedPrice.toFixed(2)}</Text>
+                                {discountPercent > 0 && <Text style={styles.originalPrice}>₹{originalPrice.toFixed(2)}</Text>}
+                            </View>
+                        </View>
+                    </LinearGradient>
                 </Card3D>
             </TouchableOpacity>
         );
@@ -564,7 +572,7 @@ const HomeScreen: React.FC = () => {
                         )}
                     </View>
 
-                    {/* Featured Products section */}
+                    {/* Featured Products section
                     <View style={styles.section}>
                         <View style={styles.sectionHeader}>
                             <Text style={styles.sectionTitle}>Featured Products</Text>
@@ -582,7 +590,7 @@ const HomeScreen: React.FC = () => {
                         ) : (
                             <Text style={styles.noDataText}>No featured products available</Text>
                         )}
-                    </View>
+                    </View> */}
 
                     {/* Nearby Shops section */}
                     <View style={styles.section}>
@@ -601,6 +609,35 @@ const HomeScreen: React.FC = () => {
                             </ScrollView>
                         ) : (
                             <Text style={styles.noDataText}>No nearby shops available</Text>
+                        )}
+                    </View>
+
+                    {/* Products section */}
+                    <View style={styles.section}>
+                        <View style={styles.sectionHeader}>
+                            <Text style={styles.sectionTitle}>Products</Text>
+                            <TouchableOpacity onPress={() => navigation.navigate("ProductsTab")}>
+                                <Text style={styles.viewAllText}>View All</Text>
+                            </TouchableOpacity>
+                        </View>
+
+                        {loading.products ? (
+                            <ActivityIndicator size="small" color={theme.colors.primary} />
+                        ) : Products.length > 0 ? (
+                            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.productsContainer}>
+                                {Products.map((product) => (
+                                    <View key={product._id} style={styles.productCardWrapper}>
+                                        <Image
+                                            source={{ uri: product.images && product.images.length > 0 ? product.images[0] : "https://via.placeholder.com/150" }}
+                                            style={styles.productImage}
+                                            resizeMode="cover"
+                                        />
+                                        <Text style={styles.productName}>{product.name}</Text>
+                                    </View>
+                                ))}
+                            </ScrollView>
+                        ) : (
+                            <Text style={styles.noDataText}>No products available</Text>
                         )}
                     </View>
 
@@ -629,18 +666,20 @@ const styles = StyleSheet.create({
     welcomeText: {
         fontSize: 20,
         fontWeight: "bold",
+        marginBottom: theme.spacing.md,
+        marginLeft: theme.spacing.lg,
         color: theme.colors.text,
-        marginBottom: theme.spacing.sm,
     },
     locationText: {
         fontSize: 14,
         color: theme.colors.primary,
     },
     adBannerContainer: {
-        marginHorizontal: theme.spacing.lg,
-        marginBottom: theme.spacing.lg,
+        margin: theme.spacing.sm,
+        backgroundColor: theme.colors.white,
         borderRadius: theme.borderRadius.large,
-        overflow: "hidden",
+        ...theme.shadow.medium,
+        elevation: 4,
         height: 180,
         padding: 0,
     },
@@ -734,23 +773,22 @@ const styles = StyleSheet.create({
     },
     productCardWrapper: {
         marginRight: theme.spacing.md,
+        width: 120,
+        height: 120,
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 4,
     },
     productCard: {
-        padding: 0,
-        overflow: "hidden",
-        height: 280,
+        backgroundColor: "#3498db",
     },
-    productImageContainer: {
-        width: "100%",
-        height: 160,
-        borderTopLeftRadius: theme.borderRadius.large,
-        borderTopRightRadius: theme.borderRadius.large,
-        overflow: "hidden",
-        position: "relative",
-    },
+    productImageContainer: {},
     productImage: {
-        width: "100%",
-        height: "100%",
+        width: 60,
+        height: 60,
+        borderRadius: 30,
     },
     discountBadge: {
         position: "absolute",
@@ -774,6 +812,7 @@ const styles = StyleSheet.create({
         fontWeight: "bold",
         color: theme.colors.text,
         marginBottom: 6,
+        alignSelf: "center",
     },
     shopInfo: {
         flexDirection: "row",
@@ -806,7 +845,7 @@ const styles = StyleSheet.create({
     shopCard: {
         padding: 0,
         overflow: "hidden",
-        height: 200,
+        height: 120,
     },
     shopCardGradient: {
         flexDirection: "row",
@@ -815,15 +854,16 @@ const styles = StyleSheet.create({
         borderRadius: theme.borderRadius.large,
     },
     shopImageContainer: {
-        width: 120,
+        width: 100,
         height: "100%",
         borderRadius: theme.borderRadius.medium,
         overflow: "hidden",
         marginRight: theme.spacing.md,
     },
     shopImage: {
-        width: "100%",
-        height: "100%",
+        width: 70,
+        height: 70,
+        borderRadius: 30,
     },
     shopContent: {
         flex: 1,
@@ -967,15 +1007,18 @@ const styles = StyleSheet.create({
         paddingVertical: theme.spacing.md,
     },
     categoryCard: {
-        width: 40,
-        height: 40,
-        aspectRatio: 0.9,
+        width: 60,
+        height: 80,
         borderRadius: theme.borderRadius.large,
         padding: theme.spacing.sm,
         marginRight: theme.spacing.md,
         alignItems: "center",
         justifyContent: "center",
         ...theme.shadow.small,
+    },
+    gradientBackground: {
+        borderRadius: 16,
+        padding: 10,
     },
     categoryIconContainer: {
         width: 30,
