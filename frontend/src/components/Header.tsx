@@ -140,7 +140,7 @@ const styles = StyleSheet.create({
         flexDirection: "row",
         alignItems: "center",
         justifyContent: "space-between",
-        paddingHorizontal: theme.spacing.md,
+        paddingHorizontal: theme.spacing.sm,
         paddingVertical: theme.spacing.sm,
         paddingTop: Platform.OS === "ios" ? theme.spacing.lg : theme.spacing.lg + STATUSBAR_HEIGHT,
         backgroundColor: theme.colors.white,

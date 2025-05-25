@@ -284,11 +284,11 @@ const HomeScreen: React.FC = () => {
                 const response = await axios.get(`https://maps.googleapis.com/maps/api/geocode/json?latlng=${latitude},${longitude}&key=${apiKey}`);
                 if (response.data.status === "OK" && response.data.results.length > 0) {
                     const addressComponents = response.data.results[0].address_components;
-                    const city = addressComponents.find((component: any) => component.types.includes("locality"))?.long_name;
-
+                    const city = addressComponents.find((component: any) => component.types.includes("sublocality"))?.long_name;
                     const region = addressComponents.find((component: any) => component.types.includes("administrative_area_level_1"))?.long_name;
-
-                    const locationString = `${city || ""}, ${region || ""}`;
+                    const pinCode = addressComponents.find((component: any) => component.types.includes("postal_code"))?.long_name;
+                    console.log(addressComponents);
+                    const locationString = `${city || ""}, ${region || ""}, ${pinCode || ""}`;
                     setLocation(locationString || "Location Not found");
                 } else {
                     setLocation("Location Not found");
@@ -525,18 +525,17 @@ const HomeScreen: React.FC = () => {
 
     return (
         <View style={styles.container}>
-            <Header location={location} onProfilePress={handleProfilePress} onNotificationPress={handleNotificationPress} showLocation={true} />
+            <Header location={location.split(",")[0]} onProfilePress={handleProfilePress} onNotificationPress={handleNotificationPress} showLocation={true} />
 
             {/* Search Bar */}
             <View style={styles.searchContainer}>
                 <TouchableOpacity style={styles.searchBar} onPress={() => navigation.navigate("ProductsTab")}>
-                    <Ionicons name="search-outline" size={20} color={theme.colors.gray} style={styles.searchIcon} />
-                    <Text style={styles.searchPlaceholder}>Search for products</Text>
+                    <Ionicons name="search-outline" size={20} color={theme.colors.gray} />
+                    <Text>Search for products</Text>
                 </TouchableOpacity>
             </View>
 
             <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollViewContent} showsVerticalScrollIndicator={false}>
-                {/* Original content when not searching */}
                 <>
                     {/* Welcome section */}
                     <View style={styles.welcomeSection}>
@@ -968,7 +967,8 @@ const styles = StyleSheet.create({
         paddingVertical: theme.spacing.md,
     },
     categoryCard: {
-        width: 20,
+        width: 40,
+        height: 40,
         aspectRatio: 0.9,
         borderRadius: theme.borderRadius.large,
         padding: theme.spacing.sm,
@@ -978,8 +978,8 @@ const styles = StyleSheet.create({
         ...theme.shadow.small,
     },
     categoryIconContainer: {
-        width: 50,
-        height: 50,
+        width: 30,
+        height: 30,
         borderRadius: 25,
         backgroundColor: "rgba(255, 255, 255, 0.8)",
         justifyContent: "center",
@@ -987,7 +987,7 @@ const styles = StyleSheet.create({
         marginBottom: 10,
     },
     categoryName: {
-        fontSize: 12,
+        fontSize: 10,
         fontWeight: "600",
         textAlign: "center",
     },
@@ -1002,21 +1002,13 @@ const styles = StyleSheet.create({
     },
     searchBar: {
         height: 48,
+        display: "flex",
+        gap: 5,
         backgroundColor: theme.colors.lightGray,
         borderRadius: 24,
         flexDirection: "row",
         alignItems: "center",
         paddingHorizontal: theme.spacing.md,
-    },
-    searchIcon: {
-        marginRight: theme.spacing.sm,
-    },
-    searchPlaceholder: {
-        flex: 1,
-        height: "100%",
-        fontSize: 16,
-        color: theme.colors.gray,
-        fontStyle: "italic",
     },
 });
 

@@ -54,8 +54,8 @@ app.use(errorHandler);
 
 const PORT = config.port;
 const HOST = config.host;
-const server = app.listen(PORT, HOST, () => {
-    console.log(colors.yellow.bold(`Server running on http://${process.env.HOST}:${process.env.PORT}`));
+const server = app.listen(PORT, () => {
+    console.log(colors.yellow.bold(`Server running PORT ${process.env.PORT}`));
 });
 
 // Handle unhandled promise rejections
