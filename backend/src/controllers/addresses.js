@@ -14,7 +14,7 @@ exports.getAddresses = async (req, res, next) => {
             if (req.params.userId !== req.user.id && req.user.role !== "vendor") {
                 return next(new ErrorResponse(`User ${req.user.id} is not authorized to view addresses for user ${req.params.userId}`, 401));
             }
-
+            ß;
             addresses = await Address.find({ user: req.params.userId });
         } else {
             addresses = await Address.find({ user: req.user.id });

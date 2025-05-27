@@ -1,22 +1,5 @@
 import React, { useEffect, useState } from "react";
-import {
-    View,
-    Text,
-    StyleSheet,
-    TouchableOpacity,
-    ScrollView,
-    Image,
-    ActivityIndicator,
-    Dimensions,
-    ImageBackground,
-    Linking,
-    Alert,
-    useWindowDimensions,
-    TextInput,
-    Animated,
-    Easing,
-    Platform,
-} from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Image, ActivityIndicator, Dimensions, ImageBackground, useWindowDimensions } from "react-native";
 import { useSelector, useDispatch } from "react-redux";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -25,7 +8,6 @@ import axios from "axios";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import Header from "../components/Header";
-import Button from "../components/Button";
 import Card3D from "../components/Card3D";
 import alert from "../utils/alert";
 import { theme } from "../theme";
@@ -36,6 +18,7 @@ import * as locationApi from "../api/locationApi";
 import * as productApi from "../api/productApi";
 import * as shopApi from "../api/shopApi";
 import { GOOGLE_MAPS_API_KEY } from "../utils/config";
+import { LocationService } from "../services/LocationService";
 
 const { width } = Dimensions.get("window");
 const CARD_WIDTH = width * 0.7;
@@ -182,53 +165,23 @@ const HomeScreen: React.FC = () => {
 
     const fetchNearbyShops = async () => {
         try {
-            setLoading((prev) => ({ ...prev, shops: true }));
+            const location = await LocationService.getCurrentLocation();
+            const { latitude, longitude } = location;
 
-            let response;
-            // If we already have location data, use it
-            if (locationData) {
-                response = await shopApi.getNearbyShops(locationData);
-            } else {
-                // Try to get current location
-                try {
-                    const { status } = await Location.requestForegroundPermissionsAsync();
-
-                    if (status === "granted") {
-                        const location = await Location.getCurrentPositionAsync({
-                            accuracy: Location.Accuracy.Balanced,
-                        });
-
-                        const coords = {
-                            latitude: location.coords.latitude,
-                            longitude: location.coords.longitude,
-                        };
-
-                        setLocationData(coords);
-
-                        // Use the location for nearby shops
-                        response = await shopApi.getNearbyShops(coords);
-
-                        // Also update server with user location if logged in
-                        if (user) {
-                            await locationApi.updateUserLocation(coords);
-                        }
-                    } else {
-                        // No permission, use the default endpoint
-                        response = await shopApi.getNearbyShops();
-                    }
-                } catch (locationError) {
-                    console.error("Error getting location:", locationError);
-                    // Fall back to regular endpoint
-                    response = await shopApi.getNearbyShops();
-                }
+            try {
+                const response = await LocationService.geocodeStringAddress(`${latitude},${longitude}`);
+                const locationString = `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
+                setLocation(locationString);
+            } catch (error) {
+                console.error("Error getting location name:", error);
+                setLocation("Location Not found");
             }
 
-            const shopsData = response.data as unknown as Shop[];
-            setNearbyShops(shopsData);
+            const response = await LocationService.getNearbyShops(location);
+            setNearbyShops(response.data);
         } catch (error) {
-            console.error("Failed to fetch nearby shops:", error);
-        } finally {
-            setLoading((prev) => ({ ...prev, shops: false }));
+            console.error("Error getting location:", error);
+            setLocation("Error getting location");
         }
     };
 

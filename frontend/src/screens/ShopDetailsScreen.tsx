@@ -466,39 +466,6 @@ const ShopDetailsScreen: React.FC = () => {
                 <View style={styles.divider} />
 
                 {renderShopMap()}
-
-                <View style={styles.sectionContainer}>
-                    <Text style={styles.sectionTitle}>Products</Text>
-                    {loading ? (
-                        <ActivityIndicator size="small" color={theme.colors.primary} style={styles.productsLoading} />
-                    ) : products.length > 0 ? (
-                        <View>
-                            <FlatList
-                                data={products.slice(0, 4)}
-                                keyExtractor={(item) => item._id}
-                                renderItem={renderProductItem}
-                                horizontal
-                                showsHorizontalScrollIndicator={false}
-                                contentContainerStyle={styles.productsList}
-                            />
-
-                            <TouchableOpacity
-                                style={styles.viewAllButton}
-                                onPress={() =>
-                                    navigation.navigate("TabNavigator", {
-                                        screen: "ProductsTab",
-                                        params: { shopId },
-                                    })
-                                }
-                            >
-                                <Text style={styles.viewAllButtonText}>View All Products</Text>
-                                <FontAwesome name="arrow-right" size={16} color={theme.colors.primary} />
-                            </TouchableOpacity>
-                        </View>
-                    ) : (
-                        <Text style={styles.noProductsText}>This shop doesn't have any products yet.</Text>
-                    )}
-                </View>
             </ScrollView>
         </View>
     );

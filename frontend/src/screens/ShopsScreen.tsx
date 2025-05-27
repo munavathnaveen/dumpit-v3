@@ -708,6 +708,7 @@ const ShopsScreen: React.FC = () => {
                                     data={filteredShops}
                                     keyExtractor={(item) => item._id}
                                     renderItem={renderShopItem}
+                                    numColumns={2}
                                     refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
                                     ListFooterComponent={renderFooter}
                                     onEndReached={handleLoadMore}

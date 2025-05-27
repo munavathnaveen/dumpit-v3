@@ -12,7 +12,7 @@ const config = require("../config");
  * @route   POST /api/v1/location/geocode
  * @access  Private
  */
-exports.geocodeAddress = asyncHandler(async (req, res, next) => {
+exports.geocodeAddress = async (req, res, next) => {
     const { address } = req.body;
 
     if (!address) {
@@ -20,11 +20,8 @@ exports.geocodeAddress = asyncHandler(async (req, res, next) => {
     }
 
     try {
-        // Format the address for the API call
         const formattedAddress = `${address.street}, ${address.village}, ${address.district}, ${address.state}, ${address.pincode}`;
-
-        // Make a request to the Google Maps Geocoding API
-        const geocodeUrl = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(formattedAddress)}&key=${process.env.GOOGLE_MAPS_API_KEY}`;
+        const geocodeUrl = `https://geocode.googleapis.com/v4beta/geocode/address/${encodeURIComponent(formattedAddress)}?key=${process.env.GOOGLE_MAPS_API_KEY}`;
 
         const response = await axios.get(geocodeUrl);
 
@@ -48,14 +45,14 @@ exports.geocodeAddress = asyncHandler(async (req, res, next) => {
         console.error("Geocoding error:", error);
         return next(new ErrorResponse("Failed to geocode address", 500));
     }
-});
+};
 
 /**
  * @desc    Calculate distance between two points
  * @route   POST /api/v1/location/distance
  * @access  Private
  */
-exports.calculateDistance = asyncHandler(async (req, res, next) => {
+exports.calculateDistance = async (req, res, next) => {
     const { origins, destinations } = req.body;
 
     if (!origins || !destinations) {
@@ -63,125 +60,112 @@ exports.calculateDistance = asyncHandler(async (req, res, next) => {
     }
 
     try {
-        // Format the origin and destination for the API call
-        const originsStr = Array.isArray(origins) ? origins.map((origin) => `${origin.lat},${origin.lng}`).join("|") : `${origins.lat},${origins.lng}`;
+        const originsStr = Array.isArray(origins) ? origins.map((o) => `${o.lat},${o.lng}`).join("|") : `${origins.lat},${origins.lng}`;
+        const destinationsStr = Array.isArray(destinations) ? destinations.map((d) => `${d.lat},${d.lng}`).join("|") : `${destinations.lat},${destinations.lng}`;
 
-        const destinationsStr = Array.isArray(destinations) ? destinations.map((dest) => `${dest.lat},${dest.lng}`).join("|") : `${destinations.lat},${destinations.lng}`;
-
-        // Make a request to the Google Maps Distance Matrix API
-        const distanceUrl = `https://maps.googleapis.com/maps/api/distancematrix/json?origins=${originsStr}&destinations=${destinationsStr}&key=${process.env.GOOGLE_MAPS_API_KEY}`;
-
-        const response = await axios.get(distanceUrl);
+        const distanceUrl = `https://routespreferred.googleapis.com/v1:computeRoutes?origin=${originsStr}&destination=${destinationsStr}&key=${process.env.GOOGLE_MAPS_API_KEY}`;
+        const response = await axios.post(distanceUrl);
 
         if (response.data.status !== "OK") {
             return next(new ErrorResponse(`Distance calculation failed: ${response.data.status}`, 400));
         }
 
-        // Return the distance and duration information
         res.status(200).json({ success: true, data: response.data });
     } catch (error) {
         console.error("Distance calculation error:", error);
         return next(new ErrorResponse("Failed to calculate distance", 500));
     }
-});
+};
 
 /**
  * @desc    Find shops near a specific location
  * @route   GET /api/v1/location/shops
  * @access  Public
  */
-exports.findNearbyShops = asyncHandler(async (req, res, next) => {
+exports.findNearbyShops = async (req, res, next) => {
     const { longitude, latitude, distance = 10 } = req.query;
 
-    // Check if coordinates are provided
     if (!longitude || !latitude) {
         return next(new ErrorResponse("Please provide longitude and latitude coordinates", 400));
     }
 
-    // Convert distance from kilometers to meters (for MongoDB)
     const radius = distance * 1000;
 
-    // Find shops near the specified location
-    const shops = await Shop.find({
-        location: {
-            $near: {
-                $geometry: {
-                    type: "Point",
-                    coordinates: [parseFloat(longitude), parseFloat(latitude)],
+    try {
+        const shops = await Shop.find({
+            location: {
+                $near: {
+                    $geometry: {
+                        type: "Point",
+                        coordinates: [parseFloat(longitude), parseFloat(latitude)],
+                    },
+                    $maxDistance: radius,
                 },
-                $maxDistance: radius,
             },
-        },
-        isActive: true,
-    })
-        .select("name description address location rating images")
-        .lean();
+            isActive: true,
+        })
+            .select("name description address location rating images")
+            .lean();
 
-    // Calculate and add distance information to each shop
-    const shopsWithDistance = shops.map((shop) => {
-        // Skip shops without valid location data
-        if (!shop.location || !shop.location.coordinates || shop.location.coordinates.length !== 2) {
+        const shopsWithDistance = shops.map((shop) => {
+            if (!shop.location || !shop.location.coordinates || shop.location.coordinates.length !== 2) {
+                return shop;
+            }
+
+            const shopLng = shop.location.coordinates[0];
+            const shopLat = shop.location.coordinates[1];
+            const R = 6371000;
+            const lat1 = (parseFloat(latitude) * Math.PI) / 180;
+            const lat2 = (shopLat * Math.PI) / 180;
+            const lng1 = (parseFloat(longitude) * Math.PI) / 180;
+            const lng2 = (shopLng * Math.PI) / 180;
+            const dLat = lat2 - lat1;
+            const dLng = lng2 - lng1;
+            const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+            const distanceInMeters = R * c;
+
+            shop.distance = Math.round(distanceInMeters);
             return shop;
-        }
+        });
 
-        // Calculate distance using Haversine formula
-        const shopLng = shop.location.coordinates[0];
-        const shopLat = shop.location.coordinates[1];
-
-        // Earth's radius in meters
-        const R = 6371000;
-
-        // Convert to radians
-        const lat1 = (parseFloat(latitude) * Math.PI) / 180;
-        const lat2 = (shopLat * Math.PI) / 180;
-        const lng1 = (parseFloat(longitude) * Math.PI) / 180;
-        const lng2 = (shopLng * Math.PI) / 180;
-
-        // Calculate differences
-        const dLat = lat2 - lat1;
-        const dLng = lng2 - lng1;
-
-        // Haversine formula
-        const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
-        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-        const distanceInMeters = R * c;
-
-        // Add the distance field
-        shop.distance = Math.round(distanceInMeters);
-
-        return shop;
-    });
-
-    res.status(200).json({ success: true, count: shops.length, data: shopsWithDistance });
-});
+        res.status(200).json({ success: true, count: shops.length, data: shopsWithDistance });
+    } catch (error) {
+        console.error("Error fetching nearby shops:", error);
+        return next(new ErrorResponse("Failed to fetch nearby shops", 500));
+    }
+};
 
 /**
  * @desc    Update user's current location
  * @route   PUT /api/v1/location
  * @access  Private
  */
-exports.updateUserLocation = asyncHandler(async (req, res, next) => {
+exports.updateUserLocation = async (req, res, next) => {
     const { longitude, latitude } = req.body;
 
-    // Check if coordinates are provided
     if (!longitude || !latitude) {
         return next(new ErrorResponse("Please provide longitude and latitude coordinates", 400));
     }
 
-    // Update user's current location
-    const user = await User.findByIdAndUpdate(
-        req.user.id,
-        {
-            currentLocation: {
-                type: "Point",
-                coordinates: [parseFloat(longitude), parseFloat(latitude)],
+    try {
+        const user = await User.findByIdAndUpdate(
+            req.user.id,
+            {
+                currentLocation: {
+                    type: "Point",
+                    coordinates: [parseFloat(longitude), parseFloat(latitude)],
+                },
             },
-        },
-        { new: true, runValidators: true }
-    ).select("-password");
+            { new: true, runValidators: true }
+        ).select("-password");
 
-    res.status(200).json({ success: true, data: user });
-});
+        res.status(200).json({ success: true, data: user });
+    } catch (error) {
+        console.error("Error updating user location:", error);
+        return next(new ErrorResponse("Failed to update user location", 500));
+    }
+};
 
 /**
  * @desc    Get orders by location (for vendors)
@@ -191,19 +175,15 @@ exports.updateUserLocation = asyncHandler(async (req, res, next) => {
 exports.getOrdersByLocation = asyncHandler(async (req, res, next) => {
     const { longitude, latitude, distance = 10 } = req.query;
 
-    // Check if coordinates are provided
     if (!longitude || !latitude) {
         return next(new ErrorResponse("Please provide longitude and latitude coordinates", 400));
     }
 
-    // Convert distance from kilometers to meters (for MongoDB)
     const radius = distance * 1000;
 
-    // Get all shops owned by the vendor
-    const shops = await Shop.find({ owner: req.user.id });
+    const shops = await Shop.find({ owner: req.user.id }).select("_id");
     const shopIds = shops.map((shop) => shop._id);
 
-    // Find addresses within the specified distance
     const addresses = await Address.find({
         location: {
             $near: {
@@ -214,11 +194,10 @@ exports.getOrdersByLocation = asyncHandler(async (req, res, next) => {
                 $maxDistance: radius,
             },
         },
-    });
+    }).select("_id");
 
     const addressIds = addresses.map((address) => address._id);
 
-    // Find orders with these addresses and that contain items from the vendor's shops
     const orders = await Order.find({
         shippingAddress: { $in: addressIds },
         "items.shop": { $in: shopIds },
@@ -245,24 +224,45 @@ exports.getDirections = asyncHandler(async (req, res, next) => {
     }
 
     try {
-        // Build the directions API URL
-        let directionsUrl = `https://maps.googleapis.com/maps/api/directions/json?origin=${origin}&destination=${destination}&key=${process.env.GOOGLE_MAPS_API_KEY}`;
+        const directionsUrl = `https://routes.googleapis.com/directions/v2:computeRoutes?key=${process.env.GOOGLE_MAPS_API_KEY}`;
 
-        // Add waypoints if provided
-        if (waypoints) {
-            directionsUrl += `&waypoints=${waypoints}`;
-        }
+        const requestBody = {
+            origin: {
+                location: {
+                    latLng: {
+                        latitude: parseFloat(origin.split(",")[0]),
+                        longitude: parseFloat(origin.split(",")[1]),
+                    },
+                },
+            },
+            destination: {
+                location: {
+                    latLng: {
+                        latitude: parseFloat(destination.split(",")[0]),
+                        longitude: parseFloat(destination.split(",")[1]),
+                    },
+                },
+            },
+            ...(waypoints && {
+                intermediates: waypoints.split("|").map((wp) => {
+                    const [lat, lng] = wp.split(",");
+                    return { location: { latLng: { latitude: parseFloat(lat), longitude: parseFloat(lng) } } };
+                }),
+            }),
+            travelMode: "DRIVE",
+        };
 
-        const response = await axios.get(directionsUrl);
+        const response = await axios.post(directionsUrl, requestBody, {
+            headers: {
+                "Content-Type": "application/json",
+                "X-Goog-Api-Key": process.env.GOOGLE_MAPS_API_KEY,
+                "X-Goog-FieldMask": "*",
+            },
+        });
 
-        if (response.data.status !== "OK") {
-            return next(new ErrorResponse(`Directions request failed: ${response.data.status}`, 400));
-        }
-
-        // Return the directions data
         res.status(200).json({ success: true, data: response.data });
     } catch (error) {
-        console.error("Directions error:", error);
+        console.error("Directions error:", error.response?.data || error.message);
         return next(new ErrorResponse("Failed to get directions", 500));
     }
 });
@@ -275,22 +275,18 @@ exports.getDirections = asyncHandler(async (req, res, next) => {
 exports.trackOrderLocation = asyncHandler(async (req, res, next) => {
     const orderId = req.params.id;
 
-    // Find the order
     const order = await Order.findById(orderId).populate("shippingAddress").lean();
 
     if (!order) {
         return next(new ErrorResponse(`Order not found with id of ${orderId}`, 404));
     }
 
-    // Check if user is authorized to track this order
     if (order.user.toString() !== req.user.id && req.user.role !== "admin") {
-        // For vendors, check if they own any shop in the order
         if (req.user.role === "vendor") {
-            const shops = await Shop.find({ owner: req.user.id });
+            const shops = await Shop.find({ owner: req.user.id }).select("_id");
             const shopIds = shops.map((shop) => shop._id.toString());
 
             const hasShopInOrder = order.items.some((item) => shopIds.includes(item.shop.toString()));
-
             if (!hasShopInOrder) {
                 return next(new ErrorResponse("Not authorized to track this order", 403));
             }
@@ -299,10 +295,9 @@ exports.trackOrderLocation = asyncHandler(async (req, res, next) => {
         }
     }
 
-    // Get the shipping address location
-    const addressLocation = order.shippingAddress ? order.shippingAddress.location : null;
+    const addressLocation = order.shippingAddress?.location;
 
-    if (!addressLocation || !addressLocation.coordinates) {
+    if (!addressLocation?.coordinates) {
         return next(new ErrorResponse("Location data not available for this order", 404));
     }
 

@@ -2,7 +2,8 @@ import axios from "axios";
 import * as Location from "expo-location";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { getAuthHeader } from "../utils/auth";
-import { API_URL, GOOGLE_MAPS_API_KEY } from "../utils/config";
+import { API_URL } from "../utils/config";
+import * as locationApi from "../api/locationApi";
 
 export interface Coordinates {
     latitude: number;
@@ -24,27 +25,25 @@ export interface LocationType {
 }
 
 export interface DistanceMatrixResult {
-    origin_addresses: string[];
-    destination_addresses: string[];
-    rows: {
-        elements: {
-            distance: {
-                text: string;
-                value: number;
-            };
-            duration: {
-                text: string;
-                value: number;
-            };
-            status: string;
-        }[];
-    }[];
     status: string;
+    rows: Array<{
+        elements: Array<{
+            status: string;
+            distance?: {
+                text: string;
+                value: number;
+            };
+            duration?: {
+                text: string;
+                value: number;
+            };
+        }>;
+    }>;
 }
 
 export interface DirectionsResult {
-    routes: {
-        legs: {
+    routes: Array<{
+        legs: Array<{
             distance: {
                 text: string;
                 value: number;
@@ -53,7 +52,7 @@ export interface DirectionsResult {
                 text: string;
                 value: number;
             };
-            steps: {
+            steps: Array<{
                 distance: {
                     text: string;
                     value: number;
@@ -62,25 +61,15 @@ export interface DirectionsResult {
                     text: string;
                     value: number;
                 };
-                start_location: {
-                    lat: number;
-                    lng: number;
-                };
-                end_location: {
-                    lat: number;
-                    lng: number;
-                };
-                html_instructions: string;
-                travel_mode: string;
                 polyline: {
                     points: string;
                 };
-            }[];
-        }[];
+            }>;
+        }>;
         overview_polyline: {
             points: string;
         };
-    }[];
+    }>;
 }
 
 export class LocationService {
@@ -118,28 +107,30 @@ export class LocationService {
     // Geocode an address to get coordinates
     static async geocodeAddress(address: Address): Promise<LocationType> {
         try {
-            const response = await axios.post(`${API_URL}/location/geocode`, { address }, { headers: await getAuthHeader() });
-
-            return response.data.data.location;
+            const response = await locationApi.geocodeAddress(address);
+            return response.data.location;
         } catch (error) {
             console.error("Error geocoding address:", error);
             throw new Error("Failed to geocode address");
         }
     }
 
-    // Get coordinates from a string address (using Google Maps API directly)
+    // Get coordinates from a string address
     static async geocodeStringAddress(address: string): Promise<Coordinates> {
         try {
-            const response = await axios.get(`https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address)}&key=${GOOGLE_MAPS_API_KEY}`);
+            const addressParts = address.split(",").map((part) => part.trim());
+            const formattedAddress = {
+                street: addressParts[0] || "",
+                village: addressParts[1] || "",
+                district: addressParts[2] || "",
+                state: addressParts[3] || "",
+                pincode: addressParts[4] || "",
+            };
 
-            if (response.data.status !== "OK") {
-                throw new Error(`Geocoding failed: ${response.data.status}`);
-            }
-
-            const location = response.data.results[0].geometry.location;
+            const response = await locationApi.geocodeAddress(formattedAddress);
             return {
-                latitude: location.lat,
-                longitude: location.lng,
+                latitude: response.data.location.coordinates[1],
+                longitude: response.data.location.coordinates[0],
             };
         } catch (error) {
             console.error("Error geocoding string address:", error);
@@ -150,9 +141,8 @@ export class LocationService {
     // Calculate distance between two coordinates
     static async calculateDistance(origins: Coordinates | Coordinates[], destinations: Coordinates | Coordinates[]): Promise<DistanceMatrixResult> {
         try {
-            const response = await axios.post(`${API_URL}/location/distance`, { origins, destinations }, { headers: await getAuthHeader() });
-
-            return response.data.data;
+            const response = await locationApi.calculateDistance(origins, destinations);
+            return response.data;
         } catch (error) {
             console.error("Error calculating distance:", error);
             throw new Error("Failed to calculate distance");
@@ -175,13 +165,8 @@ export class LocationService {
                 console.log("Cache access error:", e);
             }
 
-            const originsStr = Array.isArray(origins) ? origins.map((coord) => `${coord.latitude},${coord.longitude}`).join("|") : `${origins.latitude},${origins.longitude}`;
+            const response = await locationApi.calculateDistance(origins, destinations);
 
-            const destinationsStr = Array.isArray(destinations) ? destinations.map((coord) => `${coord.latitude},${coord.longitude}`).join("|") : `${destinations.latitude},${destinations.longitude}`;
-
-            const response = await axios.get(
-                `https://maps.googleapis.com/maps/api/distancematrix/json?origins=${originsStr}&destinations=${destinationsStr}&units=metric&mode=driving&traffic_model=best_guess&departure_time=now&key=${GOOGLE_MAPS_API_KEY}`
-            );
             try {
                 await AsyncStorage.setItem(`distance_matrix_${cacheKey}`, JSON.stringify({ result: response.data, timestamp: Date.now() }));
             } catch (e) {
@@ -197,24 +182,8 @@ export class LocationService {
 
     static async getDirections(origin: Coordinates, destination: Coordinates, waypoints?: Coordinates[]): Promise<DirectionsResult> {
         try {
-            const originStr = `${origin.latitude},${origin.longitude}`;
-            const destinationStr = `${destination.latitude},${destination.longitude}`;
-            let waypointsStr = "";
-
-            if (waypoints && waypoints.length > 0) {
-                waypointsStr = waypoints.map((point) => `${point.latitude},${point.longitude}`).join("|");
-            }
-
-            const response = await axios.get(`${API_URL}/location/directions`, {
-                params: {
-                    origin: originStr,
-                    destination: destinationStr,
-                    waypoints: waypointsStr || undefined,
-                },
-                headers: await getAuthHeader(),
-            });
-
-            return response.data.data;
+            const response = await locationApi.getDirections(origin, destination, waypoints);
+            return response.data;
         } catch (error) {
             console.error("Error getting directions:", error);
             throw new Error("Failed to get directions");
@@ -223,15 +192,8 @@ export class LocationService {
 
     static async getNearbyShops(coordinates: Coordinates, distance: number = 10): Promise<any> {
         try {
-            const response = await axios.get(`${API_URL}/shops/nearby`, {
-                params: {
-                    latitude: coordinates.latitude,
-                    longitude: coordinates.longitude,
-                    distance,
-                },
-            });
-
-            return response.data;
+            const response = await locationApi.findNearbyShops(coordinates, distance);
+            return response;
         } catch (error) {
             console.error("Error fetching nearby shops:", error);
             throw new Error("Failed to fetch nearby shops");
@@ -241,16 +203,8 @@ export class LocationService {
     // Update user's current location
     static async updateUserLocation(coordinates: Coordinates): Promise<any> {
         try {
-            const response = await axios.put(
-                `${API_URL}/location`,
-                {
-                    latitude: coordinates.latitude,
-                    longitude: coordinates.longitude,
-                },
-                { headers: await getAuthHeader() }
-            );
-
-            return response.data;
+            const response = await locationApi.updateUserLocation(coordinates);
+            return response;
         } catch (error) {
             console.error("Error updating user location:", error);
             throw new Error("Failed to update user location");
