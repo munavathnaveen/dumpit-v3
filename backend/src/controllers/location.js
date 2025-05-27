@@ -60,10 +60,19 @@ exports.calculateDistance = async (req, res, next) => {
     }
 
     try {
-        const originsStr = Array.isArray(origins) ? origins.map((o) => `${o.lat},${o.lng}`).join("|") : `${origins.lat},${origins.lng}`;
-        const destinationsStr = Array.isArray(destinations) ? destinations.map((d) => `${d.lat},${d.lng}`).join("|") : `${destinations.lat},${destinations.lng}`;
+        // Format origins
+        const originsStr = Array.isArray(origins) ? origins.map((o) => `${o.latitude},${o.longitude}`).join("|") : `${origins.latitude},${origins.longitude}`;
+
+        // Format destinations
+        const destinationsStr = Array.isArray(destinations) ? destinations.map((d) => `${d.latitude},${d.longitude}`).join("|") : `${destinations.latitude},${destinations.longitude}`;
+
+        // Make sure we have valid coordinates
+        if (originsStr.includes("undefined") || destinationsStr.includes("undefined")) {
+            return next(new ErrorResponse("Invalid coordinates provided", 400));
+        }
 
         const distanceUrl = `https://routespreferred.googleapis.com/v1:computeRoutes?origin=${originsStr}&destination=${destinationsStr}&key=${process.env.GOOGLE_MAPS_API_KEY}`;
+
         const response = await axios.post(distanceUrl);
 
         if (response.data.status !== "OK") {
