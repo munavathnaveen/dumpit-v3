@@ -286,9 +286,13 @@ const ProductDetailsScreen: React.FC = () => {
         : null;
 
     // Get the distance information (either simple distance or from distance matrix)
-    const distanceInfo = distanceMatrix?.rows?.[0]?.elements?.[0];
-    const distanceText = distanceInfo?.distance?.text || (typeof productData.shop?.distance === "number" ? LocationService.formatDistance(productData.shop.distance) : productData.shop?.distance);
-    const durationText = distanceInfo?.duration?.text;
+    const distanceInfo = distanceMatrix;
+    const distanceText = distanceInfo?.distance
+        ? LocationService.formatDistance(distanceInfo.distance)
+        : typeof productData.shop?.distance === "number"
+        ? LocationService.formatDistance(productData.shop.distance)
+        : productData.shop?.distance;
+    const durationText = distanceInfo?.duration;
 
     return (
         <View style={styles.container}>

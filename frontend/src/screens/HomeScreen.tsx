@@ -19,6 +19,7 @@ import * as productApi from "../api/productApi";
 import * as shopApi from "../api/shopApi";
 import { GOOGLE_MAPS_API_KEY } from "../utils/config";
 import { LocationService } from "../services/LocationService";
+import { Shop as ApiShop } from "../api/shopApi";
 
 const { width } = Dimensions.get("window");
 const CARD_WIDTH = width * 0.7;
@@ -167,6 +168,7 @@ const HomeScreen: React.FC = () => {
         try {
             const location = await LocationService.getCurrentLocation();
             const { latitude, longitude } = location;
+            setLocationData(location);
 
             try {
                 const response = await LocationService.geocodeStringAddress(`${latitude},${longitude}`);
@@ -178,10 +180,38 @@ const HomeScreen: React.FC = () => {
             }
 
             const response = await LocationService.getNearbyShops(location);
-            setNearbyShops(response.data);
+            if (response.success && response.data) {
+                // Calculate distances for each shop
+                const shopsWithDistances = await Promise.all(
+                    response.data.map(async (shop: ApiShop) => {
+                        if (shop.location?.coordinates?.length === 2) {
+                            try {
+                                const distanceMatrix = await LocationService.getDistanceMatrix(location, {
+                                    latitude: shop.location.coordinates[1],
+                                    longitude: shop.location.coordinates[0],
+                                });
+                                return {
+                                    ...shop,
+                                    distance: distanceMatrix.distance,
+                                    duration: distanceMatrix.duration,
+                                };
+                            } catch (error) {
+                                console.error(`Error calculating distance for shop ${shop._id}:`, error);
+                                return shop;
+                            }
+                        }
+                        return shop;
+                    })
+                );
+                setNearbyShops(shopsWithDistances);
+            } else {
+                console.error("Invalid response from getNearbyShops:", response);
+                setNearbyShops([]);
+            }
         } catch (error) {
-            console.error("Error getting location:", error);
+            console.error("Error getting location or nearby shops:", error);
             setLocation("Error getting location");
+            setNearbyShops([]);
         }
     };
 

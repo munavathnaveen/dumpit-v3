@@ -145,7 +145,9 @@ const ShopsScreen: React.FC = () => {
             console.log("Calculating distances for", filteredShops.length, "shops");
 
             // Extract shops with valid location data
-            const shopsWithLocation = filteredShops.filter((shop) => shop.location && shop.location.coordinates && shop.location.coordinates.length === 2);
+            const shopsWithLocation = filteredShops.filter(
+                (shop) => shop.location && shop.location.coordinates && shop.location.coordinates.length === 2 && shop.location.coordinates[0] !== 0 && shop.location.coordinates[1] !== 0
+            );
 
             if (!shopsWithLocation.length) {
                 console.log("No shops with valid coordinates found");
@@ -172,18 +174,13 @@ const ShopsScreen: React.FC = () => {
                     try {
                         const distanceMatrix = await LocationService.getDistanceMatrix(userLocation, destinations);
 
-                        if (distanceMatrix?.rows?.[0]?.elements) {
-                            batch.forEach((shop, index) => {
-                                const element = distanceMatrix.rows[0].elements[index];
-                                if (element?.status === "OK" && element?.distance?.text) {
-                                    distances[shop._id] = element.distance.text;
-                                } else {
-                                    console.log(`Distance calculation failed for shop ${shop.name} (${shop._id}): ${element?.status || "Unknown error"}`);
-                                }
-                            });
-                        } else {
-                            console.log("Invalid distance matrix response structure:", distanceMatrix?.rows ? "Missing elements" : "Missing rows");
-                        }
+                        batch.forEach((shop, index) => {
+                            if (distanceMatrix) {
+                                distances[shop._id] = LocationService.formatDistance(distanceMatrix.distance);
+                            } else {
+                                console.log(`Distance calculation failed for shop ${shop.name} (${shop._id})`);
+                            }
+                        });
                     } catch (error) {
                         console.error("Error calculating distances for batch:", error);
                     }
@@ -200,7 +197,7 @@ const ShopsScreen: React.FC = () => {
 
                 setShopDistances(distances);
             } catch (error) {
-                console.error("Error in distance calculation process:", error);
+                console.error("Error in distance calculation:", error);
             }
         };
 

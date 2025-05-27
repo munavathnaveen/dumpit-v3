@@ -78,13 +78,27 @@ export const calculateDistance = async (
     destinations: LocationData | LocationData[]
 ): Promise<{
     success: boolean;
-    data: any;
+    data: {
+        distance: number;
+        duration: string;
+        polyline: string;
+    };
 }> => {
-    const response = await apiClient.post("/location/distance", {
-        origins,
-        destinations,
-    });
-    return response.data;
+    try {
+        const response = await apiClient.post("/location/distance", {
+            origins,
+            destinations,
+        });
+
+        if (!response.data.success || !response.data.data) {
+            throw new Error(response.data.data?.message || "Failed to calculate distance");
+        }
+
+        return response.data;
+    } catch (error) {
+        console.error("Error calculating distance:", error);
+        throw new Error(error instanceof Error ? error.message : "Failed to calculate distance");
+    }
 };
 
 /**

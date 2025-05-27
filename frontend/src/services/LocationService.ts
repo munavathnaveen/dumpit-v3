@@ -25,20 +25,9 @@ export interface LocationType {
 }
 
 export interface DistanceMatrixResult {
-    status: string;
-    rows: Array<{
-        elements: Array<{
-            status: string;
-            distance?: {
-                text: string;
-                value: number;
-            };
-            duration?: {
-                text: string;
-                value: number;
-            };
-        }>;
-    }>;
+    distance: number;
+    duration: string;
+    polyline: string;
 }
 
 export interface DirectionsResult {
@@ -167,16 +156,32 @@ export class LocationService {
 
             const response = await locationApi.calculateDistance(origins, destinations);
 
+            if (!response.success || !response.data) {
+                throw new Error("Failed to calculate distance");
+            }
+
+            const result = {
+                distance: response.data.distance,
+                duration: response.data.duration,
+                polyline: response.data.polyline,
+            };
+
             try {
-                await AsyncStorage.setItem(`distance_matrix_${cacheKey}`, JSON.stringify({ result: response.data, timestamp: Date.now() }));
+                await AsyncStorage.setItem(
+                    `distance_matrix_${cacheKey}`,
+                    JSON.stringify({
+                        result,
+                        timestamp: Date.now(),
+                    })
+                );
             } catch (e) {
                 console.log("Cache write error:", e);
             }
 
-            return response.data;
+            return result;
         } catch (error) {
             console.error("Error getting distance matrix:", error);
-            throw new Error("Failed to get distance matrix");
+            throw new Error(error instanceof Error ? error.message : "Failed to get distance matrix");
         }
     }
 
