@@ -21,7 +21,7 @@ exports.geocodeAddress = async (req, res, next) => {
 
     try {
         const formattedAddress = `${address.street}, ${address.village}, ${address.district}, ${address.state}, ${address.pincode}`;
-        const geocodeUrl = `https://geocode.googleapis.com/v4beta/geocode/address/${encodeURIComponent(formattedAddress)}?key=${process.env.GOOGLE_MAPS_API_KEY}`;
+        const geocodeUrl = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(formattedAddress)}&key=${process.env.GOOGLE_MAPS_API_KEY}`;
 
         const response = await axios.get(geocodeUrl);
 
@@ -53,99 +53,46 @@ exports.geocodeAddress = async (req, res, next) => {
  * @access  Private
  */
 exports.calculateDistance = async (req, res, next) => {
-    const { origins, destinations } = req.body;
+  const { origins, destinations } = req.body;
 
-    if (!origins || !destinations) {
-        return next(new ErrorResponse("Please provide origin and destination coordinates", 400));
+  if (!origins || !destinations) {
+    return next(new ErrorResponse("Please provide origin and destination coordinates", 400));
+  }
+
+  try {
+    // Format origins
+    const originsStr = Array.isArray(origins)
+      ? origins.map((o) => `${o.latitude},${o.longitude}`).join("|")
+      : `${origins.latitude},${origins.longitude}`;
+
+    // Format destinations
+    const destinationsStr = Array.isArray(destinations)
+      ? destinations.map((d) => `${d.latitude},${d.longitude}`).join("|")
+      : `${destinations.latitude},${destinations.longitude}`;
+
+    // Validate coordinates
+    if (originsStr.includes("undefined") || destinationsStr.includes("undefined")) {
+      return next(new ErrorResponse("Invalid coordinates provided", 400));
     }
 
-    try {
-        // Validate coordinates
-        const validateCoordinates = (coords) => {
-            if (Array.isArray(coords)) {
-                return coords.every(
-                    (c) =>
-                        typeof c.latitude === "number" &&
-                        typeof c.longitude === "number" &&
-                        !isNaN(c.latitude) &&
-                        !isNaN(c.longitude) &&
-                        c.latitude >= -90 &&
-                        c.latitude <= 90 &&
-                        c.longitude >= -180 &&
-                        c.longitude <= 180
-                );
-            }
-            return (
-                typeof coords.latitude === "number" &&
-                typeof coords.longitude === "number" &&
-                !isNaN(coords.latitude) &&
-                !isNaN(coords.longitude) &&
-                coords.latitude >= -90 &&
-                coords.latitude <= 90 &&
-                coords.longitude >= -180 &&
-                coords.longitude <= 180
-            );
-        };
+    // Use Distance Matrix API URL and GET request
+    const distanceUrl = `https://maps.googleapis.com/maps/api/distancematrix/json?origins=${encodeURIComponent(
+      originsStr
+    )}&destinations=${encodeURIComponent(destinationsStr)}&key=${process.env.GOOGLE_MAPS_API_KEY}`;
 
-        if (!validateCoordinates(origins) || !validateCoordinates(destinations)) {
-            return next(new ErrorResponse("Invalid coordinates provided", 400));
-        }
+    const response = await axios.get(distanceUrl);
 
-        // Format origins
-        const originsStr = Array.isArray(origins) ? origins.map((o) => `${o.latitude},${o.longitude}`).join("|") : `${origins.latitude},${origins.longitude}`;
-
-        // Format destinations
-        const destinationsStr = Array.isArray(destinations) ? destinations.map((d) => `${d.latitude},${d.longitude}`).join("|") : `${destinations.latitude},${destinations.longitude}`;
-
-        const distanceUrl = `https://routes.googleapis.com/directions/v2:computeRoutes?key=${process.env.GOOGLE_MAPS_API_KEY}`;
-
-        const requestBody = {
-            origin: {
-                location: {
-                    latLng: Array.isArray(origins) ? { latitude: origins[0].latitude, longitude: origins[0].longitude } : { latitude: origins.latitude, longitude: origins.longitude },
-                },
-            },
-            destination: {
-                location: {
-                    latLng: Array.isArray(destinations)
-                        ? { latitude: destinations[0].latitude, longitude: destinations[0].longitude }
-                        : { latitude: destinations.latitude, longitude: destinations.longitude },
-                },
-            },
-            travelMode: "DRIVE",
-            routingPreference: "TRAFFIC_AWARE",
-            computeAlternativeRoutes: false,
-            routeModifiers: {
-                avoidTolls: false,
-                avoidHighways: false,
-            },
-        };
-
-        const response = await axios.post(distanceUrl, requestBody, {
-            headers: {
-                "Content-Type": "application/json",
-                "X-Goog-Api-Key": process.env.GOOGLE_MAPS_API_KEY,
-                "X-Goog-FieldMask": "routes.duration,routes.distanceMeters,routes.polyline.encodedPolyline",
-            },
-        });
-
-        if (!response.data || !response.data.routes || response.data.routes.length === 0) {
-            return next(new ErrorResponse("No route found between the provided locations", 404));
-        }
-
-        res.status(200).json({
-            success: true,
-            data: {
-                distance: response.data.routes[0].distanceMeters,
-                duration: response.data.routes[0].duration,
-                polyline: response.data.routes[0].polyline.encodedPolyline,
-            },
-        });
-    } catch (error) {
-        console.error("Distance calculation error:", error.response?.data || error.message);
-        return next(new ErrorResponse(error.response?.data?.error?.message || "Failed to calculate distance", error.response?.status || 500));
+    if (response.data.status !== "OK") {
+      return next(new ErrorResponse(`Distance calculation failed: ${response.data.status}`, 400));
     }
+
+    res.status(200).json({ success: true, data: response.data });
+  } catch (error) {
+    console.error("Distance calculation error:", error);
+    return next(new ErrorResponse("Failed to calculate distance", 500));
+  }
 };
+
 
 /**
  * @desc    Find shops near a specific location
