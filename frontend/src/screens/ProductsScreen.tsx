@@ -3,7 +3,6 @@ import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, 
 import { useSelector, useDispatch } from "react-redux";
 import { FontAwesome, Ionicons, MaterialIcons } from "@expo/vector-icons";
 import Slider from "@react-native-community/slider";
-import { RouteProp } from "@react-navigation/native";
 import debounce from "lodash.debounce";
 import Toast from "react-native-toast-message";
 
@@ -15,7 +14,6 @@ import Card3D from "../components/Card3D";
 import SearchBar from "../components/SearchBar";
 import ScreenHeader from "../components/ScreenHeader";
 import { useNavigation, useTabRoute } from "../navigation/hooks";
-import { BottomTabParamList } from "../navigation/types";
 import * as productApi from "../api/productApi";
 import { LocationService, Coordinates } from "../services/LocationService";
 import alert from "../utils/alert";
@@ -456,24 +454,24 @@ const ProductsScreen: React.FC = () => {
                     <View style={styles.productHeader}>
                         <View style={styles.imageContainer}>
                             <Image source={{ uri: item.image || "https://via.placeholder.com/150" }} style={styles.productImage} resizeMode="cover" />
-                            {item.discount && item.discount > 0 && (
+                            {item.discount && item.discount > 0 ? (
                                 <View style={styles.discountBadge}>
                                     <Text style={styles.discountText}>{item.discount}% OFF</Text>
                                 </View>
-                            )}
+                            ) : null}
                         </View>
                         <Text style={styles.productName} numberOfLines={2}>
                             {item.name}
                         </Text>
                     </View>
                     <View style={styles.productInfo}>
-                        {item.shop && !shopId && (
+                        {item.shop && !shopId ? (
                             <TouchableOpacity style={styles.shopInfoContainer} onPress={() => navigation.navigate("ShopDetails", { shopId: item.shop._id })}>
                                 <Ionicons name="storefront-outline" size={12} color={theme.colors.gray} />
                                 <Text style={styles.shopName} numberOfLines={1}>
                                     {item.shop.name}
                                 </Text>
-                                {(item.shop.distance || shopDistances[item.shop._id]) && (
+                                {item.shop.distance || shopDistances[item.shop._id] ? (
                                     <View style={styles.distanceRow}>
                                         <Text style={styles.distanceDot}>•</Text>
                                         <FontAwesome name="map-marker" size={10} color={theme.colors.primary} />
@@ -481,15 +479,15 @@ const ProductsScreen: React.FC = () => {
                                             {typeof item.shop.distance === "number" ? LocationService.formatDistance(item.shop.distance) : item.shop.distance || shopDistances[item.shop._id]}
                                         </Text>
                                     </View>
-                                )}
+                                ) : null}
                             </TouchableOpacity>
-                        )}
+                        ) : null}
 
-                        {item.category && (
+                        {item.category ? (
                             <View style={styles.categoryChip}>
                                 <Text style={styles.categoryChipText}>{item.category}</Text>
                             </View>
-                        )}
+                        ) : null}
 
                         <View style={styles.productBottom}>
                             <View style={styles.priceContainer}>
@@ -538,7 +536,7 @@ const ProductsScreen: React.FC = () => {
 
                                     {categories.map((category, index) => (
                                         <TouchableOpacity
-                                            key={index}
+                                            key={`category-${category}-${index}`}
                                             style={[styles.categoryButton, selectedCategory === category && styles.categoryButtonActive]}
                                             onPress={() => setSelectedCategory(category)}
                                         >
@@ -561,7 +559,11 @@ const ProductsScreen: React.FC = () => {
                                     </TouchableOpacity>
 
                                     {productTypes.map((type, index) => (
-                                        <TouchableOpacity key={index} style={[styles.productTypeButton, selectedType === type && styles.productTypeButtonActive]} onPress={() => setSelectedType(type)}>
+                                        <TouchableOpacity
+                                            key={`type-${type}-${index}`}
+                                            style={[styles.productTypeButton, selectedType === type && styles.productTypeButtonActive]}
+                                            onPress={() => setSelectedType(type)}
+                                        >
                                             <Text style={[styles.productTypeButtonText, selectedType === type && styles.productTypeButtonTextActive]}>{type}</Text>
                                         </TouchableOpacity>
                                     ))}
@@ -581,7 +583,11 @@ const ProductsScreen: React.FC = () => {
                                     </TouchableOpacity>
 
                                     {shops.map((shop, index) => (
-                                        <TouchableOpacity key={index} style={[styles.shopButton, selectedShop === shop._id && styles.shopButtonActive]} onPress={() => setSelectedShop(shop._id)}>
+                                        <TouchableOpacity
+                                            key={`shop-${shop._id}-${index}`}
+                                            style={[styles.shopButton, selectedShop === shop._id && styles.shopButtonActive]}
+                                            onPress={() => setSelectedShop(shop._id)}
+                                        >
                                             <Text style={[styles.shopButtonText, selectedShop === shop._id && styles.shopButtonTextActive]}>{shop.name}</Text>
                                         </TouchableOpacity>
                                     ))}
@@ -620,9 +626,9 @@ const ProductsScreen: React.FC = () => {
                         <View style={styles.filterSection}>
                             <Text style={styles.filterSectionTitle}>Sort By</Text>
                             {sortOptions.map((option, index) => (
-                                <TouchableOpacity key={index} style={styles.sortOption} onPress={() => setSortBy(option.value)}>
+                                <TouchableOpacity key={`sort-${option.value}-${index}`} style={styles.sortOption} onPress={() => setSortBy(option.value)}>
                                     <Text style={styles.sortOptionText}>{option.label}</Text>
-                                    {sortBy === option.value && <Ionicons name="checkmark" size={20} color={theme.colors.primary} />}
+                                    {sortBy === option.value ? <Ionicons name="checkmark" size={20} color={theme.colors.primary} /> : null}
                                 </TouchableOpacity>
                             ))}
                         </View>
@@ -648,38 +654,6 @@ const ProductsScreen: React.FC = () => {
             </View>
         </Modal>
     );
-
-    // Scroll detection handler
-    const handleScroll = Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], {
-        useNativeDriver: false,
-        listener: (event: any) => {
-            const currentOffset = event.nativeEvent.contentOffset.y;
-            const direction = currentOffset > 0 && currentOffset > (scrollY as any)._value;
-
-            setIsScrolling(true);
-            setShowNavigation(!direction);
-
-            // Clear existing timeout
-            if (scrollTimeout.current) {
-                clearTimeout(scrollTimeout.current);
-            }
-
-            // Set new timeout to show navigation when scrolling stops
-            scrollTimeout.current = setTimeout(() => {
-                setIsScrolling(false);
-                setShowNavigation(true);
-            }, 1500);
-        },
-    });
-
-    // Cleanup timeout on unmount
-    useEffect(() => {
-        return () => {
-            if (scrollTimeout.current) {
-                clearTimeout(scrollTimeout.current);
-            }
-        };
-    }, []);
 
     if (loading && currentPage === 1 && products.length === 0) {
         return (
@@ -730,7 +704,7 @@ const ProductsScreen: React.FC = () => {
 
                             {/* Active filters display */}
                             <View style={styles.activeFiltersContainer}>
-                                {(isSearching || selectedCategory || selectedType || selectedShop || priceRange[0] > 0 || priceRange[1] < 10000 || inStock) && (
+                                {isSearching || selectedCategory || selectedType || selectedShop || priceRange[0] > 0 || priceRange[1] < 10000 || inStock ? (
                                     <TouchableOpacity
                                         style={styles.clearFiltersButton}
                                         onPress={() => {
@@ -745,19 +719,10 @@ const ProductsScreen: React.FC = () => {
                                         <FontAwesome name="times-circle" size={14} color={theme.colors.error} />
                                         <Text style={styles.clearFiltersText}>Clear {isSearching ? "Search & Filters" : "Filters"}</Text>
                                     </TouchableOpacity>
-                                )}
+                                ) : null}
                             </View>
                         </View>
                     </View>
-
-                    {/* Sort options horizontal list */}
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.sortOptionsContainer}>
-                        {sortOptions.map((option, index) => (
-                            <TouchableOpacity key={index} style={[styles.sortOption, sortBy === option.value && styles.sortOptionActive]} onPress={() => setSortBy(option.value)}>
-                                <Text style={[styles.sortOptionText, sortBy === option.value && styles.sortOptionTextActive]}>{option.label}</Text>
-                            </TouchableOpacity>
-                        ))}
-                    </ScrollView>
 
                     {loading && currentPage === 1 ? (
                         <View style={styles.loaderContainer}>
@@ -772,7 +737,7 @@ const ProductsScreen: React.FC = () => {
                             ) : (
                                 <FlatList
                                     data={filteredProducts}
-                                    keyExtractor={(item) => item._id}
+                                    keyExtractor={(item, index) => `${item._id}-${index}`}
                                     renderItem={renderProductItem}
                                     numColumns={2}
                                     refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
@@ -781,7 +746,6 @@ const ProductsScreen: React.FC = () => {
                                     onEndReachedThreshold={0.5}
                                     contentContainerStyle={styles.productList}
                                     showsVerticalScrollIndicator={false}
-                                    onScroll={handleScroll}
                                     scrollEventThrottle={16}
                                 />
                             )}
@@ -803,7 +767,6 @@ const styles = StyleSheet.create({
     container: {
         flex: 1,
         backgroundColor: theme.colors.background,
-        paddingTop: Platform.OS === "android" ? 25 : 0,
     },
     headerContainer: {
         zIndex: 1000,
@@ -812,11 +775,8 @@ const styles = StyleSheet.create({
     contentContainer: {
         flex: 1,
         padding: theme.spacing.md,
-        paddingBottom: 120,
     },
-    searchContainer: {
-        padding: theme.spacing.sm,
-    },
+    searchContainer: {},
     imageContainer: {
         flex: 1,
         aspectRatio: 1,
@@ -954,7 +914,6 @@ const styles = StyleSheet.create({
     },
     productCard: {
         flex: 1,
-        marginVertical: 8,
         marginHorizontal: 4,
         borderRadius: 12,
         overflow: "hidden",
@@ -1145,7 +1104,7 @@ const styles = StyleSheet.create({
     priceRangeContainer: {
         flexDirection: "row",
         justifyContent: "space-between",
-        marginBottom: 8,
+        // marginBottom: 8,
     },
     priceRangeText: {
         color: theme.colors.text,

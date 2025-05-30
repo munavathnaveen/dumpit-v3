@@ -316,13 +316,13 @@ exports.addProductReview = async (req, res, next) => {
 exports.searchProducts = async (req, res, next) => {
     try {
         const { query } = req.params;
-
+        console.log(query);
         const products = await Product.find({
             $or: [
-                { name: { $regex: `.*${query}.*`, $options: "i" } },
-                { description: { $regex: `.*${query}.*`, $options: "i" } },
-                { category: { $regex: `.*${query}.*`, $options: "i" } },
-                { type: { $regex: `.*${query}.*`, $options: "i" } },
+                { name: { $regex: query, $options: "i" } },
+                { description: { $regex: query, $options: "i" } },
+                { category: { $regex: query, $options: "i" } },
+                { type: { $regex: query, $options: "i" } },
             ],
         }).populate([
             { path: "vendor", select: "name" },

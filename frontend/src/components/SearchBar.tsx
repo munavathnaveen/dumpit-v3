@@ -51,8 +51,6 @@ const styles = StyleSheet.create({
         backgroundColor: theme.colors.white,
         borderRadius: theme.borderRadius.medium,
         paddingHorizontal: theme.spacing.md,
-        paddingVertical: theme.spacing.sm,
-        marginVertical: theme.spacing.sm,
         ...theme.shadow.small,
     },
     icon: {

@@ -53,7 +53,6 @@ app.get("/", (req, res) => {
 app.use(errorHandler);
 
 const PORT = config.port;
-const HOST = config.host;
 const server = app.listen(PORT, () => {
     console.log(colors.yellow.bold(`Server running PORT ${process.env.PORT}`));
 });

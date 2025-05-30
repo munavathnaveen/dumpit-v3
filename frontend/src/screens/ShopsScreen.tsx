@@ -594,8 +594,8 @@ const ShopsScreen: React.FC = () => {
                         <View style={styles.filterSection}>
                             <Text style={styles.filterSectionTitle}>Minimum Rating</Text>
                             <View style={styles.ratingButtonsContainer}>
-                                {[0, 1, 2, 3, 4, 5].map((rating) => (
-                                    <TouchableOpacity key={rating} style={[styles.ratingButton, minRating === rating && styles.ratingButtonActive]} onPress={() => setMinRating(rating)}>
+                                {[0, 1, 2, 3, 4, 5].map((rating, index) => (
+                                    <TouchableOpacity key={index} style={[styles.ratingButton, minRating === rating && styles.ratingButtonActive]} onPress={() => setMinRating(rating)}>
                                         {rating > 0 ? (
                                             <View style={styles.ratingButtonContent}>
                                                 <Text style={[styles.ratingButtonText, minRating === rating && styles.ratingButtonTextActive]}>{rating}</Text>
@@ -664,38 +664,6 @@ const ShopsScreen: React.FC = () => {
         );
     };
 
-    // Scroll detection handler
-    const handleScroll = Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], {
-        useNativeDriver: false,
-        listener: (event: any) => {
-            const currentOffset = event.nativeEvent.contentOffset.y;
-            const direction = currentOffset > 0 && currentOffset > (scrollY as any)._value;
-
-            setIsScrolling(true);
-            setShowNavigation(!direction);
-
-            // Clear existing timeout
-            if (scrollTimeout.current) {
-                clearTimeout(scrollTimeout.current);
-            }
-
-            // Set new timeout to show navigation when scrolling stops
-            scrollTimeout.current = setTimeout(() => {
-                setIsScrolling(false);
-                setShowNavigation(true);
-            }, 1500);
-        },
-    });
-
-    // Cleanup timeout on unmount
-    useEffect(() => {
-        return () => {
-            if (scrollTimeout.current) {
-                clearTimeout(scrollTimeout.current);
-            }
-        };
-    }, []);
-
     return (
         <SafeAreaView style={styles.safeArea}>
             <View style={styles.container}>
@@ -763,7 +731,6 @@ const ShopsScreen: React.FC = () => {
                                     onEndReachedThreshold={0.5}
                                     contentContainerStyle={styles.shopList}
                                     showsVerticalScrollIndicator={false}
-                                    onScroll={handleScroll}
                                     scrollEventThrottle={16}
                                 />
                             )}
