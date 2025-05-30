@@ -57,13 +57,9 @@ const ShopDetailsScreen: React.FC = () => {
                         longitude: shop.location.coordinates[0],
                     });
 
-                    if (distanceMatrix && distanceMatrix.rows && distanceMatrix.rows.length > 0 && distanceMatrix.rows[0].elements && distanceMatrix.rows[0].elements.length > 0) {
-                        const element = distanceMatrix.rows[0].elements[0];
-
-                        if (element.distance && element.duration) {
-                            setDistance(element.distance.text);
-                            setDuration(element.duration.text);
-                        }
+                    if (distanceMatrix && distanceMatrix.distance && distanceMatrix.duration) {
+                        setDistance(LocationService.formatDistance(distanceMatrix.distance));
+                        setDuration(distanceMatrix.duration);
                     }
                 }
             } catch (error) {

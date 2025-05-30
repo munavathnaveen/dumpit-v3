@@ -164,25 +164,24 @@ const ShopsScreen: React.FC = () => {
                 for (let i = 0; i < shopsWithLocation.length; i += batchSize) {
                     const batch = shopsWithLocation.slice(i, i + batchSize);
 
-                    const destinations = batch.map((shop) => ({
-                        latitude: shop.location.coordinates[1],
-                        longitude: shop.location.coordinates[0],
-                    }));
-
                     console.log(`Calculating distances for batch ${i / batchSize + 1} (${batch.length} shops)`);
 
-                    try {
-                        const distanceMatrix = await LocationService.getDistanceMatrix(userLocation, destinations);
+                    // Handle single destination at a time since getDistanceMatrix returns simplified format
+                    for (const shop of batch) {
+                        try {
+                            const distanceMatrix = await LocationService.getDistanceMatrix(userLocation, {
+                                latitude: shop.location.coordinates[1],
+                                longitude: shop.location.coordinates[0],
+                            });
 
-                        batch.forEach((shop, index) => {
-                            if (distanceMatrix) {
+                            if (distanceMatrix && distanceMatrix.distance) {
                                 distances[shop._id] = LocationService.formatDistance(distanceMatrix.distance);
                             } else {
                                 console.log(`Distance calculation failed for shop ${shop.name} (${shop._id})`);
                             }
-                        });
-                    } catch (error) {
-                        console.error("Error calculating distances for batch:", error);
+                        } catch (error) {
+                            console.error(`Error calculating distance for shop ${shop.name}:`, error);
+                        }
                     }
                 }
 

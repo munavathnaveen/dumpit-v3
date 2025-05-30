@@ -202,22 +202,19 @@ const ProductsScreen: React.FC = () => {
                 const batch = shopCoordinates.slice(i, i + batchSize);
 
                 try {
-                    const distanceMatrix = await LocationService.getDistanceMatrix(
-                        userLocation,
-                        batch.map((shop) => ({ latitude: shop.latitude, longitude: shop.longitude }))
-                    );
+                    // Handle single destination at a time for now since getDistanceMatrix returns simplified format
+                    for (const shop of batch) {
+                        try {
+                            const distanceMatrix = await LocationService.getDistanceMatrix(userLocation, { latitude: shop.latitude, longitude: shop.longitude });
 
-                    if (distanceMatrix?.rows?.[0]?.elements) {
-                        batch.forEach((shop, index) => {
-                            const element = distanceMatrix.rows[0].elements[index];
-                            if (element?.status === "OK" && element?.distance?.text) {
-                                distances[shop.id] = element.distance.text;
+                            if (distanceMatrix?.distance) {
+                                distances[shop.id] = LocationService.formatDistance(distanceMatrix.distance);
                             } else {
-                                console.log(`Distance calculation failed for shop ${shop.id}: ${element?.status || "Unknown error"}`);
+                                console.log(`Distance calculation failed for shop ${shop.id}`);
                             }
-                        });
-                    } else {
-                        console.log("Invalid distance matrix response:", distanceMatrix);
+                        } catch (error) {
+                            console.error(`Error calculating distance for shop ${shop.id}:`, error);
+                        }
                     }
                 } catch (error) {
                     console.error("Error calculating distances:", error);

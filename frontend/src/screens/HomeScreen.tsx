@@ -54,16 +54,12 @@ interface Shop {
         city: string;
         pincode: string;
         phone: string;
-        // Add these fields to match usage in code
         village?: string;
         district?: string;
     };
     distance?: string | number;
     categories?: string[];
-    // Add reviews field to match usage in code
     reviews?: { length: number }[];
-    // Add images property to handle it in code
-    images?: string[];
 }
 
 // Ad data structure
@@ -172,6 +168,7 @@ const HomeScreen: React.FC = () => {
 
             try {
                 const response = await LocationService.geocodeStringAddress(`${latitude},${longitude}`);
+                console.log(response);
                 const locationString = `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
                 setLocation(locationString);
             } catch (error) {
@@ -180,6 +177,7 @@ const HomeScreen: React.FC = () => {
             }
 
             const response = await LocationService.getNearbyShops(location);
+            console.log("nearby shops", response);
             if (response.success && response.data) {
                 // Calculate distances for each shop
                 const shopsWithDistances = await Promise.all(
@@ -203,6 +201,7 @@ const HomeScreen: React.FC = () => {
                         return shop;
                     })
                 );
+                console.log("shopsWithDistances", shopsWithDistances);
                 setNearbyShops(shopsWithDistances);
             } else {
                 console.error("Invalid response from getNearbyShops:", response);
@@ -212,6 +211,8 @@ const HomeScreen: React.FC = () => {
             console.error("Error getting location or nearby shops:", error);
             setLocation("Error getting location");
             setNearbyShops([]);
+        } finally {
+            setLoading((prev) => ({ ...prev, shops: false }));
         }
     };
 
@@ -403,7 +404,7 @@ const HomeScreen: React.FC = () => {
                         <View style={styles.shopImageContainer}>
                             <Image
                                 source={{
-                                    uri: shop.image || (shop.images && shop.images.length > 0 ? shop.images[0] : undefined) || "https://i.ibb.co/rskZwbK/shop-placeholder.jpg",
+                                    uri: shop.image || "https://i.ibb.co/rskZwbK/shop-placeholder.jpg",
                                 }}
                                 style={styles.shopImage}
                                 resizeMode="cover"

@@ -12,6 +12,7 @@ export interface Address {
     district: string;
     state: string;
     pincode: string;
+    phone?: string;
 }
 
 /**
@@ -24,11 +25,25 @@ export const updateUserLocation = async (
     data: User;
 }> => {
     const response = await apiClient.put("/location", {
-        latitude: locationData.latitude,
         longitude: locationData.longitude,
+        latitude: locationData.latitude,
     });
     return response.data;
 };
+
+interface Shop {
+    _id: string;
+    name: string;
+    description: string;
+    address: Address;
+    location: {
+        type: string;
+        coordinates: number[];
+    };
+    rating: number;
+    images: string[];
+    distance?: number;
+}
 
 /**
  * Find shops near a specific location
@@ -39,12 +54,12 @@ export const findNearbyShops = async (
 ): Promise<{
     success: boolean;
     count: number;
-    data: any[];
+    data: Shop[];
 }> => {
     const response = await apiClient.get("/location/shops", {
         params: {
-            latitude: locationData.latitude,
             longitude: locationData.longitude,
+            latitude: locationData.latitude,
             distance,
         },
     });
@@ -79,9 +94,14 @@ export const calculateDistance = async (
 ): Promise<{
     success: boolean;
     data: {
-        distance: number;
-        duration: string;
-        polyline: string;
+        rows: Array<{
+            elements: Array<{
+                distance: { text: string; value: number };
+                duration: { text: string; value: number };
+                status: string;
+            }>;
+        }>;
+        status: string;
     };
 }> => {
     try {
@@ -101,6 +121,27 @@ export const calculateDistance = async (
     }
 };
 
+interface DirectionsResponse {
+    routes: Array<{
+        legs: Array<{
+            distance: { text: string; value: number };
+            duration: { text: string; value: number };
+            end_address: string;
+            start_address: string;
+            steps: Array<{
+                distance: { text: string; value: number };
+                duration: { text: string; value: number };
+                html_instructions: string;
+                polyline: { points: string };
+                travel_mode: string;
+            }>;
+        }>;
+        overview_polyline: { points: string };
+        summary: string;
+    }>;
+    status: string;
+}
+
 /**
  * Get directions between points
  */
@@ -110,7 +151,7 @@ export const getDirections = async (
     waypoints?: LocationData[]
 ): Promise<{
     success: boolean;
-    data: any;
+    data: DirectionsResponse;
 }> => {
     const response = await apiClient.get("/location/directions", {
         params: {
@@ -135,8 +176,8 @@ export const getOrdersByLocation = async (
 }> => {
     const response = await apiClient.get("/location/orders", {
         params: {
-            latitude: locationData.latitude,
             longitude: locationData.longitude,
+            latitude: locationData.latitude,
             distance,
         },
     });

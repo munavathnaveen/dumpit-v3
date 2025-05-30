@@ -16,7 +16,6 @@ export interface Address {
     district: string;
     state: string;
     pincode: string;
-    phone: string;
 }
 
 export interface LocationType {
@@ -27,7 +26,7 @@ export interface LocationType {
 export interface DistanceMatrixResult {
     distance: number;
     duration: string;
-    polyline: string;
+    polyline?: string;
 }
 
 export interface DirectionsResult {
@@ -127,18 +126,17 @@ export class LocationService {
         }
     }
 
-    // Calculate distance between two coordinates
-    static async calculateDistance(origins: Coordinates | Coordinates[], destinations: Coordinates | Coordinates[]): Promise<DistanceMatrixResult> {
-        try {
-            const response = await locationApi.calculateDistance(origins, destinations);
-            return response.data;
-        } catch (error) {
-            console.error("Error calculating distance:", error);
-            throw new Error("Failed to calculate distance");
-        }
-    }
+    // Calculate distance between two coordinates - removed to avoid conflicts
+    // Use getDistanceMatrix instead for simplified format
 
-    static async getDistanceMatrix(origins: Coordinates | Coordinates[], destinations: Coordinates | Coordinates[]): Promise<DistanceMatrixResult> {
+    static async getDistanceMatrix(
+        origins: Coordinates | Coordinates[],
+        destinations: Coordinates | Coordinates[]
+    ): Promise<{
+        distance: number;
+        duration: string;
+        polyline?: string;
+    }> {
         try {
             const cacheKey = JSON.stringify({ origins, destinations });
             try {
@@ -156,14 +154,14 @@ export class LocationService {
 
             const response = await locationApi.calculateDistance(origins, destinations);
 
-            if (!response.success || !response.data) {
+            if (!response.success || !response.data || !response.data.rows?.[0]?.elements?.[0]) {
                 throw new Error("Failed to calculate distance");
             }
 
+            const element = response.data.rows[0].elements[0];
             const result = {
-                distance: response.data.distance,
-                duration: response.data.duration,
-                polyline: response.data.polyline,
+                distance: element.distance.value,
+                duration: element.duration.text,
             };
 
             try {
@@ -216,7 +214,18 @@ export class LocationService {
         }
     }
 
-    // Track an order's location
+    // Track an order's location using the location API
+    static async trackOrderLocation(orderId: string): Promise<any> {
+        try {
+            const response = await locationApi.trackOrderLocation(orderId);
+            return response;
+        } catch (error) {
+            console.error("Error tracking order location:", error);
+            throw new Error("Failed to track order location");
+        }
+    }
+
+    // Track an order's location (legacy method - consider using trackOrderLocation instead)
     static async trackOrder(orderId: string): Promise<any> {
         try {
             const response = await axios.get(`${API_URL}/orders/${orderId}/tracking`, { headers: await getAuthHeader() });
