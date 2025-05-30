@@ -354,43 +354,33 @@ const HomeScreen: React.FC = () => {
         const discountedPrice = originalPrice - originalPrice * (discountPercent / 100);
 
         return (
-            <TouchableOpacity key={product._id} style={{ margin: 8, width: productCardWidth }} onPress={() => navigateToProductDetails(product._id)}>
-                <Card3D style={styles.productCard}>
-                    <LinearGradient
-                        colors={["#d4e2ff", "#e3d1ff"]} // bluish to violet gradient
-                        start={{ x: 0, y: 0 }}
-                        end={{ x: 1, y: 1 }}
-                        style={styles.gradientBackground}
-                    >
-                        <View style={styles.productImageContainer}>
-                            <Image source={{ uri: imageUrl }} style={styles.productImage} resizeMode="cover" />
-                            {discountPercent > 0 && (
-                                <View style={styles.discountBadge}>
-                                    <Text style={styles.discountText}>{discountPercent}% OFF</Text>
-                                </View>
-                            )}
-                        </View>
-
-                        <View style={styles.productInfo}>
-                            <Text style={styles.productName} numberOfLines={1}>
-                                {product.name}
-                            </Text>
-
-                            {product.shop && (
-                                <View style={styles.shopInfo}>
-                                    <Ionicons name="storefront-outline" size={12} color={theme.colors.gray} />
-                                    <Text style={styles.shopName} numberOfLines={1}>
-                                        {product.shop.name}
-                                    </Text>
-                                </View>
-                            )}
-
-                            <View style={styles.productPriceContainer}>
-                                <Text style={styles.productPrice}>₹{discountedPrice.toFixed(2)}</Text>
-                                {discountPercent > 0 && <Text style={styles.originalPrice}>₹{originalPrice.toFixed(2)}</Text>}
+            <TouchableOpacity key={product._id} style={[styles.productCard, { width: productCardWidth }]} onPress={() => navigateToProductDetails(product._id)} activeOpacity={0.8}>
+                <Card3D style={styles.productCardContainer}>
+                    <View style={styles.productImageContainer}>
+                        <Image source={{ uri: imageUrl }} style={styles.productImage} resizeMode="cover" />
+                        {discountPercent > 0 && (
+                            <View style={styles.discountBadge}>
+                                <Text style={styles.discountText}>{discountPercent}% OFF</Text>
                             </View>
+                        )}
+                    </View>
+
+                    <View style={styles.productInfo}>
+                        <Text style={styles.productName} numberOfLines={1}>
+                            {product.name}
+                        </Text>
+
+                        {product.shop && (
+                            <Text style={styles.shopName} numberOfLines={1}>
+                                {product.shop.name}
+                            </Text>
+                        )}
+
+                        <View style={styles.productPriceContainer}>
+                            <Text style={styles.productPrice}>₹{discountedPrice.toFixed(0)}</Text>
+                            {discountPercent > 0 && <Text style={styles.originalPrice}>₹{originalPrice.toFixed(0)}</Text>}
                         </View>
-                    </LinearGradient>
+                    </View>
                 </Card3D>
             </TouchableOpacity>
         );
@@ -556,26 +546,6 @@ const HomeScreen: React.FC = () => {
                         )}
                     </View>
 
-                    {/* Featured Products section
-                    <View style={styles.section}>
-                        <View style={styles.sectionHeader}>
-                            <Text style={styles.sectionTitle}>Featured Products</Text>
-                            <TouchableOpacity onPress={() => navigation.navigate("ProductsTab")}>
-                                <Text style={styles.viewAllText}>View All</Text>
-                            </TouchableOpacity>
-                        </View>
-
-                        {loading.products ? (
-                            <ActivityIndicator size="small" color={theme.colors.primary} />
-                        ) : featuredProducts.length > 0 ? (
-                            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.productsContainer}>
-                                {featuredProducts.map((product) => renderProductCard(product))}
-                            </ScrollView>
-                        ) : (
-                            <Text style={styles.noDataText}>No featured products available</Text>
-                        )}
-                    </View> */}
-
                     {/* Nearby Shops section */}
                     <View style={styles.section}>
                         <View style={styles.sectionHeader}>
@@ -608,17 +578,8 @@ const HomeScreen: React.FC = () => {
                         {loading.products ? (
                             <ActivityIndicator size="small" color={theme.colors.primary} />
                         ) : Products.length > 0 ? (
-                            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.productsContainer}>
-                                {Products.map((product) => (
-                                    <View key={product._id} style={styles.productCardWrapper}>
-                                        <Image
-                                            source={{ uri: product.images && product.images.length > 0 ? product.images[0] : "https://via.placeholder.com/150" }}
-                                            style={styles.productImage}
-                                            resizeMode="cover"
-                                        />
-                                        <Text style={styles.productName}>{product.name}</Text>
-                                    </View>
-                                ))}
+                            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.productsHorizontalContainer}>
+                                {Products.slice(0, 6).map((product) => renderProductCard(product))}
                             </ScrollView>
                         ) : (
                             <Text style={styles.noDataText}>No products available</Text>
@@ -755,48 +716,53 @@ const styles = StyleSheet.create({
         paddingRight: theme.spacing.sm,
         paddingVertical: theme.spacing.md,
     },
-    productCardWrapper: {
-        marginRight: theme.spacing.md,
-        width: 120,
-        height: 120,
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "center",
-        gap: 4,
-    },
     productCard: {
-        backgroundColor: "#3498db",
+        marginRight: theme.spacing.md,
+        aspectRatio: 1,
+        borderRadius: theme.borderRadius.large,
     },
-    productImageContainer: {},
+    productCardContainer: {
+        flex: 1,
+        backgroundColor: theme.colors.white,
+        borderRadius: theme.borderRadius.large,
+        overflow: "hidden",
+        ...theme.shadow.medium,
+        elevation: 4,
+    },
+    productImageContainer: {
+        flex: 1,
+        aspectRatio: 1,
+        position: "relative",
+    },
     productImage: {
-        width: 60,
-        height: 60,
-        borderRadius: 30,
+        width: "100%",
+        height: "100%",
+        borderTopLeftRadius: theme.borderRadius.large,
+        borderTopRightRadius: theme.borderRadius.large,
     },
     discountBadge: {
         position: "absolute",
-        top: 10,
-        right: 10,
+        top: 8,
+        right: 8,
         backgroundColor: theme.colors.error,
-        paddingHorizontal: 8,
-        paddingVertical: 4,
-        borderRadius: 12,
+        paddingHorizontal: 6,
+        paddingVertical: 2,
+        borderRadius: 8,
     },
     discountText: {
         color: "#FFFFFF",
         fontWeight: "bold",
-        fontSize: 12,
+        fontSize: 10,
     },
     productInfo: {
-        padding: theme.spacing.md,
+        padding: theme.spacing.sm,
+        backgroundColor: theme.colors.white,
     },
     productName: {
-        fontSize: 16,
-        fontWeight: "bold",
+        fontSize: 14,
+        fontWeight: "600",
         color: theme.colors.text,
-        marginBottom: 6,
-        alignSelf: "center",
+        marginBottom: 2,
     },
     shopInfo: {
         flexDirection: "row",
@@ -805,23 +771,23 @@ const styles = StyleSheet.create({
     },
     shopName: {
         fontSize: 12,
-        color: theme.colors.accent,
-        fontWeight: "500",
+        color: theme.colors.gray,
+        marginBottom: 4,
     },
     productPriceContainer: {
         flexDirection: "row",
         alignItems: "center",
+        justifyContent: "space-between",
     },
     productPrice: {
-        fontSize: 18,
+        fontSize: 14,
         fontWeight: "bold",
         color: theme.colors.primary,
     },
     originalPrice: {
-        fontSize: 14,
+        fontSize: 11,
         color: theme.colors.gray,
         textDecorationLine: "line-through",
-        marginLeft: 8,
     },
     shopCardWrapper: {
         marginRight: theme.spacing.md,
@@ -1036,6 +1002,11 @@ const styles = StyleSheet.create({
         flexDirection: "row",
         alignItems: "center",
         paddingHorizontal: theme.spacing.md,
+    },
+    productsHorizontalContainer: {
+        paddingLeft: theme.spacing.lg,
+        paddingRight: theme.spacing.sm,
+        paddingVertical: theme.spacing.md,
     },
 });
 

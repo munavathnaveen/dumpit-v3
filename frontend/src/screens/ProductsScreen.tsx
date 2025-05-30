@@ -1,5 +1,5 @@
-import React, { useEffect, useState, useCallback } from "react";
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Image, RefreshControl, Modal, ScrollView, Switch, SafeAreaView, Platform } from "react-native";
+import React, { useEffect, useState, useCallback, useRef } from "react";
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Image, RefreshControl, Modal, ScrollView, Switch, SafeAreaView, Platform, Animated } from "react-native";
 import { useSelector, useDispatch } from "react-redux";
 import { FontAwesome, Ionicons, MaterialIcons } from "@expo/vector-icons";
 import Slider from "@react-native-community/slider";
@@ -63,6 +63,12 @@ const ProductsScreen: React.FC = () => {
     const [isSearching, setIsSearching] = useState(false);
     const [userLocation, setUserLocation] = useState<Coordinates | null>(null);
     const [shopDistances, setShopDistances] = useState<Record<string, string>>({});
+
+    // Scroll detection for hiding/showing header and navbar
+    const scrollY = useRef(new Animated.Value(0)).current;
+    const [isScrolling, setIsScrolling] = useState(false);
+    const [showNavigation, setShowNavigation] = useState(true);
+    const scrollTimeout = useRef<NodeJS.Timeout | null>(null);
 
     // Create a properly implemented debounced search function with 1-second delay
     const debouncedSearch = useCallback(
@@ -444,54 +450,67 @@ const ProductsScreen: React.FC = () => {
     };
 
     const renderProductItem = ({ item }: { item: Product }) => (
-        <Card3D style={styles.productCard}>
-            <TouchableOpacity onPress={() => navigation.navigate("ProductDetails", { productId: item._id })} activeOpacity={0.9}>
-                <View style={styles.imageContainer}>
-                    <Image source={{ uri: item.image || "https://via.placeholder.com/150" }} style={styles.circularImage} />
-                </View>
-            </TouchableOpacity>
-
-            <View style={styles.productInfo}>
-                <Text style={styles.productName} numberOfLines={1}>
-                    {item.name}
-                </Text>
-
-                {item.shop && !shopId && (
-                    <TouchableOpacity style={styles.shopInfoContainer} onPress={() => navigation.navigate("ShopDetails", { shopId: item.shop._id })}>
-                        <Ionicons name="storefront-outline" size={14} color={theme.colors.gray} />
-                        <Text style={styles.shopName} numberOfLines={1}>
-                            {item.shop.name}
+        <View style={styles.productCardWrapper}>
+            <Card3D style={styles.productCard}>
+                <TouchableOpacity onPress={() => navigation.navigate("ProductDetails", { productId: item._id })} activeOpacity={0.9} style={styles.cardTouchable}>
+                    <View style={styles.productHeader}>
+                        <View style={styles.imageContainer}>
+                            <Image source={{ uri: item.image || "https://via.placeholder.com/150" }} style={styles.productImage} resizeMode="cover" />
+                            {item.discount && item.discount > 0 && (
+                                <View style={styles.discountBadge}>
+                                    <Text style={styles.discountText}>{item.discount}% OFF</Text>
+                                </View>
+                            )}
+                        </View>
+                        <Text style={styles.productName} numberOfLines={2}>
+                            {item.name}
                         </Text>
-                        {(item.shop.distance || shopDistances[item.shop._id]) && (
-                            <View style={styles.distanceRow}>
-                                <Text style={{ color: theme.colors.gray }}>•</Text>
-                                <FontAwesome name="map-marker" size={12} color={theme.colors.primary} style={{ marginHorizontal: 2 }} />
-                                <Text style={styles.distanceText}>
-                                    {typeof item.shop.distance === "number" ? LocationService.formatDistance(item.shop.distance) : item.shop.distance || shopDistances[item.shop._id]} away
+                    </View>
+                    <View style={styles.productInfo}>
+                        {item.shop && !shopId && (
+                            <TouchableOpacity style={styles.shopInfoContainer} onPress={() => navigation.navigate("ShopDetails", { shopId: item.shop._id })}>
+                                <Ionicons name="storefront-outline" size={12} color={theme.colors.gray} />
+                                <Text style={styles.shopName} numberOfLines={1}>
+                                    {item.shop.name}
                                 </Text>
+                                {(item.shop.distance || shopDistances[item.shop._id]) && (
+                                    <View style={styles.distanceRow}>
+                                        <Text style={styles.distanceDot}>•</Text>
+                                        <FontAwesome name="map-marker" size={10} color={theme.colors.primary} />
+                                        <Text style={styles.distanceText}>
+                                            {typeof item.shop.distance === "number" ? LocationService.formatDistance(item.shop.distance) : item.shop.distance || shopDistances[item.shop._id]}
+                                        </Text>
+                                    </View>
+                                )}
+                            </TouchableOpacity>
+                        )}
+
+                        {item.category && (
+                            <View style={styles.categoryChip}>
+                                <Text style={styles.categoryChipText}>{item.category}</Text>
                             </View>
                         )}
-                    </TouchableOpacity>
-                )}
 
-                {item.category && (
-                    <View style={styles.categoryChip}>
-                        <Text style={styles.categoryChipText}>{item.category}</Text>
+                        <View style={styles.productBottom}>
+                            <View style={styles.priceContainer}>
+                                {item.discount && item.discount > 0 ? (
+                                    <>
+                                        <Text style={styles.discountedPrice}>₹{(item.price * (1 - item.discount / 100)).toFixed(0)}</Text>
+                                        <Text style={styles.originalPrice}>₹{item.price.toFixed(0)}</Text>
+                                    </>
+                                ) : (
+                                    <Text style={styles.productPrice}>₹{item.price.toFixed(0)}</Text>
+                                )}
+                            </View>
+
+                            <TouchableOpacity style={styles.addButton} onPress={() => handleAddToCart(item._id)}>
+                                <FontAwesome name="plus" size={12} color={theme.colors.white} />
+                            </TouchableOpacity>
+                        </View>
                     </View>
-                )}
-
-                <Text style={styles.productDescription} numberOfLines={2}>
-                    {item.description}
-                </Text>
-
-                <View style={styles.productBottom}>
-                    <Text style={styles.productPrice}>₹{item.price.toFixed(2)}</Text>
-                    <TouchableOpacity style={styles.addButton} onPress={() => handleAddToCart(item._id)}>
-                        <FontAwesome name="plus" size={16} color={theme.colors.white} />
-                    </TouchableOpacity>
-                </View>
-            </View>
-        </Card3D>
+                </TouchableOpacity>
+            </Card3D>
+        </View>
     );
 
     const renderFiltersModal = () => (
@@ -630,6 +649,38 @@ const ProductsScreen: React.FC = () => {
         </Modal>
     );
 
+    // Scroll detection handler
+    const handleScroll = Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], {
+        useNativeDriver: false,
+        listener: (event: any) => {
+            const currentOffset = event.nativeEvent.contentOffset.y;
+            const direction = currentOffset > 0 && currentOffset > (scrollY as any)._value;
+
+            setIsScrolling(true);
+            setShowNavigation(!direction);
+
+            // Clear existing timeout
+            if (scrollTimeout.current) {
+                clearTimeout(scrollTimeout.current);
+            }
+
+            // Set new timeout to show navigation when scrolling stops
+            scrollTimeout.current = setTimeout(() => {
+                setIsScrolling(false);
+                setShowNavigation(true);
+            }, 1500);
+        },
+    });
+
+    // Cleanup timeout on unmount
+    useEffect(() => {
+        return () => {
+            if (scrollTimeout.current) {
+                clearTimeout(scrollTimeout.current);
+            }
+        };
+    }, []);
+
     if (loading && currentPage === 1 && products.length === 0) {
         return (
             <View style={styles.loadingContainer}>
@@ -652,7 +703,20 @@ const ProductsScreen: React.FC = () => {
     return (
         <SafeAreaView style={styles.safeArea}>
             <View style={styles.container}>
-                <ScreenHeader title={shopId ? "Shop Products" : "Products"} showBackButton={true} onNotificationPress={handleNotificationPress} />
+                <Animated.View
+                    style={[
+                        styles.headerContainer,
+                        {
+                            transform: [
+                                {
+                                    translateY: showNavigation ? 0 : -100,
+                                },
+                            ],
+                        },
+                    ]}
+                >
+                    <ScreenHeader title={shopId ? "Shop Products" : "Products"} showBackButton={true} onNotificationPress={handleNotificationPress} />
+                </Animated.View>
 
                 <View style={styles.contentContainer}>
                     <View style={styles.searchContainer}>
@@ -715,8 +779,10 @@ const ProductsScreen: React.FC = () => {
                                     ListFooterComponent={renderFooter}
                                     onEndReached={handleLoadMore}
                                     onEndReachedThreshold={0.5}
-                                    columnWrapperStyle={styles.columnWrapper}
                                     contentContainerStyle={styles.productList}
+                                    showsVerticalScrollIndicator={false}
+                                    onScroll={handleScroll}
+                                    scrollEventThrottle={16}
                                 />
                             )}
                         </>
@@ -737,7 +803,11 @@ const styles = StyleSheet.create({
     container: {
         flex: 1,
         backgroundColor: theme.colors.background,
-        paddingTop: Platform.OS === "android" ? 25 : 0, // Add padding for Android status bar
+        paddingTop: Platform.OS === "android" ? 25 : 0,
+    },
+    headerContainer: {
+        zIndex: 1000,
+        backgroundColor: theme.colors.background,
     },
     contentContainer: {
         flex: 1,
@@ -748,8 +818,12 @@ const styles = StyleSheet.create({
         padding: theme.spacing.sm,
     },
     imageContainer: {
+        flex: 1,
+        aspectRatio: 1,
+        justifyContent: "center",
         alignItems: "center",
-        marginTop: 10,
+        padding: 16,
+        backgroundColor: theme.colors.lightGray,
     },
     searchBar: {
         marginBottom: theme.spacing.sm,
@@ -875,13 +949,13 @@ const styles = StyleSheet.create({
         fontSize: 16,
         fontWeight: "600",
     },
-    productList: {},
-    columnWrapper: {
-        display: "contents",
+    productList: {
+        paddingBottom: 120,
     },
     productCard: {
-        width: "100%",
+        flex: 1,
         marginVertical: 8,
+        marginHorizontal: 4,
         borderRadius: 12,
         overflow: "hidden",
         backgroundColor: theme.colors.white,
@@ -890,56 +964,36 @@ const styles = StyleSheet.create({
         shadowOpacity: 0.1,
         shadowRadius: 4,
         elevation: 3,
+        aspectRatio: 0.8,
     },
     productImage: {
-        width: "100%",
-        height: 160,
-        resizeMode: "cover",
+        width: 80,
+        height: 80,
+        borderRadius: 40,
+        borderWidth: 2,
+        borderColor: theme.colors.white,
     },
     productInfo: {
-        padding: 10,
+        alignItems: "flex-start",
+        justifyContent: "space-between",
     },
     productName: {
-        fontSize: 16,
-        fontWeight: "bold",
-        marginBottom: 4,
-        color: theme.colors.text,
-        height: 40, // Fixed height for consistency
-    },
-    circularImage: {
-        width: 100,
-        height: 100,
-        borderRadius: 50,
-        resizeMode: "cover",
-        borderWidth: 1,
-        borderColor: theme.colors.lightGray,
-    },
-    categoryChip: {
-        backgroundColor: theme.colors.accent,
-        paddingHorizontal: 6,
-        paddingVertical: 2,
-        borderRadius: 10,
-        alignSelf: "flex-start",
-        marginBottom: 4,
-    },
-    categoryChipText: {
-        color: theme.colors.white,
-        fontSize: 10,
-    },
-    productDescription: {
+        minWidth: 100,
         fontSize: 12,
-        color: theme.colors.textLight,
-        marginBottom: 6,
-        height: 32, // Fixed height for consistency
+        paddingLeft: 20,
+        fontWeight: "600",
+        color: theme.colors.text,
+        minHeight: 20,
     },
     shopInfoContainer: {
         flexDirection: "row",
         alignItems: "center",
-        marginBottom: 4,
+        marginBottom: 8,
         flexWrap: "wrap",
+        minWidth: 100,
     },
     shopName: {
-        fontSize: 12,
+        fontSize: 11,
         color: theme.colors.textLight,
         marginLeft: 4,
         flex: 1,
@@ -947,27 +1001,45 @@ const styles = StyleSheet.create({
     distanceRow: {
         flexDirection: "row",
         alignItems: "center",
+        marginLeft: 4,
     },
     distanceText: {
-        fontSize: 10,
+        fontSize: 9,
         color: theme.colors.primary,
+        marginLeft: 2,
+    },
+    categoryChip: {
+        backgroundColor: theme.colors.accent,
+        paddingHorizontal: 3,
+        paddingVertical: 2,
+        borderRadius: 10,
+        minWidth: 120,
+        alignSelf: "flex-start",
+        marginBottom: 8,
+    },
+    categoryChipText: {
+        color: theme.colors.white,
+        fontSize: 9,
+        fontWeight: "500",
     },
     productBottom: {
         flexDirection: "row",
-        justifyContent: "space-between",
+        minWidth: 120,
+        justifyContent: "space-around",
         alignItems: "center",
         marginTop: "auto",
+        gap: 10,
     },
     productPrice: {
-        fontSize: 16,
+        fontSize: 14,
         fontWeight: "bold",
         color: theme.colors.primary,
     },
     addButton: {
         backgroundColor: theme.colors.primary,
-        width: 30,
-        height: 30,
-        borderRadius: 15,
+        width: 24,
+        height: 24,
+        borderRadius: 12,
         justifyContent: "center",
         alignItems: "center",
     },
@@ -982,6 +1054,13 @@ const styles = StyleSheet.create({
         borderTopRightRadius: 20,
         padding: 16,
         maxHeight: "90%",
+    },
+    productHeader: {
+        marginHorizontal: 40,
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "flex-start",
+        gap: 20,
     },
     modalHeader: {
         flexDirection: "row",
@@ -1111,6 +1190,45 @@ const styles = StyleSheet.create({
         flex: 1,
         justifyContent: "center",
         alignItems: "center",
+    },
+    productCardWrapper: {
+        width: "50%",
+        padding: 4,
+    },
+    cardTouchable: {
+        flex: 1,
+    },
+    discountBadge: {
+        position: "absolute",
+        top: 10,
+        right: 10,
+        backgroundColor: theme.colors.accent,
+        paddingHorizontal: 4,
+        paddingVertical: 2,
+        borderRadius: 10,
+    },
+    discountText: {
+        color: theme.colors.white,
+        fontSize: 10,
+        fontWeight: "bold",
+    },
+    priceContainer: {
+        flexDirection: "row",
+        alignItems: "center",
+    },
+    discountedPrice: {
+        fontSize: 14,
+        fontWeight: "bold",
+        color: theme.colors.primary,
+    },
+    originalPrice: {
+        fontSize: 12,
+        color: theme.colors.textLight,
+        textDecorationLine: "line-through",
+    },
+    distanceDot: {
+        marginHorizontal: 2,
+        color: theme.colors.primary,
     },
 });
 

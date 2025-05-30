@@ -1,5 +1,5 @@
-import React, { useEffect, useState, useCallback } from "react";
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Image, RefreshControl, Modal, ScrollView, Platform, Alert, SafeAreaView } from "react-native";
+import React, { useEffect, useState, useCallback, useRef } from "react";
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Image, RefreshControl, Modal, ScrollView, Platform, Alert, SafeAreaView, Animated } from "react-native";
 import { useSelector, useDispatch } from "react-redux";
 import { FontAwesome, Ionicons, MaterialIcons } from "@expo/vector-icons";
 import * as Location from "expo-location";
@@ -70,6 +70,12 @@ const ShopsScreen: React.FC = () => {
     const [userLocation, setUserLocation] = useState<Coordinates | null>(null);
     const [locationPermissionDenied, setLocationPermissionDenied] = useState(false);
     const [shopDistances, setShopDistances] = useState<Record<string, string>>({});
+
+    // Scroll detection for hiding/showing header and navbar
+    const scrollY = useRef(new Animated.Value(0)).current;
+    const [isScrolling, setIsScrolling] = useState(false);
+    const [showNavigation, setShowNavigation] = useState(true);
+    const scrollTimeout = useRef<NodeJS.Timeout | null>(null);
 
     // Create a properly implemented debounced search function with 1-second delay
     const debouncedSearch = useCallback(
@@ -478,15 +484,11 @@ const ShopsScreen: React.FC = () => {
 
     // Shop item renderer
     const renderShopItem = ({ item }: { item: Shop }) => (
-        <Card3D style={styles.shopCard}>
-            <TouchableOpacity onPress={() => navigation.navigate("ShopDetails", { shopId: item._id })} activeOpacity={0.9}>
-                <Image source={{ uri: item.logo || item.image || "https://via.placeholder.com/150" }} style={styles.shopImage} />
-
-                <View style={styles.shopInfo}>
-                    <View style={styles.shopNameContainer}>
-                        <Text style={styles.shopName} numberOfLines={2}>
-                            {item.name}
-                        </Text>
+        <View style={styles.shopCardWrapper}>
+            <Card3D style={styles.shopCard}>
+                <TouchableOpacity onPress={() => navigation.navigate("ShopDetails", { shopId: item._id })} activeOpacity={0.9} style={styles.cardTouchable}>
+                    <View style={styles.shopImageContainer}>
+                        <Image source={{ uri: item.logo || item.image || "https://via.placeholder.com/150" }} style={styles.shopImage} resizeMode="cover" />
                         {item.isOpen ? (
                             <View style={styles.openBadge}>
                                 <Text style={styles.openBadgeText}>Open</Text>
@@ -498,42 +500,47 @@ const ShopsScreen: React.FC = () => {
                         )}
                     </View>
 
-                    <View style={styles.ratingContainer}>
-                        <Ionicons name="star" size={16} color="#FFD700" />
-                        <Text style={styles.ratingText}>{item.rating.toFixed(1)}</Text>
+                    <View style={styles.shopInfo}>
+                        <Text style={styles.shopName} numberOfLines={2}>
+                            {item.name}
+                        </Text>
+
+                        <View style={styles.ratingContainer}>
+                            <Ionicons name="star" size={14} color="#FFD700" />
+                            <Text style={styles.ratingText}>{item.rating.toFixed(1)}</Text>
+                            <Text style={styles.reviewCount}>({item.reviews?.length || 0})</Text>
+                        </View>
+
+                        {item.distance || shopDistances[item._id] ? (
+                            <View style={styles.distanceContainer}>
+                                <FontAwesome name="map-marker" size={12} color={theme.colors.primary} />
+                                <Text style={styles.distanceText}>
+                                    {typeof item.distance === "number" ? LocationService.formatDistance(item.distance) : item.distance || shopDistances[item._id]} away
+                                </Text>
+                            </View>
+                        ) : null}
+
+                        {item.categories && item.categories.length > 0 && (
+                            <View style={styles.categoriesContainer}>
+                                {item.categories.slice(0, 2).map((category, index) => (
+                                    <TouchableOpacity
+                                        key={index}
+                                        style={styles.categoryTag}
+                                        onPress={() => {
+                                            setSelectedCategory(category);
+                                            loadShops();
+                                        }}
+                                    >
+                                        <Text style={styles.categoryTagText}>{category}</Text>
+                                    </TouchableOpacity>
+                                ))}
+                                {item.categories.length > 2 && <Text style={styles.moreCategories}>+{item.categories.length - 2}</Text>}
+                            </View>
+                        )}
                     </View>
-
-                    <Text style={styles.shopDescription} numberOfLines={2}>
-                        {item.description}
-                    </Text>
-
-                    {item.distance || shopDistances[item._id] ? (
-                        <View style={styles.distanceContainer}>
-                            <FontAwesome name="map-marker" size={14} color={theme.colors.primary} />
-                            <Text style={styles.distanceText}>{typeof item.distance === "number" ? LocationService.formatDistance(item.distance) : item.distance || shopDistances[item._id]} away</Text>
-                        </View>
-                    ) : null}
-
-                    {item.categories && item.categories.length > 0 && (
-                        <View style={styles.categoriesContainer}>
-                            {item.categories.slice(0, 3).map((category, index) => (
-                                <TouchableOpacity
-                                    key={index}
-                                    style={styles.categoryTag}
-                                    onPress={() => {
-                                        setSelectedCategory(category);
-                                        loadShops(); // Use loadShops instead of filterShops
-                                    }}
-                                >
-                                    <Text style={styles.categoryTagText}>{category}</Text>
-                                </TouchableOpacity>
-                            ))}
-                            {item.categories.length > 3 && <Text style={styles.categoryTag}>+{item.categories.length - 3}</Text>}
-                        </View>
-                    )}
-                </View>
-            </TouchableOpacity>
-        </Card3D>
+                </TouchableOpacity>
+            </Card3D>
+        </View>
     );
 
     // Render the filters modal
@@ -657,10 +664,55 @@ const ShopsScreen: React.FC = () => {
         );
     };
 
+    // Scroll detection handler
+    const handleScroll = Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], {
+        useNativeDriver: false,
+        listener: (event: any) => {
+            const currentOffset = event.nativeEvent.contentOffset.y;
+            const direction = currentOffset > 0 && currentOffset > (scrollY as any)._value;
+
+            setIsScrolling(true);
+            setShowNavigation(!direction);
+
+            // Clear existing timeout
+            if (scrollTimeout.current) {
+                clearTimeout(scrollTimeout.current);
+            }
+
+            // Set new timeout to show navigation when scrolling stops
+            scrollTimeout.current = setTimeout(() => {
+                setIsScrolling(false);
+                setShowNavigation(true);
+            }, 1500);
+        },
+    });
+
+    // Cleanup timeout on unmount
+    useEffect(() => {
+        return () => {
+            if (scrollTimeout.current) {
+                clearTimeout(scrollTimeout.current);
+            }
+        };
+    }, []);
+
     return (
         <SafeAreaView style={styles.safeArea}>
             <View style={styles.container}>
-                <ScreenHeader title="Shops" showBackButton={true} onNotificationPress={() => navigation.navigate("Notifications")} />
+                <Animated.View
+                    style={[
+                        styles.headerContainer,
+                        {
+                            transform: [
+                                {
+                                    translateY: showNavigation ? 0 : -100,
+                                },
+                            ],
+                        },
+                    ]}
+                >
+                    <ScreenHeader title="Shops" showBackButton={true} onNotificationPress={() => navigation.navigate("Notifications")} />
+                </Animated.View>
 
                 <View style={styles.contentContainer}>
                     <View style={styles.searchContainer}>
@@ -710,6 +762,9 @@ const ShopsScreen: React.FC = () => {
                                     onEndReached={handleLoadMore}
                                     onEndReachedThreshold={0.5}
                                     contentContainerStyle={styles.shopList}
+                                    showsVerticalScrollIndicator={false}
+                                    onScroll={handleScroll}
+                                    scrollEventThrottle={16}
                                 />
                             )}
                         </>
@@ -729,6 +784,10 @@ const styles = StyleSheet.create({
     },
     container: {
         flex: 1,
+        backgroundColor: theme.colors.background,
+    },
+    headerContainer: {
+        zIndex: 1000,
         backgroundColor: theme.colors.background,
     },
     contentContainer: {
@@ -782,7 +841,7 @@ const styles = StyleSheet.create({
         alignItems: "center",
     },
     shopList: {
-        paddingBottom: 100,
+        paddingBottom: 120,
     },
     emptyContainer: {
         flex: 1,
@@ -798,42 +857,56 @@ const styles = StyleSheet.create({
         marginTop: 16,
         marginBottom: 8,
     },
+    shopCardWrapper: {
+        width: "50%",
+    },
     shopCard: {
-        marginBottom: 16,
+        marginVertical: 5,
+        marginHorizontal: 2,
         borderRadius: 12,
         overflow: "hidden",
         backgroundColor: theme.colors.white,
+        shadowColor: theme.colors.dark,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        display: "flex",
+        justifyContent: "center",
+        alignItems: "center",
+        shadowRadius: 4,
+        elevation: 3,
+        aspectRatio: 0.8,
+    },
+    cardTouchable: {
+        flex: 1,
+    },
+    shopImageContainer: {
+        position: "relative",
+        flex: 1,
+        borderRadius: 50,
+        aspectRatio: 1,
+        justifyContent: "center",
+        alignItems: "center",
+        backgroundColor: theme.colors.lightGray,
     },
     shopImage: {
-        width: "100%",
-        height: 150,
-        resizeMode: "cover",
-    },
-    shopInfo: {
-        padding: 12,
-    },
-    shopNameContainer: {
-        flexDirection: "row",
-        justifyContent: "space-between",
-        alignItems: "flex-start",
-        marginBottom: 4,
-    },
-    shopName: {
-        flex: 1,
-        fontSize: 18,
-        fontWeight: "bold",
-        color: theme.colors.text,
-        marginRight: 8,
+        width: 80,
+        height: 80,
+        borderRadius: 50,
+        borderWidth: 2,
+        borderColor: theme.colors.white,
     },
     openBadge: {
+        position: "absolute",
+        top: 8,
+        right: 8,
         backgroundColor: theme.colors.success,
-        paddingHorizontal: 8,
+        paddingHorizontal: 6,
         paddingVertical: 2,
-        borderRadius: 12,
+        borderRadius: 10,
     },
     openBadgeText: {
         color: "#fff",
-        fontSize: 10,
+        fontSize: 9,
         fontWeight: "bold",
     },
     closedBadge: {
@@ -841,8 +914,20 @@ const styles = StyleSheet.create({
     },
     closedBadgeText: {
         color: "#fff",
-        fontSize: 10,
+        fontSize: 9,
         fontWeight: "bold",
+    },
+    shopInfo: {
+        padding: 12,
+        flex: 1,
+        justifyContent: "space-between",
+    },
+    shopName: {
+        fontSize: 14,
+        fontWeight: "600",
+        color: theme.colors.text,
+        marginBottom: 4,
+        minHeight: 36,
     },
     ratingContainer: {
         flexDirection: "row",
@@ -853,29 +938,46 @@ const styles = StyleSheet.create({
         marginLeft: 4,
         color: theme.colors.text,
         fontWeight: "600",
+        fontSize: 12,
     },
-    shopDescription: {
-        fontSize: 14,
+    reviewCount: {
+        marginLeft: 4,
         color: theme.colors.textLight,
+        fontSize: 10,
+    },
+    distanceContainer: {
+        flexDirection: "row",
+        alignItems: "center",
         marginBottom: 8,
+    },
+    distanceText: {
+        fontSize: 10,
+        color: theme.colors.primary,
+        fontWeight: "500",
+        marginLeft: 4,
     },
     categoriesContainer: {
         flexDirection: "row",
         flexWrap: "wrap",
+        marginTop: 4,
     },
     categoryTag: {
-        backgroundColor: theme.colors.bgLight,
-        paddingHorizontal: 8,
-        paddingVertical: 4,
-        borderRadius: 16,
-        marginRight: 6,
-        marginBottom: 6,
-        fontSize: 12,
-        color: theme.colors.primary,
+        backgroundColor: theme.colors.accent,
+        paddingHorizontal: 6,
+        paddingVertical: 2,
+        borderRadius: 10,
+        marginRight: 4,
+        marginBottom: 4,
     },
     categoryTagText: {
-        fontSize: 14,
-        color: theme.colors.text,
+        fontSize: 9,
+        color: theme.colors.white,
+        fontWeight: "500",
+    },
+    moreCategories: {
+        fontSize: 9,
+        color: theme.colors.gray,
+        fontWeight: "500",
     },
     modalContainer: {
         flex: 1,
@@ -1023,18 +1125,6 @@ const styles = StyleSheet.create({
         color: theme.colors.white,
         fontSize: 16,
         fontWeight: "bold",
-    },
-    distanceContainer: {
-        flexDirection: "row",
-        alignItems: "center",
-        marginTop: 4,
-        marginBottom: 4,
-    },
-    distanceText: {
-        fontSize: 12,
-        color: theme.colors.primary,
-        fontWeight: "500",
-        marginLeft: 4,
     },
     footerLoader: {
         alignItems: "center",
