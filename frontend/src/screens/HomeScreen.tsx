@@ -111,7 +111,7 @@ const HomeScreen: React.FC = () => {
     // Responsive width calculations
     const cardWidth = dimensions.width < 380 ? dimensions.width * 0.85 : dimensions.width * 0.7;
     const shopCardWidth = dimensions.width < 380 ? dimensions.width * 0.9 : dimensions.width * 0.8;
-    const productCardWidth = dimensions.width * 0.4; // For 2 columns of products
+    const productCardWidth = dimensions.width * 0.45; // Increased from 0.4 to 0.45 for larger product cards
     const categoryCardWidth = dimensions.width < 380 ? dimensions.width * 0.2 : dimensions.width * 0.18; // Made categories smaller
 
     useEffect(() => {
@@ -717,28 +717,28 @@ const styles = StyleSheet.create({
         paddingVertical: theme.spacing.md,
     },
     productCard: {
+        maxWidth: 150,
         marginRight: theme.spacing.md,
-        aspectRatio: 1,
+        aspectRatio: 0.85,
         borderRadius: theme.borderRadius.large,
     },
     productCardContainer: {
         flex: 1,
-        backgroundColor: theme.colors.white,
+        backgroundColor: theme.colors.lightGray,
         borderRadius: theme.borderRadius.large,
         overflow: "hidden",
         ...theme.shadow.medium,
         elevation: 4,
     },
     productImageContainer: {
-        flex: 1,
         aspectRatio: 1,
         position: "relative",
     },
     productImage: {
         width: "100%",
         height: "100%",
-        borderTopLeftRadius: theme.borderRadius.large,
-        borderTopRightRadius: theme.borderRadius.large,
+        borderRadius: 50,
+        alignSelf: "center",
     },
     discountBadge: {
         position: "absolute",

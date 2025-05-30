@@ -886,6 +886,7 @@ const styles = StyleSheet.create({
         aspectRatio: 1,
         justifyContent: "center",
         alignItems: "center",
+        marginLeft: 15,
         backgroundColor: theme.colors.lightGray,
     },
     shopImage: {
