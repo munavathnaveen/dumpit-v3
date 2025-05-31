@@ -1,5 +1,5 @@
-import React, { useEffect, useState, useCallback, useRef } from "react";
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Image, RefreshControl, Modal, ScrollView, Switch, SafeAreaView, Platform, Animated } from "react-native";
+import React, { useEffect, useState, useCallback } from "react";
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Image, RefreshControl, Modal, ScrollView, Switch, SafeAreaView } from "react-native";
 import { useSelector, useDispatch } from "react-redux";
 import { FontAwesome, Ionicons, MaterialIcons } from "@expo/vector-icons";
 import Slider from "@react-native-community/slider";
@@ -63,10 +63,7 @@ const ProductsScreen: React.FC = () => {
     const [shopDistances, setShopDistances] = useState<Record<string, string>>({});
 
     // Scroll detection for hiding/showing header and navbar
-    const scrollY = useRef(new Animated.Value(0)).current;
-    const [isScrolling, setIsScrolling] = useState(false);
     const [showNavigation, setShowNavigation] = useState(true);
-    const scrollTimeout = useRef<NodeJS.Timeout | null>(null);
 
     // Create a properly implemented debounced search function with 1-second delay
     const debouncedSearch = useCallback(
@@ -677,20 +674,9 @@ const ProductsScreen: React.FC = () => {
     return (
         <SafeAreaView style={styles.safeArea}>
             <View style={styles.container}>
-                <Animated.View
-                    style={[
-                        styles.headerContainer,
-                        {
-                            transform: [
-                                {
-                                    translateY: showNavigation ? 0 : -100,
-                                },
-                            ],
-                        },
-                    ]}
-                >
+                <View style={styles.headerContainer}>
                     <ScreenHeader title={shopId ? "Shop Products" : "Products"} showBackButton={true} onNotificationPress={handleNotificationPress} />
-                </Animated.View>
+                </View>
 
                 <View style={styles.contentContainer}>
                     <View style={styles.searchContainer}>
