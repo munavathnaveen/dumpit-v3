@@ -169,47 +169,99 @@ const CartScreen = () => {
             const imageUri = item.product.image || "https://via.placeholder.com/100";
             const quantity = item.quantity || 0;
             const stock = item.product.stock || 0;
+            const totalPrice = price * quantity;
+            const discount = (item.product as any).discount || 0;
+            const discountedPrice = discount > 0 ? price * (1 - discount / 100) : price;
 
             return (
-                <View style={styles.cartItem}>
-                    <Image source={{ uri: imageUri }} style={styles.productImage} onError={(e) => console.log("Image loading error:", e.nativeEvent.error)} />
-                    <View style={styles.itemDetails}>
-                        <Text style={styles.productName}>{productName}</Text>
-                        <Text style={styles.productPrice}>₹{price.toFixed(2)}</Text>
-                        <View style={styles.quantityContainer}>
-                            {isUpdatingThisItem ? (
-                                <ActivityIndicator size="small" color={theme.colors.primary} style={{ width: 80 }} />
-                            ) : (
-                                <>
-                                    <TouchableOpacity onPress={() => handleUpdateQuantity(productId, quantity - 1)} style={styles.quantityButton} disabled={isUpdatingThisItem}>
-                                        <Ionicons name="remove" size={20} color="#000" />
-                                    </TouchableOpacity>
-                                    <Text style={styles.quantity}>{quantity}</Text>
-                                    <TouchableOpacity
-                                        onPress={() => handleUpdateQuantity(productId, quantity + 1)}
-                                        style={styles.quantityButton}
-                                        disabled={isUpdatingThisItem || (stock !== undefined && quantity >= stock)}
-                                    >
-                                        <Ionicons name="add" size={20} color="#000" />
-                                    </TouchableOpacity>
-                                </>
+                <Card3D style={styles.cartItemCard}>
+                    <View style={styles.cartItemContent}>
+                        <View style={styles.productImageContainer}>
+                            <Image source={{ uri: imageUri }} style={styles.productImage} onError={(e) => console.log("Image loading error:", e.nativeEvent.error)} />
+                            {discount > 0 && (
+                                <View style={styles.discountBadge}>
+                                    <Text style={styles.discountText}>{Math.round(discount)}%</Text>
+                                </View>
                             )}
                         </View>
+
+                        <View style={styles.itemDetails}>
+                            <Text style={styles.productName} numberOfLines={2}>
+                                {productName}
+                            </Text>
+
+                            {(item.product as any).shop && (
+                                <View style={styles.shopInfo}>
+                                    <Ionicons name="storefront-outline" size={12} color={theme.colors.textLight} />
+                                    <Text style={styles.shopName} numberOfLines={1}>
+                                        {(item.product as any).shop.name}
+                                    </Text>
+                                </View>
+                            )}
+
+                            <View style={styles.priceContainer}>
+                                {discount > 0 ? (
+                                    <View style={styles.priceRow}>
+                                        <Text style={styles.discountedPrice}>₹{discountedPrice.toFixed(2)}</Text>
+                                        <Text style={styles.originalPrice}>₹{price.toFixed(2)}</Text>
+                                    </View>
+                                ) : (
+                                    <Text style={styles.productPrice}>₹{price.toFixed(2)}</Text>
+                                )}
+                                <Text style={styles.totalPrice}>Total: ₹{(discountedPrice * quantity).toFixed(2)}</Text>
+                            </View>
+
+                            <View style={styles.quantityControls}>
+                                {isUpdatingThisItem ? (
+                                    <View style={styles.loadingQuantity}>
+                                        <ActivityIndicator size="small" color={theme.colors.primary} />
+                                        <Text style={styles.loadingText}>Updating...</Text>
+                                    </View>
+                                ) : (
+                                    <View style={styles.quantityContainer}>
+                                        <TouchableOpacity
+                                            onPress={() => handleUpdateQuantity(productId, quantity - 1)}
+                                            style={[styles.quantityButton, styles.quantityButtonMinus]}
+                                            disabled={isUpdatingThisItem}
+                                        >
+                                            <Ionicons name="remove" size={16} color={theme.colors.white} />
+                                        </TouchableOpacity>
+
+                                        <View style={styles.quantityDisplay}>
+                                            <Text style={styles.quantity}>{quantity}</Text>
+                                        </View>
+
+                                        <TouchableOpacity
+                                            onPress={() => handleUpdateQuantity(productId, quantity + 1)}
+                                            style={[styles.quantityButton, styles.quantityButtonPlus]}
+                                            disabled={isUpdatingThisItem || (stock !== undefined && quantity >= stock)}
+                                        >
+                                            <Ionicons name="add" size={16} color={theme.colors.white} />
+                                        </TouchableOpacity>
+                                    </View>
+                                )}
+                            </View>
+
+                            {stock !== undefined && quantity >= stock && <Text style={styles.stockWarning}>Max stock reached</Text>}
+                        </View>
+
+                        <TouchableOpacity onPress={() => handleRemoveItem(productId)} style={styles.removeButton} disabled={isUpdatingThisItem}>
+                            {isUpdatingThisItem ? <ActivityIndicator size="small" color={theme.colors.error} /> : <Ionicons name="trash-outline" size={20} color={theme.colors.error} />}
+                        </TouchableOpacity>
                     </View>
-                    <TouchableOpacity onPress={() => handleRemoveItem(productId)} style={styles.removeButton} disabled={isUpdatingThisItem}>
-                        {isUpdatingThisItem ? <ActivityIndicator size="small" color="#ff4444" /> : <Ionicons name="trash-outline" size={24} color="#ff4444" />}
-                    </TouchableOpacity>
-                </View>
+                </Card3D>
             );
         } catch (error) {
             console.error("Error rendering cart item:", error);
             return (
-                <View style={styles.errorItem}>
-                    <Text style={styles.errorText}>Error displaying this item</Text>
-                    <TouchableOpacity onPress={() => handleRemoveItem(item.product?._id || "")} style={styles.errorButton}>
-                        <Text style={styles.errorButtonText}>Remove</Text>
-                    </TouchableOpacity>
-                </View>
+                <Card3D style={styles.errorItem}>
+                    <View style={styles.errorContent}>
+                        <Text style={styles.errorText}>Error displaying this item</Text>
+                        <TouchableOpacity onPress={() => handleRemoveItem(item.product?._id || "")} style={styles.errorButton}>
+                            <Text style={styles.errorButtonText}>Remove</Text>
+                        </TouchableOpacity>
+                    </View>
+                </Card3D>
             );
         }
     };
@@ -225,6 +277,7 @@ const CartScreen = () => {
                     contentContainerStyle={styles.listContainer}
                     refreshing={isRefreshing}
                     onRefresh={handleRefresh}
+                    showsVerticalScrollIndicator={false}
                 />
             );
         } catch (error) {
@@ -248,6 +301,7 @@ const CartScreen = () => {
                 <ScreenHeader title="My Cart" />
                 <View style={styles.loadingContainer}>
                     <ActivityIndicator size="large" color={theme.colors.primary} />
+                    <Text style={styles.loadingText}>Loading your cart...</Text>
                 </View>
             </SafeAreaView>
         );
@@ -261,6 +315,8 @@ const CartScreen = () => {
             <View style={styles.contentContainer}>
                 {renderError ? (
                     <View style={styles.errorContainer}>
+                        <Ionicons name="alert-circle-outline" size={64} color={theme.colors.error} />
+                        <Text style={styles.errorTitle}>Oops! Something went wrong</Text>
                         <Text style={styles.errorText}>{renderError}</Text>
                         <TouchableOpacity
                             style={styles.refreshButton}
@@ -269,48 +325,68 @@ const CartScreen = () => {
                                 handleRefresh();
                             }}
                         >
-                            <Text style={styles.refreshButtonText}>Refresh</Text>
+                            <Ionicons name="refresh" size={20} color={theme.colors.white} />
+                            <Text style={styles.refreshButtonText}>Try Again</Text>
                         </TouchableOpacity>
                     </View>
                 ) : items.length === 0 ? (
                     <View style={styles.emptyContainer}>
-                        <Text style={styles.emptyText}>Your cart is empty</Text>
+                        <Ionicons name="bag-outline" size={80} color={theme.colors.textLight} />
+                        <Text style={styles.emptyTitle}>Your cart is empty</Text>
+                        <Text style={styles.emptySubtitle}>Add some products to get started!</Text>
                         <TouchableOpacity style={styles.shopNowButton} onPress={handleShopNow}>
-                            <Text style={styles.shopNowText}>Shop Now</Text>
+                            <Ionicons name="storefront-outline" size={20} color={theme.colors.white} />
+                            <Text style={styles.shopNowText}>Start Shopping</Text>
                         </TouchableOpacity>
                     </View>
                 ) : (
                     <>
+                        <View style={styles.cartHeader}>
+                            <Text style={styles.cartTitle}>
+                                {totalItems} {totalItems === 1 ? "Item" : "Items"} in Cart
+                            </Text>
+                            <TouchableOpacity style={styles.clearAllButton} onPress={handleClearCart} disabled={loading}>
+                                <Ionicons name="trash-outline" size={16} color={theme.colors.error} />
+                                <Text style={styles.clearAllText}>Clear All</Text>
+                            </TouchableOpacity>
+                        </View>
+
                         {safeRenderList()}
 
                         <Card3D style={styles.summaryCard}>
-                            <View style={styles.summaryRow}>
-                                <Text style={styles.summaryLabel}>Total Items:</Text>
-                                <Text style={styles.summaryValue}>{totalItems || 0}</Text>
+                            <View style={styles.summaryHeader}>
+                                <Ionicons name="receipt-outline" size={24} color={theme.colors.primary} />
+                                <Text style={styles.summaryTitle}>Order Summary</Text>
                             </View>
+
                             <View style={styles.summaryRow}>
-                                <Text style={styles.summaryLabel}>Total Amount:</Text>
+                                <Text style={styles.summaryLabel}>Subtotal ({totalItems} items)</Text>
                                 <Text style={styles.summaryValue}>₹{(totalAmount || 0).toFixed(2)}</Text>
                             </View>
-                            <View style={styles.divider} />
+
                             <View style={styles.summaryRow}>
-                                <Text style={styles.totalLabel}>Total</Text>
+                                <Text style={styles.summaryLabel}>Delivery Fee</Text>
+                                <Text style={styles.summaryValue}>{(totalAmount || 0) > 0 ? "₹40.00" : "₹0.00"}</Text>
+                            </View>
+
+                            <View style={styles.divider} />
+
+                            <View style={styles.totalRow}>
+                                <Text style={styles.totalLabel}>Total Amount</Text>
                                 <Text style={styles.totalValue}>₹{((totalAmount || 0) + ((totalAmount || 0) > 0 ? 40 : 0)).toFixed(2)}</Text>
                             </View>
 
                             {loading && currentRequest === "clearCart" ? (
                                 <View style={styles.checkoutButton}>
-                                    <ActivityIndicator size="small" color="#ffffff" />
+                                    <ActivityIndicator size="small" color={theme.colors.white} />
+                                    <Text style={styles.checkoutButtonText}>Processing...</Text>
                                 </View>
                             ) : (
-                                <>
-                                    <TouchableOpacity style={styles.checkoutButton} onPress={handleCheckout} disabled={loading}>
-                                        <Text style={styles.checkoutButtonText}>Proceed to Checkout</Text>
-                                    </TouchableOpacity>
-                                    <TouchableOpacity style={styles.clearButton} onPress={handleClearCart} disabled={loading}>
-                                        <Text style={styles.clearButtonText}>Clear Cart</Text>
-                                    </TouchableOpacity>
-                                </>
+                                <TouchableOpacity style={[styles.checkoutButton, { opacity: loading ? 0.7 : 1 }]} onPress={handleCheckout} disabled={loading}>
+                                    <Ionicons name="card-outline" size={20} color={theme.colors.white} />
+                                    <Text style={styles.checkoutButtonText}>Proceed to Checkout</Text>
+                                    <Ionicons name="arrow-forward" size={20} color={theme.colors.white} />
+                                </TouchableOpacity>
                             )}
                         </Card3D>
                     </>
@@ -382,25 +458,83 @@ const styles = StyleSheet.create({
         justifyContent: "center",
         alignItems: "center",
     },
-    emptyText: {
-        fontSize: 18,
-        color: "#666",
+    emptyTitle: {
+        fontSize: 24,
+        fontWeight: "bold",
+        color: theme.colors.text,
+        marginBottom: 16,
     },
-    listContainer: {
-        padding: 16,
+    emptySubtitle: {
+        fontSize: 16,
+        color: theme.colors.textLight,
+        textAlign: "center",
     },
-    cartItem: {
+    shopNowButton: {
+        backgroundColor: theme.colors.primary,
+        paddingHorizontal: 24,
+        paddingVertical: 12,
+        borderRadius: 25,
+    },
+    shopNowText: {
+        color: theme.colors.white,
+        fontSize: 16,
+        fontWeight: "bold",
+    },
+    cartHeader: {
         flexDirection: "row",
-        padding: 16,
-        borderBottomWidth: 1,
-        borderBottomColor: "#eee",
+        justifyContent: "space-between",
         alignItems: "center",
+        marginBottom: 16,
+    },
+    cartTitle: {
+        fontSize: 18,
+        fontWeight: "bold",
+        color: theme.colors.text,
+    },
+    clearAllButton: {
+        flexDirection: "row",
+        alignItems: "center",
+        padding: 8,
+        borderRadius: 8,
+        backgroundColor: theme.colors.error,
+    },
+    clearAllText: {
+        color: theme.colors.white,
+        fontSize: 16,
+        fontWeight: "bold",
+    },
+    cartItemCard: {
+        padding: 16,
+        borderRadius: 12,
+        backgroundColor: theme.colors.white,
+        marginBottom: 16,
+    },
+    cartItemContent: {
+        flexDirection: "row",
+        alignItems: "center",
+    },
+    productImageContainer: {
+        position: "relative",
     },
     productImage: {
         width: 80,
         height: 80,
         borderRadius: 8,
         marginRight: 16,
+    },
+    discountBadge: {
+        position: "absolute",
+        top: 8,
+        right: 8,
+        backgroundColor: theme.colors.primary,
+        paddingHorizontal: 4,
+        paddingVertical: 2,
+        borderRadius: 4,
+    },
+    discountText: {
+        color: theme.colors.white,
+        fontSize: 12,
+        fontWeight: "bold",
     },
     itemDetails: {
         flex: 1,
@@ -410,10 +544,39 @@ const styles = StyleSheet.create({
         fontWeight: "bold",
         marginBottom: 4,
     },
-    productPrice: {
+    shopInfo: {
+        flexDirection: "row",
+        alignItems: "center",
+        marginBottom: 4,
+    },
+    shopName: {
         fontSize: 14,
-        color: "#666",
+        color: theme.colors.textLight,
+    },
+    priceContainer: {
         marginBottom: 8,
+    },
+    priceRow: {
+        flexDirection: "row",
+        alignItems: "center",
+    },
+    discountedPrice: {
+        fontSize: 14,
+        fontWeight: "bold",
+        color: theme.colors.primary,
+    },
+    originalPrice: {
+        fontSize: 14,
+        color: theme.colors.textLight,
+        marginLeft: 4,
+    },
+    totalPrice: {
+        fontSize: 14,
+        color: theme.colors.textLight,
+    },
+    quantityControls: {
+        flexDirection: "row",
+        alignItems: "center",
     },
     quantityContainer: {
         flexDirection: "row",
@@ -427,8 +590,16 @@ const styles = StyleSheet.create({
         justifyContent: "center",
         alignItems: "center",
     },
-    quantity: {
+    quantityButtonMinus: {
+        backgroundColor: "#ff4444",
+    },
+    quantityButtonPlus: {
+        backgroundColor: "#007bff",
+    },
+    quantityDisplay: {
         marginHorizontal: 16,
+    },
+    quantity: {
         fontSize: 16,
     },
     removeButton: {
@@ -440,6 +611,17 @@ const styles = StyleSheet.create({
         backgroundColor: theme.colors.white,
         marginTop: "auto",
     },
+    summaryHeader: {
+        flexDirection: "row",
+        alignItems: "center",
+        marginBottom: 16,
+    },
+    summaryTitle: {
+        fontSize: 18,
+        fontWeight: "bold",
+        color: theme.colors.text,
+        marginLeft: 8,
+    },
     summaryRow: {
         flexDirection: "row",
         justifyContent: "space-between",
@@ -447,19 +629,25 @@ const styles = StyleSheet.create({
     },
     summaryLabel: {
         fontSize: 16,
-        color: "#666",
+        color: theme.colors.text,
     },
     summaryValue: {
         fontSize: 16,
-        fontWeight: "bold",
+        color: theme.colors.text,
+        fontWeight: "600",
     },
     divider: {
         height: 1,
-        backgroundColor: theme.colors.border,
+        backgroundColor: theme.colors.lightGray,
         marginVertical: 8,
     },
+    totalRow: {
+        flexDirection: "row",
+        justifyContent: "space-between",
+        marginBottom: 16,
+    },
     totalLabel: {
-        fontSize: 16,
+        fontSize: 18,
         fontWeight: "bold",
         color: theme.colors.text,
     },
@@ -470,38 +658,55 @@ const styles = StyleSheet.create({
     },
     checkoutButton: {
         backgroundColor: theme.colors.primary,
-        borderRadius: 25,
-        paddingVertical: 14,
+        padding: 16,
+        borderRadius: 12,
         alignItems: "center",
-        marginTop: 16,
+        flexDirection: "row",
+        justifyContent: "center",
+        ...theme.shadow.medium,
     },
     checkoutButtonText: {
         color: theme.colors.white,
         fontSize: 16,
         fontWeight: "bold",
+        marginHorizontal: 8,
     },
-    clearButton: {
-        backgroundColor: "#ff4444",
-        padding: 16,
-        borderRadius: 8,
+    listContainer: {
+        paddingBottom: 16,
+    },
+    loadingText: {
+        marginTop: 12,
+        fontSize: 16,
+        color: theme.colors.textLight,
+        textAlign: "center",
+    },
+    errorTitle: {
+        fontSize: 20,
+        fontWeight: "bold",
+        color: theme.colors.text,
+        marginTop: 16,
+        marginBottom: 8,
+        textAlign: "center",
+    },
+    errorContent: {
         alignItems: "center",
-        marginTop: 8,
+        padding: 16,
     },
-    clearButtonText: {
-        color: "#fff",
-        fontSize: 16,
-        fontWeight: "bold",
+    productPrice: {
+        fontSize: 14,
+        fontWeight: "600",
+        color: theme.colors.text,
     },
-    shopNowButton: {
-        backgroundColor: theme.colors.primary,
-        paddingHorizontal: 24,
-        paddingVertical: 12,
-        borderRadius: 25,
+    loadingQuantity: {
+        flexDirection: "row",
+        alignItems: "center",
+        paddingVertical: 8,
     },
-    shopNowText: {
-        color: theme.colors.white,
-        fontSize: 16,
-        fontWeight: "bold",
+    stockWarning: {
+        fontSize: 12,
+        color: theme.colors.error,
+        fontStyle: "italic",
+        marginTop: 4,
     },
 });
 

@@ -472,7 +472,7 @@ const ProductsScreen: React.FC = () => {
                             )}
 
                             <View style={styles.shopInfoContainer}>
-                                <MaterialIcons name="store" size={10} color={theme.colors.textLight} />
+                                <MaterialIcons name="store" size={12} color={theme.colors.textLight} />
                                 <Text style={styles.shopName} numberOfLines={1}>
                                     {item.shop?.name || "Shop"}
                                 </Text>
@@ -480,7 +480,7 @@ const ProductsScreen: React.FC = () => {
                                     <>
                                         <Text style={styles.distanceDot}>•</Text>
                                         <View style={styles.distanceRow}>
-                                            <FontAwesome name="map-marker" size={8} color={theme.colors.primary} />
+                                            <FontAwesome name="map-marker" size={10} color={theme.colors.primary} />
                                             <Text style={styles.distanceText}>{shopDistances[item.shop._id]}</Text>
                                         </View>
                                     </>
@@ -489,7 +489,7 @@ const ProductsScreen: React.FC = () => {
 
                             {item.rating > 0 && (
                                 <View style={styles.ratingContainer}>
-                                    <Ionicons name="star" size={12} color="#FFD700" />
+                                    <Ionicons name="star" size={14} color="#FFD700" />
                                     <Text style={styles.ratingText}>{item.rating.toFixed(1)}</Text>
                                     <Text style={styles.reviewCount}>({item.reviews?.length || 0})</Text>
                                 </View>
@@ -514,11 +514,15 @@ const ProductsScreen: React.FC = () => {
                                 disabled={item.stock <= 0}
                                 activeOpacity={0.8}
                             >
-                                <Ionicons name={item.stock > 0 ? "add" : "close"} size={18} color={theme.colors.white} />
+                                <Ionicons name={item.stock > 0 ? "add" : "close"} size={20} color={theme.colors.white} />
                             </TouchableOpacity>
                         </View>
 
-                        {item.stock <= 0 && <Text style={styles.outOfStockText}>Out of Stock</Text>}
+                        {item.stock <= 0 && (
+                            <View style={styles.outOfStockContainer}>
+                                <Text style={styles.outOfStockText}>Out of Stock</Text>
+                            </View>
+                        )}
                     </View>
                 </TouchableOpacity>
             </Card3D>
@@ -836,18 +840,12 @@ const styles = StyleSheet.create({
     },
     contentContainer: {
         flex: 1,
-        padding: theme.spacing.md,
+        paddingHorizontal: theme.spacing.sm,
+        paddingVertical: theme.spacing.md,
         paddingBottom: 78,
     },
-    searchContainer: {},
-    imageContainer: {
-        width: "100%",
-        height: 50,
-        justifyContent: "center",
-        alignItems: "center",
-        padding: 6,
-        backgroundColor: theme.colors.background,
-        position: "relative",
+    searchContainer: {
+        marginBottom: theme.spacing.md,
     },
     searchBar: {
         marginBottom: theme.spacing.sm,
@@ -976,106 +974,185 @@ const styles = StyleSheet.create({
     productList: {
         paddingBottom: 20,
     },
+    productCardWrapper: {
+        flex: 1,
+        margin: theme.spacing.xs,
+        maxWidth: "48%",
+        minWidth: "40%",
+    },
     productCard: {
         flex: 1,
-        marginVertical: 10,
-        borderRadius: 16,
+        borderRadius: theme.borderRadius.large,
         overflow: "hidden",
         backgroundColor: theme.colors.white,
-        shadowColor: theme.colors.dark,
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-        elevation: 3,
-        height: 300,
-        aspectRatio: 0.8,
+        ...theme.shadow.medium,
+    },
+    cardTouchable: {
+        flex: 1,
+    },
+    imageContainer: {
+        width: "100%",
+        height: 80,
+
+        justifyContent: "center",
+        alignItems: "center",
+        marginBottom: theme.spacing.sm,
+        backgroundColor: theme.colors.lightGray,
+        borderRadius: 60,
+        position: "relative",
     },
     productImage: {
-        width: 80,
-        height: 80,
-        borderRadius: 40,
+        width: 60,
+        height: 60,
+        borderRadius: 60,
         backgroundColor: theme.colors.lightGray,
     },
-    productContent: {
-        padding: 4,
-        flex: 1,
-        flexDirection: "column",
-        marginVertical: 10,
-        justifyContent: "space-between",
+    discountBadge: {
+        position: "absolute",
+        top: theme.spacing.xs,
+        right: theme.spacing.xs,
+        backgroundColor: theme.colors.error,
+        paddingHorizontal: theme.spacing.xs,
+        paddingVertical: 2,
+        borderRadius: theme.borderRadius.small,
+        minWidth: 40,
         alignItems: "center",
     },
+    discountText: {
+        color: theme.colors.white,
+        fontSize: 10,
+        fontWeight: "bold",
+    },
+    productContent: {
+        flex: 1,
+        justifyContent: "space-between",
+    },
+    productHeader: {
+        flex: 1,
+        marginBottom: theme.spacing.sm,
+    },
     productName: {
-        fontSize: 14,
-        fontWeight: "600",
+        fontSize: 15,
+        fontWeight: "700",
         color: theme.colors.text,
-        marginBottom: 6,
-        lineHeight: 18,
+        marginBottom: theme.spacing.xs,
+        lineHeight: 20,
         textAlign: "center",
+    },
+    categoryChip: {
+        backgroundColor: theme.colors.accent,
+        paddingHorizontal: theme.spacing.sm,
+        paddingVertical: 4,
+        borderRadius: theme.borderRadius.small,
+        alignSelf: "center",
+        marginBottom: theme.spacing.xs,
+    },
+    categoryChipText: {
+        color: theme.colors.white,
+        fontSize: 11,
+        fontWeight: "600",
     },
     shopInfoContainer: {
         flexDirection: "row",
         alignItems: "center",
-        marginBottom: 8,
-        flexWrap: "wrap",
         justifyContent: "center",
+        marginBottom: theme.spacing.xs,
+        flexWrap: "wrap",
     },
     shopName: {
-        fontSize: 11,
+        fontSize: 12,
         color: theme.colors.textLight,
         marginLeft: 4,
-        textAlign: "center",
+        fontWeight: "500",
+    },
+    distanceDot: {
+        marginHorizontal: 4,
+        color: theme.colors.textLight,
+        fontSize: 12,
     },
     distanceRow: {
         flexDirection: "row",
         alignItems: "center",
-        marginLeft: 4,
     },
     distanceText: {
-        fontSize: 9,
-        color: theme.colors.primary,
-        marginLeft: 2,
-    },
-    categoryChip: {
-        backgroundColor: theme.colors.accent,
-        paddingHorizontal: 8,
-        paddingVertical: 4,
-        borderRadius: 12,
-        alignSelf: "center",
-        marginBottom: 8,
-    },
-    categoryChipText: {
-        color: theme.colors.white,
         fontSize: 10,
-        fontWeight: "500",
+        color: theme.colors.primary,
+        marginLeft: 3,
+        fontWeight: "600",
+    },
+    ratingContainer: {
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "center",
+        marginTop: theme.spacing.xs,
+    },
+    ratingText: {
+        fontSize: 13,
+        color: theme.colors.text,
+        fontWeight: "700",
+        marginLeft: 4,
+    },
+    reviewCount: {
+        fontSize: 11,
+        color: theme.colors.textLight,
+        marginLeft: 4,
     },
     productBottom: {
         flexDirection: "row",
         justifyContent: "space-between",
         alignItems: "center",
-        width: "100%",
+        paddingTop: theme.spacing.sm,
+        borderTopWidth: 1,
+        borderTopColor: theme.colors.lightGray,
+    },
+    priceContainer: {
+        flex: 1,
+    },
+    priceWrapper: {
+        alignItems: "flex-start",
     },
     productPrice: {
-        fontSize: 14,
+        fontSize: 16,
         fontWeight: "bold",
         color: theme.colors.primary,
     },
+    discountedPrice: {
+        fontSize: 16,
+        fontWeight: "bold",
+        color: theme.colors.primary,
+    },
+    originalPrice: {
+        fontSize: 12,
+        color: theme.colors.textLight,
+        textDecorationLine: "line-through",
+        marginTop: 2,
+    },
     addButton: {
         backgroundColor: theme.colors.primary,
-        width: 32,
-        height: 32,
-        borderRadius: 16,
+        width: 36,
+        height: 36,
+        borderRadius: 18,
         justifyContent: "center",
         alignItems: "center",
-        shadowColor: theme.colors.primary,
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.3,
-        shadowRadius: 4,
-        elevation: 4,
+        ...theme.shadow.small,
     },
     addButtonDisabled: {
         backgroundColor: theme.colors.gray,
         shadowOpacity: 0,
         elevation: 0,
+    },
+    outOfStockContainer: {
+        alignItems: "center",
+        marginTop: theme.spacing.xs,
+    },
+    outOfStockText: {
+        color: theme.colors.error,
+        fontSize: 12,
+        fontWeight: "bold",
+        backgroundColor: theme.colors.lightGray,
+        paddingHorizontal: theme.spacing.sm,
+        paddingVertical: 2,
+        borderRadius: theme.borderRadius.small,
     },
     modalContainer: {
         flex: 1,
@@ -1088,9 +1165,6 @@ const styles = StyleSheet.create({
         borderTopRightRadius: 20,
         padding: 16,
         maxHeight: "90%",
-    },
-    productHeader: {
-        flex: 1,
     },
     modalHeader: {
         flexDirection: "row",
@@ -1220,74 +1294,6 @@ const styles = StyleSheet.create({
         flex: 1,
         justifyContent: "center",
         alignItems: "center",
-    },
-    productCardWrapper: {
-        width: 200,
-        height: 220,
-    },
-    cardTouchable: {
-        flex: 1,
-    },
-    discountBadge: {
-        position: "absolute",
-        top: 5,
-        right: 5,
-        backgroundColor: theme.colors.error,
-        paddingHorizontal: 6,
-        paddingVertical: 2,
-        borderRadius: 10,
-        minWidth: 30,
-        alignItems: "center",
-    },
-    discountText: {
-        color: theme.colors.white,
-        fontSize: 9,
-        fontWeight: "bold",
-    },
-    priceContainer: {
-        flexDirection: "row",
-        alignItems: "center",
-        flex: 1,
-    },
-    priceWrapper: {
-        flexDirection: "column",
-        alignItems: "flex-start",
-    },
-    discountedPrice: {
-        fontSize: 14,
-        fontWeight: "bold",
-        color: theme.colors.primary,
-    },
-    originalPrice: {
-        fontSize: 11,
-        color: theme.colors.textLight,
-        textDecorationLine: "line-through",
-    },
-    outOfStockText: {
-        color: theme.colors.error,
-        fontSize: 12,
-        fontWeight: "bold",
-        marginTop: 4,
-    },
-    distanceDot: {
-        marginHorizontal: 2,
-        color: theme.colors.primary,
-    },
-    ratingContainer: {
-        flexDirection: "row",
-        alignItems: "center",
-        marginTop: 4,
-    },
-    ratingText: {
-        fontSize: 12,
-        color: theme.colors.text,
-        fontWeight: "bold",
-        marginLeft: 4,
-    },
-    reviewCount: {
-        fontSize: 10,
-        color: theme.colors.textLight,
-        marginLeft: 4,
     },
 });
 
