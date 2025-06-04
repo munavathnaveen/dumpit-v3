@@ -377,14 +377,25 @@ const ShopsScreen: React.FC = () => {
             shopsData = applyFiltersToShops(shopsData);
 
             // If loading the first page, replace the list
-            // Otherwise append to the existing list
+            // Otherwise append to the existing list, but check for duplicates
             if (currentPage === 1) {
                 setFilteredShops(shopsData);
                 // Keep a complete list for client-side filtering
                 setShops(response.data);
             } else {
-                setFilteredShops((prevShops) => [...prevShops, ...shopsData]);
-                setShops((prevShops) => [...prevShops, ...response.data]);
+                setFilteredShops((prevShops) => {
+                    // Create a Set of existing shop IDs to check for duplicates
+                    const existingIds = new Set(prevShops.map((s) => s._id));
+                    // Filter out any shops that already exist
+                    const uniqueNewShops = shopsData.filter((s) => !existingIds.has(s._id));
+                    return [...prevShops, ...uniqueNewShops];
+                });
+                setShops((prevShops) => {
+                    // Also check for duplicates in the complete list
+                    const existingIds = new Set(prevShops.map((s) => s._id));
+                    const uniqueNewShops = response.data.filter((s) => !existingIds.has(s._id));
+                    return [...prevShops, ...uniqueNewShops];
+                });
             }
 
             console.log(`Loaded ${shopsData.length} shops. Total: ${response.count}`);
@@ -489,15 +500,9 @@ const ShopsScreen: React.FC = () => {
                 <TouchableOpacity onPress={() => navigation.navigate("ShopDetails", { shopId: item._id })} activeOpacity={0.9} style={styles.cardTouchable}>
                     <View style={styles.shopImageContainer}>
                         <Image source={{ uri: item.logo || item.image || "https://via.placeholder.com/150" }} style={styles.shopImage} resizeMode="cover" />
-                        {item.isOpen ? (
-                            <View style={styles.openBadge}>
-                                <Text style={styles.openBadgeText}>Open</Text>
-                            </View>
-                        ) : (
-                            <View style={[styles.openBadge, styles.closedBadge]}>
-                                <Text style={styles.closedBadgeText}>Closed</Text>
-                            </View>
-                        )}
+                        <View style={[styles.statusBadge, { backgroundColor: item.isOpen ? theme.colors.success : theme.colors.error }]}>
+                            <Text style={styles.statusText}>{item.isOpen ? "Open" : "Closed"}</Text>
+                        </View>
                     </View>
 
                     <View style={styles.shopInfo}>
@@ -505,34 +510,27 @@ const ShopsScreen: React.FC = () => {
                             {item.name}
                         </Text>
 
-                        <View style={styles.ratingContainer}>
-                            <Ionicons name="star" size={14} color="#FFD700" />
+                        <View style={styles.ratingRow}>
+                            <Ionicons name="star" size={12} color="#FFD700" />
                             <Text style={styles.ratingText}>{item.rating.toFixed(1)}</Text>
                             <Text style={styles.reviewCount}>({item.reviews?.length || 0})</Text>
                         </View>
 
-                        {item.distance || shopDistances[item._id] ? (
-                            <View style={styles.distanceContainer}>
-                                <FontAwesome name="map-marker" size={12} color={theme.colors.primary} />
+                        {(item.distance || shopDistances[item._id]) && (
+                            <View style={styles.distanceRow}>
+                                <FontAwesome name="map-marker" size={10} color={theme.colors.primary} />
                                 <Text style={styles.distanceText}>
                                     {typeof item.distance === "number" ? LocationService.formatDistance(item.distance) : item.distance || shopDistances[item._id]} away
                                 </Text>
                             </View>
-                        ) : null}
+                        )}
 
                         {item.categories && item.categories.length > 0 && (
-                            <View style={styles.categoriesContainer}>
+                            <View style={styles.categoriesRow}>
                                 {item.categories.slice(0, 2).map((category, index) => (
-                                    <TouchableOpacity
-                                        key={index}
-                                        style={styles.categoryTag}
-                                        onPress={() => {
-                                            setSelectedCategory(category);
-                                            loadShops();
-                                        }}
-                                    >
+                                    <View key={`${item._id}-category-${index}-${category}`} style={styles.categoryTag}>
                                         <Text style={styles.categoryTagText}>{category}</Text>
-                                    </TouchableOpacity>
+                                    </View>
                                 ))}
                                 {item.categories.length > 2 && <Text style={styles.moreCategories}>+{item.categories.length - 2}</Text>}
                             </View>
@@ -569,7 +567,7 @@ const ShopsScreen: React.FC = () => {
 
                                     {shopCategories.map((category, index) => (
                                         <TouchableOpacity
-                                            key={index}
+                                            key={`category-${index}-${category}`}
                                             style={[styles.categoryButton, selectedCategory === category && styles.categoryButtonActive]}
                                             onPress={() => setSelectedCategory(category)}
                                         >
@@ -754,7 +752,7 @@ const ShopsScreen: React.FC = () => {
                             ) : (
                                 <FlatList
                                     data={filteredShops}
-                                    keyExtractor={(item) => item._id}
+                                    keyExtractor={(item, index) => `${item._id}-${currentPage}-${index}`}
                                     renderItem={renderShopItem}
                                     numColumns={2}
                                     refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
@@ -765,6 +763,14 @@ const ShopsScreen: React.FC = () => {
                                     showsVerticalScrollIndicator={false}
                                     onScroll={handleScroll}
                                     scrollEventThrottle={16}
+                                    removeClippedSubviews={true}
+                                    maxToRenderPerBatch={10}
+                                    windowSize={10}
+                                    getItemLayout={(data, index) => ({
+                                        length: 280,
+                                        offset: 140 * Math.floor(index / 2),
+                                        index,
+                                    })}
                                 />
                             )}
                         </>
@@ -857,124 +863,105 @@ const styles = StyleSheet.create({
     },
     shopCardWrapper: {
         width: "50%",
+        paddingHorizontal: theme.spacing.xs / 2,
     },
     shopCard: {
-        marginVertical: 5,
-        marginHorizontal: 2,
-        borderRadius: 12,
+        marginVertical: theme.spacing.xs / 2,
+        borderRadius: theme.borderRadius.large,
         overflow: "hidden",
         backgroundColor: theme.colors.white,
-        shadowColor: theme.colors.dark,
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        display: "flex",
-        justifyContent: "center",
-        alignItems: "center",
-        shadowRadius: 4,
-        elevation: 3,
-        aspectRatio: 0.8,
+        ...theme.shadow.small,
+        aspectRatio: 0.9,
     },
     cardTouchable: {
         flex: 1,
+        padding: theme.spacing.sm,
     },
     shopImageContainer: {
         position: "relative",
-        flex: 1,
-        borderRadius: 50,
-        aspectRatio: 1,
+        width: "100%",
+        height: 60,
         justifyContent: "center",
         alignItems: "center",
-        marginLeft: 15,
-        backgroundColor: theme.colors.lightGray,
+        marginBottom: theme.spacing.xs,
     },
     shopImage: {
         width: 80,
         height: 80,
         borderRadius: 50,
-        borderWidth: 2,
-        borderColor: theme.colors.white,
+        borderWidth: 1,
+        borderColor: theme.colors.lightGray,
     },
-    openBadge: {
+    statusBadge: {
         position: "absolute",
-        top: 8,
-        right: 8,
-        backgroundColor: theme.colors.success,
-        paddingHorizontal: 6,
+        top: -theme.spacing.xs / 2,
+        right: -theme.spacing.xs / 2,
+        paddingHorizontal: theme.spacing.xs / 2,
         paddingVertical: 2,
-        borderRadius: 10,
+        borderRadius: theme.borderRadius.small,
     },
-    openBadgeText: {
+    statusText: {
         color: "#fff",
-        fontSize: 9,
-        fontWeight: "bold",
-    },
-    closedBadge: {
-        backgroundColor: theme.colors.error,
-    },
-    closedBadgeText: {
-        color: "#fff",
-        fontSize: 9,
+        fontSize: 8,
         fontWeight: "bold",
     },
     shopInfo: {
-        padding: 12,
         flex: 1,
-        justifyContent: "space-between",
+        gap: theme.spacing.xs,
+        marginTop: theme.spacing.md,
     },
     shopName: {
-        fontSize: 14,
+        fontSize: 13,
         fontWeight: "600",
         color: theme.colors.text,
-        marginBottom: 4,
-        minHeight: 36,
+        textAlign: "center",
+        lineHeight: 16,
     },
-    ratingContainer: {
+    ratingRow: {
         flexDirection: "row",
         alignItems: "center",
-        marginBottom: 6,
+        justifyContent: "center",
+        gap: 2,
     },
     ratingText: {
-        marginLeft: 4,
         color: theme.colors.text,
         fontWeight: "600",
-        fontSize: 12,
+        fontSize: 11,
     },
     reviewCount: {
-        marginLeft: 4,
         color: theme.colors.textLight,
-        fontSize: 10,
+        fontSize: 9,
     },
-    distanceContainer: {
+    distanceRow: {
         flexDirection: "row",
         alignItems: "center",
-        marginBottom: 8,
+        justifyContent: "center",
+        gap: 3,
     },
     distanceText: {
-        fontSize: 10,
+        fontSize: 9,
         color: theme.colors.primary,
         fontWeight: "500",
-        marginLeft: 4,
     },
-    categoriesContainer: {
+    categoriesRow: {
         flexDirection: "row",
         flexWrap: "wrap",
-        marginTop: 4,
+        justifyContent: "center",
+        gap: 3,
     },
     categoryTag: {
         backgroundColor: theme.colors.accent,
-        paddingHorizontal: 6,
+        paddingHorizontal: theme.spacing.xs / 2,
         paddingVertical: 2,
-        borderRadius: 10,
-        marginRight: 4,
-        marginBottom: 4,
+        borderRadius: theme.borderRadius.small,
     },
     categoryTagText: {
-        fontSize: 9,
+        fontSize: 8,
         color: theme.colors.white,
         fontWeight: "500",
     },
     moreCategories: {
-        fontSize: 9,
+        fontSize: 8,
         color: theme.colors.gray,
         fontWeight: "500",
     },

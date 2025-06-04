@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback, useMemo } from "react";
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Image, ActivityIndicator, Dimensions, ImageBackground, useWindowDimensions } from "react-native";
 import { useSelector, useDispatch } from "react-redux";
 import { useNavigation } from "@react-navigation/native";
@@ -128,11 +128,11 @@ const HomeScreen: React.FC = () => {
         return () => clearInterval(adInterval);
     }, []);
 
-    const fetchProducts = async () => {
+    const fetchProducts = useCallback(async () => {
         try {
             setLoading((prev) => ({ ...prev, products: true }));
             // Use a more specific query to get featured products with limit
-            const response = await productApi.getProducts("sort=-createdAt");
+            const response = await productApi.getProducts("sort=-createdAt&limit=6");
 
             // Ensure we have valid data and handle potential API response structure issues
             if (response && response.data && Array.isArray(response.data)) {
@@ -158,30 +158,38 @@ const HomeScreen: React.FC = () => {
         } finally {
             setLoading((prev) => ({ ...prev, products: false }));
         }
-    };
+    }, []);
 
-    const fetchNearbyShops = async () => {
+    const fetchNearbyShops = useCallback(async () => {
         try {
+            setLoading((prev) => ({ ...prev, shops: true }));
             const location = await LocationService.getCurrentLocation();
             const { latitude, longitude } = location;
             setLocationData(location);
 
             try {
-                const response = await LocationService.geocodeStringAddress(`${latitude},${longitude}`);
-                console.log(response);
                 const locationString = `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
                 setLocation(locationString);
             } catch (error) {
-                console.error("Error getting location name:", error);
+                console.error("Error setting location:", error);
                 setLocation("Location Not found");
             }
 
             const response = await LocationService.getNearbyShops(location);
             console.log("nearby shops", response);
+
             if (response.success && response.data) {
-                // Calculate distances for each shop
+                // Limit the number of shops to reduce API calls and improve performance
+                const limitedShops = response.data.slice(0, 5); // Only show first 5 shops
+
+                // Calculate distances for limited shops only to avoid rate limiting
                 const shopsWithDistances = await Promise.all(
-                    response.data.map(async (shop: ApiShop) => {
+                    limitedShops.map(async (shop: ApiShop, index: number) => {
+                        // Add delay between requests to avoid rate limiting
+                        if (index > 0) {
+                            await new Promise((resolve) => setTimeout(resolve, 200)); // 200ms delay
+                        }
+
                         if (shop.location?.coordinates?.length === 2) {
                             try {
                                 const distanceMatrix = await LocationService.getDistanceMatrix(location, {
@@ -194,7 +202,8 @@ const HomeScreen: React.FC = () => {
                                     duration: distanceMatrix.duration,
                                 };
                             } catch (error) {
-                                console.error(`Error calculating distance for shop ${shop._id}:`, error);
+                                console.warn(`Error calculating distance for shop ${shop._id}:`, error);
+                                // Return shop without distance instead of failing
                                 return shop;
                             }
                         }
@@ -214,9 +223,9 @@ const HomeScreen: React.FC = () => {
         } finally {
             setLoading((prev) => ({ ...prev, shops: false }));
         }
-    };
+    }, []);
 
-    const fetchCategories = async () => {
+    const fetchCategories = useCallback(async () => {
         try {
             setLoading((prev) => ({ ...prev, categories: true }));
             // Using productApi instead of categoryApi
@@ -227,9 +236,9 @@ const HomeScreen: React.FC = () => {
         } finally {
             setLoading((prev) => ({ ...prev, categories: false }));
         }
-    };
+    }, []);
 
-    const getLocation = async () => {
+    const getLocation = useCallback(async () => {
         try {
             const { status } = await Location.requestForegroundPermissionsAsync();
             if (status !== "granted") {
@@ -286,7 +295,7 @@ const HomeScreen: React.FC = () => {
             console.error("Error getting location:", error);
             setLocation("Error getting location");
         }
-    };
+    }, [user?._id]);
 
     const handleLogout = async () => {
         try {
@@ -335,7 +344,7 @@ const HomeScreen: React.FC = () => {
                 </ImageBackground>
                 <View style={styles.adIndicators}>
                     {adBanners.map((_, index) => (
-                        <View key={index} style={[styles.adIndicator, index === currentAdIndex && styles.adIndicatorActive]} />
+                        <View key={`ad-indicator-${index}`} style={[styles.adIndicator, index === currentAdIndex && styles.adIndicatorActive]} />
                     ))}
                 </View>
             </Card3D>
@@ -354,19 +363,19 @@ const HomeScreen: React.FC = () => {
         const discountedPrice = originalPrice - originalPrice * (discountPercent / 100);
 
         return (
-            <TouchableOpacity key={product._id} style={[styles.productCard, { width: productCardWidth }]} onPress={() => navigateToProductDetails(product._id)} activeOpacity={0.8}>
+            <TouchableOpacity key={`product-${product._id}`} style={[styles.productCard, { width: productCardWidth }]} onPress={() => navigateToProductDetails(product._id)} activeOpacity={0.8}>
                 <Card3D style={styles.productCardContainer}>
                     <View style={styles.productImageContainer}>
                         <Image source={{ uri: imageUrl }} style={styles.productImage} resizeMode="cover" />
                         {discountPercent > 0 && (
                             <View style={styles.discountBadge}>
-                                <Text style={styles.discountText}>{discountPercent}% OFF</Text>
+                                <Text style={styles.discountText}>{Math.round(discountPercent)}%</Text>
                             </View>
                         )}
                     </View>
 
                     <View style={styles.productInfo}>
-                        <Text style={styles.productName} numberOfLines={1}>
+                        <Text style={styles.productName} numberOfLines={2}>
                             {product.name}
                         </Text>
 
@@ -380,6 +389,13 @@ const HomeScreen: React.FC = () => {
                             <Text style={styles.productPrice}>₹{discountedPrice.toFixed(0)}</Text>
                             {discountPercent > 0 && <Text style={styles.originalPrice}>₹{originalPrice.toFixed(0)}</Text>}
                         </View>
+
+                        {product.rating > 0 && (
+                            <View style={styles.ratingContainer}>
+                                <Ionicons name="star" size={12} color="#FFD700" />
+                                <Text style={styles.ratingText}>{product.rating.toFixed(1)}</Text>
+                            </View>
+                        )}
                     </View>
                 </Card3D>
             </TouchableOpacity>
@@ -388,9 +404,9 @@ const HomeScreen: React.FC = () => {
 
     const renderShopCard = (shop: Shop) => {
         return (
-            <TouchableOpacity key={shop._id} style={[styles.shopCardWrapper, { width: shopCardWidth }]} onPress={() => navigateToShopDetails(shop._id)} activeOpacity={0.8}>
+            <TouchableOpacity key={`shop-${shop._id}`} style={[styles.shopCardWrapper, { width: shopCardWidth }]} onPress={() => navigateToShopDetails(shop._id)} activeOpacity={0.8}>
                 <Card3D style={styles.shopCard}>
-                    <LinearGradient colors={["rgba(255,107,53,0.8)", "rgba(14,47,88,0.9)"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.shopCardGradient}>
+                    <View style={styles.shopCardContent}>
                         <View style={styles.shopImageContainer}>
                             <Image
                                 source={{
@@ -399,33 +415,39 @@ const HomeScreen: React.FC = () => {
                                 style={styles.shopImage}
                                 resizeMode="cover"
                             />
+                            <View style={[styles.statusIndicator, { backgroundColor: shop.isOpen ? theme.colors.success : theme.colors.error }]} />
                         </View>
+
                         <View style={styles.shopContent}>
-                            <Text style={styles.shopName}>{shop.name}</Text>
+                            <Text style={styles.shopCardName} numberOfLines={1}>
+                                {shop.name}
+                            </Text>
+
                             <View style={styles.shopRatingContainer}>
-                                <Ionicons name="star" size={16} color="#FFD700" />
+                                <Ionicons name="star" size={12} color="#FFD700" />
                                 <Text style={styles.shopRating}>{shop.rating ? shop.rating.toFixed(1) : "0.0"}</Text>
-                                <Text style={styles.shopRatingCount}>({shop.reviews ? shop.reviews.length : 0} reviews)</Text>
+                                <Text style={styles.shopRatingCount}>({shop.reviews ? shop.reviews.length : 0})</Text>
                             </View>
+
                             <View style={styles.shopDetailRow}>
-                                <Ionicons name="location-outline" size={16} color="#FFFFFF" />
+                                <Ionicons name="location-outline" size={12} color={theme.colors.textLight} />
                                 <Text style={styles.shopAddress} numberOfLines={1}>
                                     {shop.address ? `${shop.address.village || shop.address.city || ""}, ${shop.address.district || shop.address.street || ""}` : "Location not available"}
                                 </Text>
                             </View>
-                            <View style={styles.shopCategoriesContainer}>
-                                {shop.categories?.map((category: string, index: number) => (
-                                    <View key={index} style={styles.categoryTag}>
-                                        <Text style={styles.categoryTagText}>{category}</Text>
-                                    </View>
-                                ))}
-                            </View>
-                            <View style={styles.shopStatus}>
-                                <View style={[styles.statusIndicator, { backgroundColor: shop.isOpen ? theme.colors.success : theme.colors.error }]} />
-                                <Text style={styles.statusText}>{shop.isOpen ? "Open Now" : "Closed"}</Text>
-                            </View>
+
+                            {shop.categories && shop.categories.length > 0 && (
+                                <View style={styles.shopCategoriesContainer}>
+                                    {shop.categories.slice(0, 2).map((category: string, index: number) => (
+                                        <View key={`${shop._id}-category-${index}-${category}`} style={styles.categoryTag}>
+                                            <Text style={styles.categoryTagText}>{category}</Text>
+                                        </View>
+                                    ))}
+                                    {shop.categories.length > 2 && <Text style={styles.moreCategoriesText}>+{shop.categories.length - 2}</Text>}
+                                </View>
+                            )}
                         </View>
-                    </LinearGradient>
+                    </View>
                 </Card3D>
             </TouchableOpacity>
         );
@@ -494,7 +516,11 @@ const HomeScreen: React.FC = () => {
         const colorSet = colorSets[index % colorSets.length];
 
         return (
-            <TouchableOpacity key={index} style={[styles.categoryCard, { backgroundColor: colorSet.bg, width: categoryCardWidth }]} onPress={() => navigateToProductsByCategory(category)}>
+            <TouchableOpacity
+                key={`category-${index}-${category}`}
+                style={[styles.categoryCard, { backgroundColor: colorSet.bg, width: categoryCardWidth }]}
+                onPress={() => navigateToProductsByCategory(category)}
+            >
                 <View style={styles.categoryIconContainer}>
                     <Ionicons name={colorSet.icon as any} size={24} color={colorSet.text} />
                 </View>
@@ -714,90 +740,99 @@ const styles = StyleSheet.create({
     productsContainer: {
         paddingLeft: theme.spacing.lg,
         paddingRight: theme.spacing.sm,
-        paddingVertical: theme.spacing.md,
     },
     productCard: {
-        maxWidth: 150,
-        marginRight: theme.spacing.md,
-        aspectRatio: 0.85,
-        borderRadius: theme.borderRadius.large,
+        marginRight: theme.spacing.sm,
+        aspectRatio: 0.8,
+        borderRadius: theme.borderRadius.medium,
+        padding: theme.spacing.xs,
+        maxWidth: 120,
     },
     productCardContainer: {
         flex: 1,
-        backgroundColor: theme.colors.lightGray,
+        backgroundColor: theme.colors.white,
         borderRadius: theme.borderRadius.large,
+        padding: theme.spacing.sm,
         overflow: "hidden",
-        ...theme.shadow.medium,
-        elevation: 4,
+        ...theme.shadow.small,
     },
     productImageContainer: {
-        aspectRatio: 1,
+        height: 60,
         position: "relative",
+        backgroundColor: theme.colors.lightGray,
+        justifyContent: "center",
+        alignItems: "center",
     },
     productImage: {
-        width: "100%",
-        height: "100%",
+        width: 60,
+        height: 60,
         borderRadius: 50,
-        alignSelf: "center",
     },
     discountBadge: {
         position: "absolute",
-        top: 8,
-        right: 8,
+        top: 4,
+        right: 4,
         backgroundColor: theme.colors.error,
-        paddingHorizontal: 6,
-        paddingVertical: 2,
-        borderRadius: 8,
+        paddingHorizontal: 4,
+        paddingVertical: 1,
+        borderRadius: theme.borderRadius.small,
     },
     discountText: {
         color: "#FFFFFF",
         fontWeight: "bold",
-        fontSize: 10,
+        fontSize: 7,
     },
     productInfo: {
-        padding: theme.spacing.sm,
-        backgroundColor: theme.colors.white,
+        padding: theme.spacing.xs,
+        flex: 1,
+        gap: theme.spacing.xs / 3,
     },
     productName: {
-        fontSize: 14,
+        fontSize: 12,
         fontWeight: "600",
         color: theme.colors.text,
-        marginBottom: 2,
-    },
-    shopInfo: {
-        flexDirection: "row",
-        alignItems: "center",
-        marginBottom: 8,
+        lineHeight: 14,
+        textAlign: "center",
     },
     shopName: {
-        fontSize: 12,
-        color: theme.colors.gray,
-        marginBottom: 4,
+        fontSize: 10,
+        color: theme.colors.textLight,
+        textAlign: "center",
     },
     productPriceContainer: {
-        flexDirection: "row",
+        flexDirection: "column",
         alignItems: "center",
-        justifyContent: "space-between",
     },
     productPrice: {
-        fontSize: 14,
+        fontSize: 13,
         fontWeight: "bold",
         color: theme.colors.primary,
     },
     originalPrice: {
-        fontSize: 11,
+        fontSize: 9,
         color: theme.colors.gray,
         textDecorationLine: "line-through",
     },
+    ratingContainer: {
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 1,
+    },
+    ratingText: {
+        fontSize: 10,
+        color: theme.colors.text,
+        fontWeight: "600",
+    },
     shopCardWrapper: {
-        marginRight: theme.spacing.md,
+        marginRight: theme.spacing.sm,
     },
     shopCard: {
         padding: 0,
         overflow: "hidden",
         height: 120,
     },
-    shopCardGradient: {
+    shopCardContent: {
         flexDirection: "row",
         padding: theme.spacing.md,
         height: "100%",
@@ -813,11 +848,17 @@ const styles = StyleSheet.create({
     shopImage: {
         width: 70,
         height: 70,
-        borderRadius: 30,
+        borderRadius: 50,
     },
     shopContent: {
         flex: 1,
         justifyContent: "center",
+    },
+    shopCardName: {
+        fontSize: 14,
+        fontWeight: "bold",
+        color: theme.colors.text,
+        marginBottom: 8,
     },
     shopRatingContainer: {
         flexDirection: "row",
@@ -825,15 +866,13 @@ const styles = StyleSheet.create({
         marginBottom: 8,
     },
     shopRating: {
-        fontSize: 14,
-        color: "#FFFFFF",
-        marginLeft: 4,
+        fontSize: 12,
+        color: theme.colors.text,
         fontWeight: "600",
     },
     shopRatingCount: {
-        fontSize: 12,
-        color: "rgba(255, 255, 255, 0.7)",
-        marginLeft: 4,
+        fontSize: 10,
+        color: theme.colors.textLight,
     },
     shopDetailRow: {
         flexDirection: "row",
@@ -841,8 +880,8 @@ const styles = StyleSheet.create({
         marginBottom: 8,
     },
     shopAddress: {
-        fontSize: 13,
-        color: "#FFFFFF",
+        fontSize: 12,
+        color: theme.colors.textLight,
         marginLeft: 6,
         flex: 1,
     },
@@ -860,22 +899,20 @@ const styles = StyleSheet.create({
         marginBottom: 6,
     },
     categoryTagText: {
-        fontSize: 11,
-        color: "#FFFFFF",
+        fontSize: 9,
+        color: theme.colors.white,
+        fontWeight: "500",
     },
-    shopStatus: {
-        flexDirection: "row",
-        alignItems: "center",
+    moreCategoriesText: {
+        fontSize: 9,
+        color: theme.colors.textLight,
+        fontWeight: "500",
     },
     statusIndicator: {
         width: 8,
         height: 8,
         borderRadius: 4,
         marginRight: 6,
-    },
-    statusText: {
-        fontSize: 12,
-        color: "#FFFFFF",
     },
     loadingContainer: {
         height: 200,
