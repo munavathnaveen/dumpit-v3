@@ -794,9 +794,7 @@ const styles = StyleSheet.create({
         flex: 1,
         padding: theme.spacing.md,
     },
-    searchContainer: {
-        padding: theme.spacing.md,
-    },
+    searchContainer: {},
     searchBar: {
         marginBottom: theme.spacing.sm,
     },

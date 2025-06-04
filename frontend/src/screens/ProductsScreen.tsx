@@ -753,21 +753,7 @@ const ProductsScreen: React.FC = () => {
     return (
         <SafeAreaView style={styles.safeArea}>
             <View style={styles.container}>
-                <Animated.View
-                    style={[
-                        styles.headerContainer,
-                        {
-                            transform: [
-                                {
-                                    translateY: showNavigation ? 0 : -100,
-                                },
-                            ],
-                        },
-                    ]}
-                >
-                    <ScreenHeader title={shopId ? "Shop Products" : "Products"} showBackButton={true} onNotificationPress={handleNotificationPress} />
-                </Animated.View>
-
+                <ScreenHeader title={shopId ? "Shop Products" : "Products"} showBackButton={true} onNotificationPress={handleNotificationPress} />
                 <View style={styles.contentContainer}>
                     <View style={styles.searchContainer}>
                         <SearchBar placeholder="Search products..." onSearch={handleSearch} value={internalSearchQuery} style={styles.searchBar} />
@@ -799,16 +785,6 @@ const ProductsScreen: React.FC = () => {
                             </View>
                         </View>
                     </View>
-
-                    {/* Sort options horizontal list */}
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.sortOptionsContainer}>
-                        {sortOptions.map((option, index) => (
-                            <TouchableOpacity key={index} style={[styles.sortOption, sortBy === option.value && styles.sortOptionActive]} onPress={() => setSortBy(option.value)}>
-                                <Text style={[styles.sortOptionText, sortBy === option.value && styles.sortOptionTextActive]}>{option.label}</Text>
-                            </TouchableOpacity>
-                        ))}
-                    </ScrollView>
-
                     {loading && currentPage === 1 ? (
                         <View style={styles.loaderContainer}>
                             <ActivityIndicator size="large" color={theme.colors.primary} />
@@ -853,7 +829,6 @@ const styles = StyleSheet.create({
     container: {
         flex: 1,
         backgroundColor: theme.colors.background,
-        paddingTop: Platform.OS === "android" ? 25 : 0,
     },
     headerContainer: {
         zIndex: 1000,
@@ -864,15 +839,13 @@ const styles = StyleSheet.create({
         padding: theme.spacing.md,
         paddingBottom: 78,
     },
-    searchContainer: {
-        padding: theme.spacing.sm,
-    },
+    searchContainer: {},
     imageContainer: {
         width: "100%",
-        height: 100,
+        height: 50,
         justifyContent: "center",
         alignItems: "center",
-        padding: 10,
+        padding: 6,
         backgroundColor: theme.colors.background,
         position: "relative",
     },
@@ -1005,8 +978,7 @@ const styles = StyleSheet.create({
     },
     productCard: {
         flex: 1,
-        marginVertical: 8,
-        marginHorizontal: 4,
+        marginVertical: 10,
         borderRadius: 16,
         overflow: "hidden",
         backgroundColor: theme.colors.white,
@@ -1015,6 +987,7 @@ const styles = StyleSheet.create({
         shadowOpacity: 0.1,
         shadowRadius: 4,
         elevation: 3,
+        height: 300,
         aspectRatio: 0.8,
     },
     productImage: {
@@ -1024,8 +997,10 @@ const styles = StyleSheet.create({
         backgroundColor: theme.colors.lightGray,
     },
     productContent: {
-        padding: 12,
+        padding: 4,
         flex: 1,
+        flexDirection: "column",
+        marginVertical: 10,
         justifyContent: "space-between",
         alignItems: "center",
     },
@@ -1077,7 +1052,6 @@ const styles = StyleSheet.create({
         flexDirection: "row",
         justifyContent: "space-between",
         alignItems: "center",
-        marginTop: "auto",
         width: "100%",
     },
     productPrice: {
@@ -1248,8 +1222,8 @@ const styles = StyleSheet.create({
         alignItems: "center",
     },
     productCardWrapper: {
-        width: "50%",
-        padding: 4,
+        width: 200,
+        height: 220,
     },
     cardTouchable: {
         flex: 1,
