@@ -460,41 +460,39 @@ const ProductsScreen: React.FC = () => {
                     </View>
 
                     <View style={styles.productContent}>
-                        <View style={styles.productHeader}>
-                            <Text style={styles.productName} numberOfLines={2}>
-                                {item.name}
-                            </Text>
+                        <Text style={styles.productName} numberOfLines={2}>
+                            {item.name}
+                        </Text>
 
-                            {item.category && (
-                                <View style={styles.categoryChip}>
-                                    <Text style={styles.categoryChipText}>{item.category}</Text>
-                                </View>
-                            )}
-
-                            <View style={styles.shopInfoContainer}>
-                                <MaterialIcons name="store" size={12} color={theme.colors.textLight} />
-                                <Text style={styles.shopName} numberOfLines={1}>
-                                    {item.shop?.name || "Shop"}
-                                </Text>
-                                {shopDistances[item.shop?._id] && (
-                                    <>
-                                        <Text style={styles.distanceDot}>•</Text>
-                                        <View style={styles.distanceRow}>
-                                            <FontAwesome name="map-marker" size={10} color={theme.colors.primary} />
-                                            <Text style={styles.distanceText}>{shopDistances[item.shop._id]}</Text>
-                                        </View>
-                                    </>
-                                )}
+                        {item.category && (
+                            <View style={styles.categoryChip}>
+                                <Text style={styles.categoryChipText}>{item.category}</Text>
                             </View>
+                        )}
 
-                            {item.rating > 0 && (
-                                <View style={styles.ratingContainer}>
-                                    <Ionicons name="star" size={14} color="#FFD700" />
-                                    <Text style={styles.ratingText}>{item.rating.toFixed(1)}</Text>
-                                    <Text style={styles.reviewCount}>({item.reviews?.length || 0})</Text>
-                                </View>
+                        <View style={styles.shopInfoContainer}>
+                            <MaterialIcons name="store" size={10} color={theme.colors.textLight} />
+                            <Text style={styles.shopName} numberOfLines={1}>
+                                {item.shop?.name || "Shop"}
+                            </Text>
+                            {shopDistances[item.shop?._id] && (
+                                <>
+                                    <Text style={styles.distanceDot}>•</Text>
+                                    <View style={styles.distanceRow}>
+                                        <FontAwesome name="map-marker" size={8} color={theme.colors.primary} />
+                                        <Text style={styles.distanceText}>{shopDistances[item.shop._id]}</Text>
+                                    </View>
+                                </>
                             )}
                         </View>
+
+                        {item.rating > 0 && (
+                            <View style={styles.ratingContainer}>
+                                <Ionicons name="star" size={12} color="#FFD700" />
+                                <Text style={styles.ratingText}>{item.rating.toFixed(1)}</Text>
+                                <Text style={styles.reviewCount}>({item.reviews?.length || 0})</Text>
+                            </View>
+                        )}
 
                         <View style={styles.productBottom}>
                             <View style={styles.priceContainer}>
@@ -514,7 +512,7 @@ const ProductsScreen: React.FC = () => {
                                 disabled={item.stock <= 0}
                                 activeOpacity={0.8}
                             >
-                                <Ionicons name={item.stock > 0 ? "add" : "close"} size={20} color={theme.colors.white} />
+                                <Ionicons name={item.stock > 0 ? "add" : "close"} size={16} color={theme.colors.white} />
                             </TouchableOpacity>
                         </View>
 
@@ -728,6 +726,7 @@ const ProductsScreen: React.FC = () => {
 
     // Cleanup timeout on unmount
     useEffect(() => {
+        resetFilters();
         return () => {
             if (scrollTimeout.current) {
                 clearTimeout(scrollTimeout.current);
@@ -789,6 +788,7 @@ const ProductsScreen: React.FC = () => {
                             </View>
                         </View>
                     </View>
+
                     {loading && currentPage === 1 ? (
                         <View style={styles.loaderContainer}>
                             <ActivityIndicator size="large" color={theme.colors.primary} />
@@ -813,6 +813,7 @@ const ProductsScreen: React.FC = () => {
                                     showsVerticalScrollIndicator={false}
                                     onScroll={handleScroll}
                                     scrollEventThrottle={16}
+                                    columnWrapperStyle={styles.productRow}
                                 />
                             )}
                         </>
@@ -840,35 +841,37 @@ const styles = StyleSheet.create({
     },
     contentContainer: {
         flex: 1,
-        paddingHorizontal: theme.spacing.sm,
-        paddingVertical: theme.spacing.md,
+        paddingHorizontal: theme.spacing.xs,
+        paddingVertical: theme.spacing.sm,
         paddingBottom: 78,
     },
     searchContainer: {
-        marginBottom: theme.spacing.md,
+        marginBottom: theme.spacing.sm,
+        paddingHorizontal: theme.spacing.sm,
     },
     searchBar: {
-        marginBottom: theme.spacing.sm,
+        marginBottom: theme.spacing.xs,
     },
     filterRow: {
         flexDirection: "row",
         alignItems: "center",
         justifyContent: "space-between",
-        marginBottom: theme.spacing.sm,
+        marginBottom: theme.spacing.xs,
     },
     filterButton: {
         flexDirection: "row",
         alignItems: "center",
         backgroundColor: theme.colors.white,
-        paddingHorizontal: theme.spacing.md,
-        paddingVertical: theme.spacing.sm,
+        paddingHorizontal: theme.spacing.sm,
+        paddingVertical: theme.spacing.xs,
         borderRadius: theme.borderRadius.small,
         ...theme.shadow.small,
     },
     filterButtonText: {
-        marginLeft: 8,
+        marginLeft: 6,
         color: theme.colors.primary,
         fontWeight: "600",
+        fontSize: 13,
     },
     activeFiltersContainer: {
         flex: 1,
@@ -973,137 +976,137 @@ const styles = StyleSheet.create({
     },
     productList: {
         paddingBottom: 20,
+        paddingHorizontal: theme.spacing.xs,
     },
     productCardWrapper: {
         flex: 1,
-        margin: theme.spacing.xs,
-        maxWidth: "48%",
-        minWidth: "40%",
+        margin: 2,
+        maxWidth: "49%",
+        minWidth: "48%",
     },
     productCard: {
         flex: 1,
         borderRadius: theme.borderRadius.large,
         overflow: "hidden",
+        margin: 4,
+        padding: theme.spacing.xs,
         backgroundColor: theme.colors.white,
-        ...theme.shadow.medium,
+        ...theme.shadow.small,
+        minHeight: 200,
     },
     cardTouchable: {
         flex: 1,
+        padding: theme.spacing.xs,
     },
     imageContainer: {
         width: "100%",
         height: 80,
-
         justifyContent: "center",
         alignItems: "center",
-        marginBottom: theme.spacing.sm,
-        backgroundColor: theme.colors.lightGray,
-        borderRadius: 60,
+        marginBottom: theme.spacing.xs,
         position: "relative",
     },
     productImage: {
-        width: 60,
-        height: 60,
-        borderRadius: 60,
+        width: 70,
+        height: 70,
+        borderRadius: 50,
         backgroundColor: theme.colors.lightGray,
     },
     discountBadge: {
         position: "absolute",
-        top: theme.spacing.xs,
-        right: theme.spacing.xs,
+        top: 0,
+        right: 0,
         backgroundColor: theme.colors.error,
-        paddingHorizontal: theme.spacing.xs,
-        paddingVertical: 2,
+        paddingHorizontal: 4,
+        paddingVertical: 1,
         borderRadius: theme.borderRadius.small,
-        minWidth: 40,
+        minWidth: 35,
         alignItems: "center",
     },
     discountText: {
         color: theme.colors.white,
-        fontSize: 10,
+        fontSize: 8,
         fontWeight: "bold",
     },
     productContent: {
         flex: 1,
         justifyContent: "space-between",
-    },
-    productHeader: {
-        flex: 1,
-        marginBottom: theme.spacing.sm,
+        paddingHorizontal: theme.spacing.xs,
     },
     productName: {
-        fontSize: 15,
+        fontSize: 13,
         fontWeight: "700",
         color: theme.colors.text,
-        marginBottom: theme.spacing.xs,
-        lineHeight: 20,
+        marginBottom: 4,
+        lineHeight: 16,
         textAlign: "center",
     },
     categoryChip: {
         backgroundColor: theme.colors.accent,
-        paddingHorizontal: theme.spacing.sm,
-        paddingVertical: 4,
+        paddingHorizontal: 6,
+        paddingVertical: 2,
         borderRadius: theme.borderRadius.small,
         alignSelf: "center",
-        marginBottom: theme.spacing.xs,
+        marginBottom: 4,
     },
     categoryChipText: {
         color: theme.colors.white,
-        fontSize: 11,
+        fontSize: 9,
         fontWeight: "600",
     },
     shopInfoContainer: {
         flexDirection: "row",
         alignItems: "center",
         justifyContent: "center",
-        marginBottom: theme.spacing.xs,
+        marginBottom: 4,
         flexWrap: "wrap",
     },
     shopName: {
-        fontSize: 12,
+        fontSize: 10,
         color: theme.colors.textLight,
-        marginLeft: 4,
+        marginLeft: 3,
         fontWeight: "500",
     },
     distanceDot: {
-        marginHorizontal: 4,
+        marginHorizontal: 3,
         color: theme.colors.textLight,
-        fontSize: 12,
+        fontSize: 10,
     },
     distanceRow: {
         flexDirection: "row",
         alignItems: "center",
     },
     distanceText: {
-        fontSize: 10,
+        fontSize: 12,
         color: theme.colors.primary,
-        marginLeft: 3,
+        marginLeft: 2,
         fontWeight: "600",
     },
     ratingContainer: {
         flexDirection: "row",
         alignItems: "center",
         justifyContent: "center",
-        marginTop: theme.spacing.xs,
+        marginBottom: 4,
     },
     ratingText: {
-        fontSize: 13,
+        fontSize: 11,
         color: theme.colors.text,
         fontWeight: "700",
-        marginLeft: 4,
+        marginLeft: 3,
     },
     reviewCount: {
-        fontSize: 11,
+        fontSize: 9,
         color: theme.colors.textLight,
-        marginLeft: 4,
+        marginLeft: 3,
     },
     productBottom: {
         flexDirection: "row",
         justifyContent: "space-between",
         alignItems: "center",
-        paddingTop: theme.spacing.sm,
+        paddingTop: 6,
         borderTopWidth: 1,
         borderTopColor: theme.colors.lightGray,
+        marginTop: 4,
     },
     priceContainer: {
         flex: 1,
@@ -1112,26 +1115,26 @@ const styles = StyleSheet.create({
         alignItems: "flex-start",
     },
     productPrice: {
-        fontSize: 16,
+        fontSize: 14,
         fontWeight: "bold",
         color: theme.colors.primary,
     },
     discountedPrice: {
-        fontSize: 16,
+        fontSize: 14,
         fontWeight: "bold",
         color: theme.colors.primary,
     },
     originalPrice: {
-        fontSize: 12,
+        fontSize: 10,
         color: theme.colors.textLight,
         textDecorationLine: "line-through",
-        marginTop: 2,
+        marginTop: 1,
     },
     addButton: {
         backgroundColor: theme.colors.primary,
-        width: 36,
-        height: 36,
-        borderRadius: 18,
+        width: 28,
+        height: 28,
+        borderRadius: 14,
         justifyContent: "center",
         alignItems: "center",
         ...theme.shadow.small,
@@ -1143,15 +1146,15 @@ const styles = StyleSheet.create({
     },
     outOfStockContainer: {
         alignItems: "center",
-        marginTop: theme.spacing.xs,
+        marginTop: 4,
     },
     outOfStockText: {
         color: theme.colors.error,
-        fontSize: 12,
+        fontSize: 10,
         fontWeight: "bold",
         backgroundColor: theme.colors.lightGray,
-        paddingHorizontal: theme.spacing.sm,
-        paddingVertical: 2,
+        paddingHorizontal: 6,
+        paddingVertical: 1,
         borderRadius: theme.borderRadius.small,
     },
     modalContainer: {
@@ -1294,6 +1297,9 @@ const styles = StyleSheet.create({
         flex: 1,
         justifyContent: "center",
         alignItems: "center",
+    },
+    productRow: {
+        justifyContent: "space-between",
     },
 });
 

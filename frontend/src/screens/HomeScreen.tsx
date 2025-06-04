@@ -406,48 +406,59 @@ const HomeScreen: React.FC = () => {
         return (
             <TouchableOpacity key={`shop-${shop._id}`} style={[styles.shopCardWrapper, { width: shopCardWidth }]} onPress={() => navigateToShopDetails(shop._id)} activeOpacity={0.8}>
                 <Card3D style={styles.shopCard}>
-                    <View style={styles.shopCardContent}>
-                        <View style={styles.shopImageContainer}>
-                            <Image
-                                source={{
-                                    uri: shop.image || "https://i.ibb.co/rskZwbK/shop-placeholder.jpg",
-                                }}
-                                style={styles.shopImage}
-                                resizeMode="cover"
-                            />
-                            <View style={[styles.statusIndicator, { backgroundColor: shop.isOpen ? theme.colors.success : theme.colors.error }]} />
-                        </View>
-
-                        <View style={styles.shopContent}>
-                            <Text style={styles.shopCardName} numberOfLines={1}>
-                                {shop.name}
-                            </Text>
-
-                            <View style={styles.shopRatingContainer}>
-                                <Ionicons name="star" size={12} color="#FFD700" />
-                                <Text style={styles.shopRating}>{shop.rating ? shop.rating.toFixed(1) : "0.0"}</Text>
-                                <Text style={styles.shopRatingCount}>({shop.reviews ? shop.reviews.length : 0})</Text>
-                            </View>
-
-                            <View style={styles.shopDetailRow}>
-                                <Ionicons name="location-outline" size={12} color={theme.colors.textLight} />
-                                <Text style={styles.shopAddress} numberOfLines={1}>
-                                    {shop.address ? `${shop.address.village || shop.address.city || ""}, ${shop.address.district || shop.address.street || ""}` : "Location not available"}
-                                </Text>
-                            </View>
-
-                            {shop.categories && shop.categories.length > 0 && (
-                                <View style={styles.shopCategoriesContainer}>
-                                    {shop.categories.slice(0, 2).map((category: string, index: number) => (
-                                        <View key={`${shop._id}-category-${index}-${category}`} style={styles.categoryTag}>
-                                            <Text style={styles.categoryTagText}>{category}</Text>
-                                        </View>
-                                    ))}
-                                    {shop.categories.length > 2 && <Text style={styles.moreCategoriesText}>+{shop.categories.length - 2}</Text>}
+                    <LinearGradient colors={["#478DA8", "#7373D1"]} style={styles.shopCardGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
+                        <View style={styles.shopCardContent}>
+                            <View style={styles.shopImageContainer}>
+                                <View style={styles.shopImageWrapper}>
+                                    <Image
+                                        source={{
+                                            uri: shop.image || "https://i.ibb.co/rskZwbK/shop-placeholder.jpg",
+                                        }}
+                                        style={styles.shopImage}
+                                        resizeMode="cover"
+                                    />
+                                    <View style={[styles.statusIndicator, { backgroundColor: shop.isOpen ? "#4ade80" : "#f87171" }]} />
                                 </View>
-                            )}
+                            </View>
+
+                            <View style={styles.shopContent}>
+                                <Text style={styles.shopCardName} numberOfLines={1}>
+                                    {shop.name}
+                                </Text>
+
+                                <View style={styles.shopRatingContainer}>
+                                    <Ionicons name="star" size={14} color="#FFD700" />
+                                    <Text style={styles.shopRating}>{shop.rating ? shop.rating.toFixed(1) : "0.0"}</Text>
+                                    <Text style={styles.shopRatingCount}>({shop.reviews ? shop.reviews.length : 0})</Text>
+                                </View>
+
+                                <View style={styles.shopDetailRow}>
+                                    <Ionicons name="location-outline" size={14} color="rgba(255,255,255,0.8)" />
+                                    <Text style={styles.shopAddress} numberOfLines={2}>
+                                        {shop.address ? `${shop.address.village || shop.address.city || ""}, ${shop.address.district || shop.address.street || ""}` : "Location not available"}
+                                    </Text>
+                                </View>
+
+                                {shop.categories && shop.categories.length > 0 && (
+                                    <View style={styles.shopCategoriesContainer}>
+                                        {shop.categories.slice(0, 2).map((category: string, index: number) => (
+                                            <View key={`${shop._id}-category-${index}-${category}`} style={styles.categoryTag}>
+                                                <Text style={styles.categoryTagText}>{category}</Text>
+                                            </View>
+                                        ))}
+                                        {shop.categories.length > 2 && <Text style={styles.moreCategoriesText}>+{shop.categories.length - 2}</Text>}
+                                    </View>
+                                )}
+
+                                {shop.distance && (
+                                    <View style={styles.distanceContainer}>
+                                        <Ionicons name="navigate-outline" size={12} color="rgba(255,255,255,0.9)" />
+                                        <Text style={styles.distanceText}>{typeof shop.distance === "number" ? `${shop.distance.toFixed(1)} km` : shop.distance}</Text>
+                                    </View>
+                                )}
+                            </View>
                         </View>
-                    </View>
+                    </LinearGradient>
                 </Card3D>
             </TouchableOpacity>
         );
@@ -455,44 +466,45 @@ const HomeScreen: React.FC = () => {
 
     const renderAppInfoSection = () => {
         return (
-            <Card3D style={styles.appInfoCard} elevation="medium">
-                <LinearGradient colors={["#1e3c72", "#2a5298"]} style={styles.appInfoGradient}>
-                    <Text style={styles.appInfoTitle}>About Dumpit</Text>
+            <Card3D style={styles.appInfoCard} elevation="large">
+                <LinearGradient colors={["#667eea", "#764ba2"]} style={styles.appInfoGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
+                    <View style={styles.appInfoHeader}>
+                        <Ionicons name="information-circle-outline" size={32} color="#FFFFFF" />
+                        <Text style={styles.appInfoTitle}>About Dumpit</Text>
+                    </View>
                     <Text style={styles.appInfoText}>Your one-stop marketplace for construction materials. Connect with trusted vendors, discover quality products, and build with confidence.</Text>
 
-                    <View style={styles.featureRow}>
+                    <View style={styles.featureGrid}>
                         <View style={styles.featureItem}>
                             <View style={styles.featureIconContainer}>
-                                <Ionicons name="shield-checkmark" size={24} color="#FFFFFF" />
+                                <Ionicons name="shield-checkmark" size={20} color="#667eea" />
                             </View>
-                            <Text style={styles.featureTitle}>Verified Vendors</Text>
-                            <Text style={styles.featureDescription}>All vendors are verified for quality and reliability</Text>
+                            <Text style={styles.featureTitle}>Verified</Text>
+                            <Text style={styles.featureDescription}>Trusted vendors</Text>
                         </View>
 
                         <View style={styles.featureItem}>
                             <View style={styles.featureIconContainer}>
-                                <Ionicons name="cash" size={24} color="#FFFFFF" />
+                                <Ionicons name="flash" size={20} color="#667eea" />
                             </View>
-                            <Text style={styles.featureTitle}>Secure Payments</Text>
-                            <Text style={styles.featureDescription}>Multiple payment options with secure transactions</Text>
-                        </View>
-                    </View>
-
-                    <View style={styles.featureRow}>
-                        <View style={styles.featureItem}>
-                            <View style={styles.featureIconContainer}>
-                                <Ionicons name="time" size={24} color="#FFFFFF" />
-                            </View>
-                            <Text style={styles.featureTitle}>Fast Delivery</Text>
-                            <Text style={styles.featureDescription}>Quick delivery to your construction site</Text>
+                            <Text style={styles.featureTitle}>Fast</Text>
+                            <Text style={styles.featureDescription}>Quick delivery</Text>
                         </View>
 
                         <View style={styles.featureItem}>
                             <View style={styles.featureIconContainer}>
-                                <Ionicons name="star" size={24} color="#FFFFFF" />
+                                <Ionicons name="wallet" size={20} color="#667eea" />
                             </View>
-                            <Text style={styles.featureTitle}>Quality Materials</Text>
-                            <Text style={styles.featureDescription}>Top quality construction materials for your projects</Text>
+                            <Text style={styles.featureTitle}>Secure</Text>
+                            <Text style={styles.featureDescription}>Safe payments</Text>
+                        </View>
+
+                        <View style={styles.featureItem}>
+                            <View style={styles.featureIconContainer}>
+                                <Ionicons name="star" size={20} color="#667eea" />
+                            </View>
+                            <Text style={styles.featureTitle}>Quality</Text>
+                            <Text style={styles.featureDescription}>Premium materials</Text>
                         </View>
                     </View>
                 </LinearGradient>
@@ -830,7 +842,17 @@ const styles = StyleSheet.create({
     shopCard: {
         padding: 0,
         overflow: "hidden",
-        height: 120,
+        height: 140,
+        borderRadius: theme.borderRadius.large,
+        ...theme.shadow.medium,
+    },
+    shopCardGradient: {
+        position: "absolute",
+        left: 0,
+        right: 0,
+        top: 0,
+        bottom: 0,
+        borderRadius: theme.borderRadius.large,
     },
     shopCardContent: {
         flexDirection: "row",
@@ -839,80 +861,111 @@ const styles = StyleSheet.create({
         borderRadius: theme.borderRadius.large,
     },
     shopImageContainer: {
-        width: 100,
-        height: "100%",
+        width: 80,
+        height: 80,
         borderRadius: theme.borderRadius.medium,
         overflow: "hidden",
         marginRight: theme.spacing.md,
+        alignSelf: "center",
+    },
+    shopImageWrapper: {
+        position: "relative",
+        width: "100%",
+        height: "100%",
+        borderRadius: theme.borderRadius.medium,
+        overflow: "hidden",
     },
     shopImage: {
-        width: 70,
-        height: 70,
-        borderRadius: 50,
+        width: "100%",
+        height: "100%",
+        borderRadius: theme.borderRadius.medium,
     },
     shopContent: {
         flex: 1,
-        justifyContent: "center",
+        justifyContent: "space-between",
+        paddingVertical: 4,
     },
     shopCardName: {
-        fontSize: 14,
+        fontSize: 16,
         fontWeight: "bold",
-        color: theme.colors.text,
-        marginBottom: 8,
+        color: "#FFFFFF",
+        marginBottom: 4,
+        textShadowColor: "rgba(0, 0, 0, 0.3)",
+        textShadowOffset: { width: 0, height: 1 },
+        textShadowRadius: 2,
     },
     shopRatingContainer: {
         flexDirection: "row",
         alignItems: "center",
-        marginBottom: 8,
+        marginBottom: 4,
     },
     shopRating: {
-        fontSize: 12,
-        color: theme.colors.text,
+        fontSize: 13,
+        color: "#FFFFFF",
         fontWeight: "600",
+        marginLeft: 4,
     },
     shopRatingCount: {
-        fontSize: 10,
-        color: theme.colors.textLight,
+        fontSize: 11,
+        color: "rgba(255,255,255,0.8)",
+        marginLeft: 4,
     },
     shopDetailRow: {
         flexDirection: "row",
-        alignItems: "center",
-        marginBottom: 8,
+        alignItems: "flex-start",
+        marginBottom: 6,
+        flex: 1,
     },
     shopAddress: {
-        fontSize: 12,
-        color: theme.colors.textLight,
+        fontSize: 11,
+        color: "rgba(255,255,255,0.9)",
         marginLeft: 6,
         flex: 1,
+        lineHeight: 14,
     },
     shopCategoriesContainer: {
         flexDirection: "row",
         flexWrap: "wrap",
-        marginBottom: 8,
+        marginBottom: 4,
     },
     categoryTag: {
-        backgroundColor: "rgba(255, 255, 255, 0.2)",
+        backgroundColor: "rgba(255, 255, 255, 0.25)",
         paddingHorizontal: 8,
-        paddingVertical: 4,
+        paddingVertical: 3,
         borderRadius: 12,
         marginRight: 6,
-        marginBottom: 6,
+        marginBottom: 4,
     },
     categoryTagText: {
         fontSize: 9,
-        color: theme.colors.white,
-        fontWeight: "500",
+        color: "#FFFFFF",
+        fontWeight: "600",
     },
     moreCategoriesText: {
         fontSize: 9,
-        color: theme.colors.textLight,
+        color: "rgba(255,255,255,0.8)",
         fontWeight: "500",
     },
     statusIndicator: {
-        width: 8,
-        height: 8,
-        borderRadius: 4,
-        marginRight: 6,
+        position: "absolute",
+        top: 4,
+        right: 4,
+        width: 12,
+        height: 12,
+        borderRadius: 6,
+        borderWidth: 2,
+        borderColor: "#FFFFFF",
+    },
+    distanceContainer: {
+        flexDirection: "row",
+        alignItems: "center",
+        marginTop: 4,
+    },
+    distanceText: {
+        fontSize: 10,
+        color: "rgba(255,255,255,0.9)",
+        marginLeft: 4,
+        fontWeight: "600",
     },
     loadingContainer: {
         height: 200,
@@ -936,57 +989,70 @@ const styles = StyleSheet.create({
         marginBottom: theme.spacing.lg,
         padding: 0,
         overflow: "hidden",
+        borderRadius: theme.borderRadius.large,
+        ...theme.shadow.medium,
     },
     appInfoGradient: {
         padding: theme.spacing.lg,
         borderRadius: theme.borderRadius.large,
     },
+    appInfoHeader: {
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "center",
+        marginBottom: 12,
+    },
     appInfoTitle: {
         fontSize: 22,
         fontWeight: "bold",
         color: "#FFFFFF",
-        marginBottom: 8,
+        marginLeft: 8,
         textAlign: "center",
     },
     appInfoText: {
         fontSize: 14,
-        color: "#FFFFFF",
+        color: "rgba(255,255,255,0.9)",
         marginBottom: 20,
         textAlign: "center",
         lineHeight: 20,
     },
-    featureRow: {
+    featureGrid: {
         flexDirection: "row",
+        flexWrap: "wrap",
         justifyContent: "space-between",
-        marginBottom: 16,
     },
     featureItem: {
         width: "48%",
-        backgroundColor: "rgba(255, 255, 255, 0.1)",
+        backgroundColor: "rgba(255, 255, 255, 0.15)",
         borderRadius: theme.borderRadius.medium,
         padding: 12,
         alignItems: "center",
+        marginBottom: 12,
+        borderWidth: 1,
+        borderColor: "rgba(255, 255, 255, 0.2)",
     },
     featureIconContainer: {
-        width: 50,
-        height: 50,
-        borderRadius: 25,
-        backgroundColor: "rgba(255, 255, 255, 0.2)",
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        backgroundColor: "#FFFFFF",
         justifyContent: "center",
         alignItems: "center",
         marginBottom: 8,
+        ...theme.shadow.small,
     },
     featureTitle: {
-        fontSize: 14,
+        fontSize: 13,
         fontWeight: "bold",
         color: "#FFFFFF",
         marginBottom: 4,
         textAlign: "center",
     },
     featureDescription: {
-        fontSize: 12,
+        fontSize: 11,
         color: "rgba(255, 255, 255, 0.8)",
         textAlign: "center",
+        lineHeight: 14,
     },
     categoriesContainer: {
         paddingLeft: theme.spacing.lg,
