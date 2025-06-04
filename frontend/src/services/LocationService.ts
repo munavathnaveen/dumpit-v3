@@ -155,10 +155,27 @@ export class LocationService {
             const response = await locationApi.calculateDistance(origins, destinations);
 
             if (!response.success || !response.data || !response.data.rows?.[0]?.elements?.[0]) {
-                throw new Error("Failed to calculate distance");
+                throw new Error("Failed to calculate distance - no response data");
             }
 
             const element = response.data.rows[0].elements[0];
+
+            // Check if the element has a successful status and contains distance/duration data
+            if (element.status !== "OK") {
+                throw new Error(`Distance calculation failed with status: ${element.status}`);
+            }
+
+            // Verify that distance and duration properties exist
+            if (!element.distance || !element.duration) {
+                throw new Error("Distance calculation response missing distance or duration data");
+            }
+
+            // Ensure the distance and duration have the expected properties
+            if (typeof element.distance.value !== "number" || typeof element.duration.text !== "string") {
+                console.error("Invalid distance matrix element structure:", element);
+                throw new Error("Invalid distance matrix response structure");
+            }
+
             const result = {
                 distance: element.distance.value,
                 duration: element.duration.text,

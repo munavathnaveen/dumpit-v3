@@ -183,10 +183,17 @@ const ProductsScreen: React.FC = () => {
             const uniqueShops = new Map();
             filteredProducts.forEach((product) => {
                 if (product.shop && product.shop._id && product.shop.location && product.shop.location.coordinates && product.shop.location.coordinates.length === 2) {
-                    uniqueShops.set(product.shop._id, {
-                        latitude: product.shop.location.coordinates[1],
-                        longitude: product.shop.location.coordinates[0],
-                    });
+                    // Validate coordinates
+                    const [lng, lat] = product.shop.location.coordinates;
+                    if (typeof lat === "number" && typeof lng === "number" && lat !== 0 && lng !== 0 && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
+                        uniqueShops.set(product.shop._id, {
+                            name: product.shop.name,
+                            latitude: lat,
+                            longitude: lng,
+                        });
+                    } else {
+                        console.log(`Invalid coordinates for shop ${product.shop._id} (${product.shop.name}): [${lng}, ${lat}]`);
+                    }
                 }
             });
 
@@ -195,51 +202,78 @@ const ProductsScreen: React.FC = () => {
                 return;
             }
 
-            console.log("Found", uniqueShops.size, "unique shops with coordinates");
+            console.log("Found", uniqueShops.size, "unique shops with valid coordinates");
 
             // Convert shops to array for distance calculation
-            const shopCoordinates = Array.from(uniqueShops.entries()).map(([id, coordinates]) => ({ id, ...coordinates }));
+            const shopCoordinates = Array.from(uniqueShops.entries()).map(([id, data]) => ({ id, ...data }));
 
             // Calculate distances in batches to avoid API limits
-            const batchSize = 25;
+            const batchSize = 10; // Reduced batch size to minimize API errors
             const distances: Record<string, string> = {};
+            let successCount = 0;
+            let failureCount = 0;
 
             for (let i = 0; i < shopCoordinates.length; i += batchSize) {
                 const batch = shopCoordinates.slice(i, i + batchSize);
+                console.log(`Processing batch ${Math.floor(i / batchSize) + 1} of ${Math.ceil(shopCoordinates.length / batchSize)} (${batch.length} shops)`);
 
-                try {
-                    // Handle single destination at a time for now since getDistanceMatrix returns simplified format
-                    for (const shop of batch) {
-                        try {
-                            const distanceMatrix = await LocationService.getDistanceMatrix(userLocation, { latitude: shop.latitude, longitude: shop.longitude });
-
-                            if (distanceMatrix?.distance) {
-                                distances[shop.id] = LocationService.formatDistance(distanceMatrix.distance);
-                            } else {
-                                console.log(`Distance calculation failed for shop ${shop.id}`);
-                            }
-                        } catch (error) {
-                            console.error(`Error calculating distance for shop ${shop.id}:`, error);
+                // Process each shop individually to avoid batch failures
+                for (const shop of batch) {
+                    try {
+                        // Add validation for user location
+                        if (!userLocation.latitude || !userLocation.longitude) {
+                            console.error("Invalid user location:", userLocation);
+                            continue;
                         }
+
+                        const distanceMatrix = await LocationService.getDistanceMatrix(userLocation, { latitude: shop.latitude, longitude: shop.longitude });
+
+                        if (distanceMatrix?.distance && typeof distanceMatrix.distance === "number") {
+                            distances[shop.id] = LocationService.formatDistance(distanceMatrix.distance);
+                            successCount++;
+                            console.log(`✅ Distance calculated for ${shop.name}: ${distances[shop.id]}`);
+                        } else {
+                            console.log(`⚠️ Invalid distance response for shop ${shop.name} (${shop.id})`);
+                            failureCount++;
+                        }
+                    } catch (error) {
+                        console.error(`❌ Error calculating distance for shop ${shop.name} (${shop.id}):`, error instanceof Error ? error.message : error);
+                        failureCount++;
+
+                        // Continue with next shop instead of breaking the entire process
+                        continue;
                     }
-                } catch (error) {
-                    console.error("Error calculating distances:", error);
+
+                    // Add small delay between requests to avoid rate limiting
+                    await new Promise((resolve) => setTimeout(resolve, 100));
+                }
+
+                // Add delay between batches
+                if (i + batchSize < shopCoordinates.length) {
+                    await new Promise((resolve) => setTimeout(resolve, 500));
                 }
             }
 
-            const distanceCount = Object.keys(distances).length;
-            console.log(
-                `Successfully calculated distances for ${distanceCount}/${uniqueShops.size} shops:`,
-                Object.entries(distances)
-                    .slice(0, 5)
-                    .map(([id, dist]) => `${id}: ${dist}`)
-                    .join(", ") + (distanceCount > 5 ? "..." : "")
-            );
+            const totalShops = uniqueShops.size;
+            console.log(`📊 Distance calculation summary: ${successCount}/${totalShops} successful, ${failureCount} failed`);
 
-            setShopDistances(distances);
+            if (successCount > 0) {
+                console.log(
+                    `✅ Successfully calculated distances for ${successCount} shops:`,
+                    Object.entries(distances)
+                        .slice(0, 3)
+                        .map(([id, dist]) => `${id}: ${dist}`)
+                        .join(", ") + (successCount > 3 ? "..." : "")
+                );
+                setShopDistances(distances);
+            } else {
+                console.log("⚠️ No distances were calculated successfully");
+            }
         };
 
-        calculateDistances();
+        // Add debounce to avoid excessive API calls
+        const timeoutId = setTimeout(calculateDistances, 1000);
+        return () => clearTimeout(timeoutId);
     }, [filteredProducts, userLocation]);
 
     const fetchCategories = async () => {
@@ -411,6 +445,86 @@ const ProductsScreen: React.FC = () => {
         }
     };
 
+    // Product item renderer with enhanced UI
+    const renderProductItem = ({ item }: { item: Product }) => (
+        <View style={styles.productCardWrapper}>
+            <Card3D style={styles.productCard}>
+                <TouchableOpacity onPress={() => navigation.navigate("ProductDetails", { productId: item._id })} activeOpacity={0.9} style={styles.cardTouchable}>
+                    <View style={styles.imageContainer}>
+                        <Image source={{ uri: item.image || "https://via.placeholder.com/150" }} style={styles.productImage} resizeMode="cover" />
+                        {item.discount > 0 && (
+                            <View style={styles.discountBadge}>
+                                <Text style={styles.discountText}>{Math.round(item.discount)}% OFF</Text>
+                            </View>
+                        )}
+                    </View>
+
+                    <View style={styles.productContent}>
+                        <View style={styles.productHeader}>
+                            <Text style={styles.productName} numberOfLines={2}>
+                                {item.name}
+                            </Text>
+
+                            {item.category && (
+                                <View style={styles.categoryChip}>
+                                    <Text style={styles.categoryChipText}>{item.category}</Text>
+                                </View>
+                            )}
+
+                            <View style={styles.shopInfoContainer}>
+                                <MaterialIcons name="store" size={10} color={theme.colors.textLight} />
+                                <Text style={styles.shopName} numberOfLines={1}>
+                                    {item.shop?.name || "Shop"}
+                                </Text>
+                                {shopDistances[item.shop?._id] && (
+                                    <>
+                                        <Text style={styles.distanceDot}>•</Text>
+                                        <View style={styles.distanceRow}>
+                                            <FontAwesome name="map-marker" size={8} color={theme.colors.primary} />
+                                            <Text style={styles.distanceText}>{shopDistances[item.shop._id]}</Text>
+                                        </View>
+                                    </>
+                                )}
+                            </View>
+
+                            {item.rating > 0 && (
+                                <View style={styles.ratingContainer}>
+                                    <Ionicons name="star" size={12} color="#FFD700" />
+                                    <Text style={styles.ratingText}>{item.rating.toFixed(1)}</Text>
+                                    <Text style={styles.reviewCount}>({item.reviews?.length || 0})</Text>
+                                </View>
+                            )}
+                        </View>
+
+                        <View style={styles.productBottom}>
+                            <View style={styles.priceContainer}>
+                                {item.discount > 0 ? (
+                                    <View style={styles.priceWrapper}>
+                                        <Text style={styles.discountedPrice}>₹{(item.price * (1 - item.discount / 100)).toFixed(2)}</Text>
+                                        <Text style={styles.originalPrice}>₹{item.price.toFixed(2)}</Text>
+                                    </View>
+                                ) : (
+                                    <Text style={styles.productPrice}>₹{item.price.toFixed(2)}</Text>
+                                )}
+                            </View>
+
+                            <TouchableOpacity
+                                style={[styles.addButton, item.stock <= 0 && styles.addButtonDisabled]}
+                                onPress={() => item.stock > 0 && handleAddToCart(item._id)}
+                                disabled={item.stock <= 0}
+                                activeOpacity={0.8}
+                            >
+                                <Ionicons name={item.stock > 0 ? "add" : "close"} size={18} color={theme.colors.white} />
+                            </TouchableOpacity>
+                        </View>
+
+                        {item.stock <= 0 && <Text style={styles.outOfStockText}>Out of Stock</Text>}
+                    </View>
+                </TouchableOpacity>
+            </Card3D>
+        </View>
+    );
+
     const handleFilterPress = () => {
         setFilterModalVisible(true);
         setCurrentPriceRange(priceRange);
@@ -448,70 +562,6 @@ const ProductsScreen: React.FC = () => {
             </View>
         );
     };
-
-    const renderProductItem = ({ item }: { item: Product }) => (
-        <View style={styles.productCardWrapper}>
-            <Card3D style={styles.productCard}>
-                <TouchableOpacity onPress={() => navigation.navigate("ProductDetails", { productId: item._id })} activeOpacity={0.9} style={styles.cardTouchable}>
-                    <View style={styles.productHeader}>
-                        <View style={styles.imageContainer}>
-                            <Image source={{ uri: item.image || "https://via.placeholder.com/150" }} style={styles.productImage} resizeMode="cover" />
-                            {item.discount && item.discount > 0 && (
-                                <View style={styles.discountBadge}>
-                                    <Text style={styles.discountText}>{item.discount}% OFF</Text>
-                                </View>
-                            )}
-                        </View>
-                        <Text style={styles.productName} numberOfLines={2}>
-                            {item.name}
-                        </Text>
-                    </View>
-                    <View style={styles.productInfo}>
-                        {item.shop && !shopId && (
-                            <TouchableOpacity style={styles.shopInfoContainer} onPress={() => navigation.navigate("ShopDetails", { shopId: item.shop._id })}>
-                                <Ionicons name="storefront-outline" size={12} color={theme.colors.gray} />
-                                <Text style={styles.shopName} numberOfLines={1}>
-                                    {item.shop.name}
-                                </Text>
-                                {(item.shop.distance || shopDistances[item.shop._id]) && (
-                                    <View style={styles.distanceRow}>
-                                        <Text style={styles.distanceDot}>•</Text>
-                                        <FontAwesome name="map-marker" size={10} color={theme.colors.primary} />
-                                        <Text style={styles.distanceText}>
-                                            {typeof item.shop.distance === "number" ? LocationService.formatDistance(item.shop.distance) : item.shop.distance || shopDistances[item.shop._id]}
-                                        </Text>
-                                    </View>
-                                )}
-                            </TouchableOpacity>
-                        )}
-
-                        {item.category && (
-                            <View style={styles.categoryChip}>
-                                <Text style={styles.categoryChipText}>{item.category}</Text>
-                            </View>
-                        )}
-
-                        <View style={styles.productBottom}>
-                            <View style={styles.priceContainer}>
-                                {item.discount && item.discount > 0 ? (
-                                    <>
-                                        <Text style={styles.discountedPrice}>₹{(item.price * (1 - item.discount / 100)).toFixed(0)}</Text>
-                                        <Text style={styles.originalPrice}>₹{item.price.toFixed(0)}</Text>
-                                    </>
-                                ) : (
-                                    <Text style={styles.productPrice}>₹{item.price.toFixed(0)}</Text>
-                                )}
-                            </View>
-
-                            <TouchableOpacity style={styles.addButton} onPress={() => handleAddToCart(item._id)}>
-                                <FontAwesome name="plus" size={12} color={theme.colors.white} />
-                            </TouchableOpacity>
-                        </View>
-                    </View>
-                </TouchableOpacity>
-            </Card3D>
-        </View>
-    );
 
     const renderFiltersModal = () => (
         <Modal visible={filterModalVisible} transparent={true} animationType="slide" onRequestClose={() => setFilterModalVisible(false)}>
@@ -772,7 +822,7 @@ const ProductsScreen: React.FC = () => {
                             ) : (
                                 <FlatList
                                     data={filteredProducts}
-                                    keyExtractor={(item) => item._id}
+                                    keyExtractor={(item, index) => `${item._id}-${index}`}
                                     renderItem={renderProductItem}
                                     numColumns={2}
                                     refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
@@ -812,18 +862,19 @@ const styles = StyleSheet.create({
     contentContainer: {
         flex: 1,
         padding: theme.spacing.md,
-        paddingBottom: 120,
+        paddingBottom: 78,
     },
     searchContainer: {
         padding: theme.spacing.sm,
     },
     imageContainer: {
-        flex: 1,
-        aspectRatio: 1,
+        width: "100%",
+        height: 100,
         justifyContent: "center",
         alignItems: "center",
-        padding: 16,
-        backgroundColor: theme.colors.lightGray,
+        padding: 10,
+        backgroundColor: theme.colors.background,
+        position: "relative",
     },
     searchBar: {
         marginBottom: theme.spacing.sm,
@@ -950,13 +1001,13 @@ const styles = StyleSheet.create({
         fontWeight: "600",
     },
     productList: {
-        paddingBottom: 120,
+        paddingBottom: 20,
     },
     productCard: {
         flex: 1,
         marginVertical: 8,
         marginHorizontal: 4,
-        borderRadius: 12,
+        borderRadius: 16,
         overflow: "hidden",
         backgroundColor: theme.colors.white,
         shadowColor: theme.colors.dark,
@@ -970,33 +1021,34 @@ const styles = StyleSheet.create({
         width: 80,
         height: 80,
         borderRadius: 40,
-        borderWidth: 2,
-        borderColor: theme.colors.white,
+        backgroundColor: theme.colors.lightGray,
     },
-    productInfo: {
-        alignItems: "flex-start",
+    productContent: {
+        padding: 12,
+        flex: 1,
         justifyContent: "space-between",
+        alignItems: "center",
     },
     productName: {
-        minWidth: 100,
-        fontSize: 12,
-        paddingLeft: 20,
+        fontSize: 14,
         fontWeight: "600",
         color: theme.colors.text,
-        minHeight: 20,
+        marginBottom: 6,
+        lineHeight: 18,
+        textAlign: "center",
     },
     shopInfoContainer: {
         flexDirection: "row",
         alignItems: "center",
         marginBottom: 8,
         flexWrap: "wrap",
-        minWidth: 100,
+        justifyContent: "center",
     },
     shopName: {
         fontSize: 11,
         color: theme.colors.textLight,
         marginLeft: 4,
-        flex: 1,
+        textAlign: "center",
     },
     distanceRow: {
         flexDirection: "row",
@@ -1010,25 +1062,23 @@ const styles = StyleSheet.create({
     },
     categoryChip: {
         backgroundColor: theme.colors.accent,
-        paddingHorizontal: 3,
-        paddingVertical: 2,
-        borderRadius: 10,
-        minWidth: 120,
-        alignSelf: "flex-start",
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+        borderRadius: 12,
+        alignSelf: "center",
         marginBottom: 8,
     },
     categoryChipText: {
         color: theme.colors.white,
-        fontSize: 9,
+        fontSize: 10,
         fontWeight: "500",
     },
     productBottom: {
         flexDirection: "row",
-        minWidth: 120,
-        justifyContent: "space-around",
+        justifyContent: "space-between",
         alignItems: "center",
         marginTop: "auto",
-        gap: 10,
+        width: "100%",
     },
     productPrice: {
         fontSize: 14,
@@ -1037,11 +1087,21 @@ const styles = StyleSheet.create({
     },
     addButton: {
         backgroundColor: theme.colors.primary,
-        width: 24,
-        height: 24,
-        borderRadius: 12,
+        width: 32,
+        height: 32,
+        borderRadius: 16,
         justifyContent: "center",
         alignItems: "center",
+        shadowColor: theme.colors.primary,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.3,
+        shadowRadius: 4,
+        elevation: 4,
+    },
+    addButtonDisabled: {
+        backgroundColor: theme.colors.gray,
+        shadowOpacity: 0,
+        elevation: 0,
     },
     modalContainer: {
         flex: 1,
@@ -1056,11 +1116,7 @@ const styles = StyleSheet.create({
         maxHeight: "90%",
     },
     productHeader: {
-        marginHorizontal: 40,
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "flex-start",
-        gap: 20,
+        flex: 1,
     },
     modalHeader: {
         flexDirection: "row",
@@ -1200,21 +1256,28 @@ const styles = StyleSheet.create({
     },
     discountBadge: {
         position: "absolute",
-        top: 10,
-        right: 10,
-        backgroundColor: theme.colors.accent,
-        paddingHorizontal: 4,
+        top: 5,
+        right: 5,
+        backgroundColor: theme.colors.error,
+        paddingHorizontal: 6,
         paddingVertical: 2,
         borderRadius: 10,
+        minWidth: 30,
+        alignItems: "center",
     },
     discountText: {
         color: theme.colors.white,
-        fontSize: 10,
+        fontSize: 9,
         fontWeight: "bold",
     },
     priceContainer: {
         flexDirection: "row",
         alignItems: "center",
+        flex: 1,
+    },
+    priceWrapper: {
+        flexDirection: "column",
+        alignItems: "flex-start",
     },
     discountedPrice: {
         fontSize: 14,
@@ -1222,13 +1285,35 @@ const styles = StyleSheet.create({
         color: theme.colors.primary,
     },
     originalPrice: {
-        fontSize: 12,
+        fontSize: 11,
         color: theme.colors.textLight,
         textDecorationLine: "line-through",
+    },
+    outOfStockText: {
+        color: theme.colors.error,
+        fontSize: 12,
+        fontWeight: "bold",
+        marginTop: 4,
     },
     distanceDot: {
         marginHorizontal: 2,
         color: theme.colors.primary,
+    },
+    ratingContainer: {
+        flexDirection: "row",
+        alignItems: "center",
+        marginTop: 4,
+    },
+    ratingText: {
+        fontSize: 12,
+        color: theme.colors.text,
+        fontWeight: "bold",
+        marginLeft: 4,
+    },
+    reviewCount: {
+        fontSize: 10,
+        color: theme.colors.textLight,
+        marginLeft: 4,
     },
 });
 
