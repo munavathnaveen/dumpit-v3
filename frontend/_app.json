@@ -1,38 +1,10 @@
 {
-  "expo": {
-    "name": "frontend",
-    "slug": "frontend",
-    "version": "1.0.0",
-    "orientation": "portrait",
-    "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
-    "newArchEnabled": true,
-    "splash": {
-      "image": "./assets/splash-icon.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
-    },
-    "scheme": "dumpit",
-    "ios": {
-      "supportsTablet": true
-    },
-    "android": {
-      "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
-      },
-      "intentFilters": [
-        {
-          "action": "VIEW",
-          "category": ["DEFAULT", "BROWSABLE"],
-          "data": {
-            "scheme": "dumpit"
-          }
+    "expo": {
+        "name": "frontend",
+        "slug": "frontend",
+        "version": "1.0.0",
+        "web": {
+            "favicon": "./assets/favicon.png"
         }
-      ]
-    },
-    "web": {
-      "favicon": "./assets/favicon.png"
     }
-  }
 }

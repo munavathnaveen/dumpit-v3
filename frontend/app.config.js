@@ -1,8 +1,10 @@
 const appJson = require("./_app.json");
-const appConfig = appJson.expo;
+
+// Destructure to exclude native keys from _app.json
+const { orientation, icon, userInterfaceStyle, splash, scheme, ios, android, ...rest } = appJson.expo;
 
 module.exports = {
-    ...appConfig,
+    ...rest,
     name: "Dumpit",
     slug: "dumpit",
     assetBundlePatterns: ["**/*"],
