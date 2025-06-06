@@ -28,15 +28,20 @@ const sortOptions = [
 ];
 
 const ProductsScreen: React.FC = () => {
+    console.log("🚀 ProductsScreen: Component initialized");
+
     const navigation = useNavigation();
     const route = useTabRoute<"ProductsTab">();
     const dispatch = useDispatch<AppDispatch>();
     const { products, error } = useSelector((state: RootState) => state.product);
+
+    // Core states
     const [loading, setLoading] = useState(false);
     const [refreshing, setRefreshing] = useState(false);
     const [searchQuery, setSearchQuery] = useState("");
     const [internalSearchQuery, setInternalSearchQuery] = useState("");
     const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
+    const [componentError, setComponentError] = useState<string | null>(null);
 
     // Pagination states for infinite scroll
     const [currentPage, setCurrentPage] = useState(1);
@@ -73,96 +78,143 @@ const ProductsScreen: React.FC = () => {
     // Create a properly implemented debounced search function with 1-second delay
     const debouncedSearch = useCallback(
         debounce((text: string) => {
-            setSearchQuery(text);
-            setIsSearching(!!text.trim());
+            try {
+                console.log("🔍 ProductsScreen: Debounced search triggered:", text);
+                setSearchQuery(text);
+                setIsSearching(!!text.trim());
+            } catch (error) {
+                console.error("❌ ProductsScreen: Error in debounced search:", error);
+            }
         }, 1000), // 1000ms (1 second) delay
         []
     );
 
     // Handle search text changes
     const handleSearch = (text: string) => {
-        setInternalSearchQuery(text); // Update local state for immediate UI feedback
-        debouncedSearch(text); // Debounce the actual search query update
+        try {
+            console.log("🔍 ProductsScreen: Search text changed:", text);
+            setInternalSearchQuery(text); // Update local state for immediate UI feedback
+            debouncedSearch(text); // Debounce the actual search query update
+        } catch (error) {
+            console.error("❌ ProductsScreen: Error in handleSearch:", error);
+        }
     };
 
     useEffect(() => {
-        // Reset pagination when the component mounts or filter/search changes
-        setCurrentPage(1);
-        setHasMoreProducts(true);
+        console.log("🎯 ProductsScreen: Initial useEffect triggered");
+        try {
+            // Reset pagination when the component mounts or filter/search changes
+            setCurrentPage(1);
+            setHasMoreProducts(true);
+            setComponentError(null);
 
-        // Log navigation params for debugging
-        console.log("Route params:", route.params);
+            // Log navigation params for debugging
+            console.log("📍 ProductsScreen: Route params:", route.params);
 
-        if (route.params?.searchQuery) {
-            const routeSearchQuery = route.params.searchQuery;
-            setInternalSearchQuery(routeSearchQuery);
-            setSearchQuery(routeSearchQuery);
-            setIsSearching(!!routeSearchQuery.trim());
-        }
-
-        if (route.params?.category) {
-            setSelectedCategory(route.params.category);
-        }
-
-        if (route.params?.shopId) {
-            setShopId(route.params.shopId);
-            setSelectedShop(route.params.shopId);
-        }
-
-        loadProducts();
-        fetchCategories();
-        fetchProductTypes();
-        fetchShops();
-    }, []);
-
-    useEffect(() => {
-        // Update parameters when they change in the route
-        if (route.params) {
-            if (route.params.shopId) {
-                setShopId(route.params.shopId);
-                setSelectedShop(route.params.shopId);
-            } else {
-                setShopId(undefined);
-                setSelectedShop("");
-            }
-
-            if (route.params.searchQuery) {
+            if (route.params?.searchQuery) {
                 const routeSearchQuery = route.params.searchQuery;
+                console.log("🔍 ProductsScreen: Setting search query from route:", routeSearchQuery);
                 setInternalSearchQuery(routeSearchQuery);
                 setSearchQuery(routeSearchQuery);
                 setIsSearching(!!routeSearchQuery.trim());
             }
 
-            if (route.params.category) {
+            if (route.params?.category) {
+                console.log("📂 ProductsScreen: Setting category from route:", route.params.category);
                 setSelectedCategory(route.params.category);
             }
+
+            if (route.params?.shopId) {
+                console.log("🏪 ProductsScreen: Setting shop ID from route:", route.params.shopId);
+                setShopId(route.params.shopId);
+                setSelectedShop(route.params.shopId);
+            }
+
+            // Initialize data loading
+            initializeData();
+        } catch (error) {
+            console.error("❌ ProductsScreen: Error in initial useEffect:", error);
+            setComponentError("Failed to initialize screen");
+        }
+    }, []);
+
+    // Initialize all data
+    const initializeData = async () => {
+        console.log("🚀 ProductsScreen: Initializing data...");
+        try {
+            await Promise.all([loadProducts(), fetchCategories(), fetchProductTypes(), fetchShops()]);
+            console.log("✅ ProductsScreen: Data initialization completed");
+        } catch (error) {
+            console.error("❌ ProductsScreen: Error initializing data:", error);
+            setComponentError("Failed to load initial data");
+        }
+    };
+
+    useEffect(() => {
+        console.log("🔄 ProductsScreen: Route params change effect triggered");
+        try {
+            // Update parameters when they change in the route
+            if (route.params) {
+                if (route.params.shopId) {
+                    console.log("🏪 ProductsScreen: Updating shop ID:", route.params.shopId);
+                    setShopId(route.params.shopId);
+                    setSelectedShop(route.params.shopId);
+                } else {
+                    setShopId(undefined);
+                    setSelectedShop("");
+                }
+
+                if (route.params.searchQuery) {
+                    const routeSearchQuery = route.params.searchQuery;
+                    console.log("🔍 ProductsScreen: Updating search query:", routeSearchQuery);
+                    setInternalSearchQuery(routeSearchQuery);
+                    setSearchQuery(routeSearchQuery);
+                    setIsSearching(!!routeSearchQuery.trim());
+                }
+
+                if (route.params.category) {
+                    console.log("📂 ProductsScreen: Updating category:", route.params.category);
+                    setSelectedCategory(route.params.category);
+                }
+            }
+        } catch (error) {
+            console.error("❌ ProductsScreen: Error updating route params:", error);
         }
     }, [route.params]);
 
     // Only load products when relevant search or filter parameters change
     useEffect(() => {
-        // Reset pagination when filters change
-        setCurrentPage(1);
-        setHasMoreProducts(true);
-        setFilteredProducts([]);
+        console.log("🔄 ProductsScreen: Filter/search change effect triggered");
+        try {
+            // Reset pagination when filters change
+            setCurrentPage(1);
+            setHasMoreProducts(true);
+            setFilteredProducts([]);
 
-        loadProducts();
+            loadProducts();
+        } catch (error) {
+            console.error("❌ ProductsScreen: Error in filter change effect:", error);
+        }
     }, [searchQuery, selectedCategory, selectedType, selectedShop, priceRange, sortBy, inStock, shopId]);
 
     // Get user location and calculate distances to shops
     useEffect(() => {
         const getUserLocation = async () => {
+            console.log("📍 ProductsScreen: Getting user location...");
             try {
                 const location = await LocationService.getCurrentLocation();
+                console.log("✅ ProductsScreen: User location obtained:", location);
                 setUserLocation(location);
                 try {
                     await LocationService.updateUserLocation(location);
-                } catch (error) {
+                    console.log("✅ ProductsScreen: User location updated in backend");
+                } catch (updateError) {
                     // Silently fail if user is not logged in
-                    console.log("Could not update user location in backend");
+                    console.log("⚠️ ProductsScreen: Could not update user location in backend:", updateError);
                 }
             } catch (error) {
-                alert(`Error getting user location`);
+                console.error("❌ ProductsScreen: Error getting user location:", error);
+                // Don't show alert as location is optional
             }
         };
 
@@ -172,102 +224,106 @@ const ProductsScreen: React.FC = () => {
     // Calculate distances to shops when products or user location change
     useEffect(() => {
         const calculateDistances = async () => {
-            if (!userLocation || filteredProducts.length === 0) {
-                console.log("Missing user location or empty product list - cannot calculate distances");
-                return;
-            }
-
-            console.log("Calculating distances for", filteredProducts.length, "products");
-
-            // Extract unique shops from products
-            const uniqueShops = new Map();
-            filteredProducts.forEach((product) => {
-                if (product.shop && product.shop._id && product.shop.location && product.shop.location.coordinates && product.shop.location.coordinates.length === 2) {
-                    // Validate coordinates
-                    const [lng, lat] = product.shop.location.coordinates;
-                    if (typeof lat === "number" && typeof lng === "number" && lat !== 0 && lng !== 0 && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
-                        uniqueShops.set(product.shop._id, {
-                            name: product.shop.name,
-                            latitude: lat,
-                            longitude: lng,
-                        });
-                    } else {
-                        console.log(`Invalid coordinates for shop ${product.shop._id} (${product.shop.name}): [${lng}, ${lat}]`);
-                    }
+            try {
+                if (!userLocation || filteredProducts.length === 0) {
+                    console.log("⚠️ ProductsScreen: Missing user location or empty product list - cannot calculate distances");
+                    return;
                 }
-            });
 
-            if (uniqueShops.size === 0) {
-                console.log("No shops with valid coordinates found");
-                return;
-            }
+                console.log("📏 ProductsScreen: Calculating distances for", filteredProducts.length, "products");
 
-            console.log("Found", uniqueShops.size, "unique shops with valid coordinates");
+                // Extract unique shops from products
+                const uniqueShops = new Map();
+                filteredProducts.forEach((product) => {
+                    if (product.shop && product.shop._id && product.shop.location && product.shop.location.coordinates && product.shop.location.coordinates.length === 2) {
+                        // Validate coordinates
+                        const [lng, lat] = product.shop.location.coordinates;
+                        if (typeof lat === "number" && typeof lng === "number" && lat !== 0 && lng !== 0 && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
+                            uniqueShops.set(product.shop._id, {
+                                name: product.shop.name,
+                                latitude: lat,
+                                longitude: lng,
+                            });
+                        } else {
+                            console.log(`⚠️ ProductsScreen: Invalid coordinates for shop ${product.shop._id} (${product.shop.name}): [${lng}, ${lat}]`);
+                        }
+                    }
+                });
 
-            // Convert shops to array for distance calculation
-            const shopCoordinates = Array.from(uniqueShops.entries()).map(([id, data]) => ({ id, ...data }));
+                if (uniqueShops.size === 0) {
+                    console.log("⚠️ ProductsScreen: No shops with valid coordinates found");
+                    return;
+                }
 
-            // Calculate distances in batches to avoid API limits
-            const batchSize = 10; // Reduced batch size to minimize API errors
-            const distances: Record<string, string> = {};
-            let successCount = 0;
-            let failureCount = 0;
+                console.log("✅ ProductsScreen: Found", uniqueShops.size, "unique shops with valid coordinates");
 
-            for (let i = 0; i < shopCoordinates.length; i += batchSize) {
-                const batch = shopCoordinates.slice(i, i + batchSize);
-                console.log(`Processing batch ${Math.floor(i / batchSize) + 1} of ${Math.ceil(shopCoordinates.length / batchSize)} (${batch.length} shops)`);
+                // Convert shops to array for distance calculation
+                const shopCoordinates = Array.from(uniqueShops.entries()).map(([id, data]) => ({ id, ...data }));
 
-                // Process each shop individually to avoid batch failures
-                for (const shop of batch) {
-                    try {
-                        // Add validation for user location
-                        if (!userLocation.latitude || !userLocation.longitude) {
-                            console.error("Invalid user location:", userLocation);
+                // Calculate distances in batches to avoid API limits
+                const batchSize = 10; // Reduced batch size to minimize API errors
+                const distances: Record<string, string> = {};
+                let successCount = 0;
+                let failureCount = 0;
+
+                for (let i = 0; i < shopCoordinates.length; i += batchSize) {
+                    const batch = shopCoordinates.slice(i, i + batchSize);
+                    console.log(`📏 ProductsScreen: Processing batch ${Math.floor(i / batchSize) + 1} of ${Math.ceil(shopCoordinates.length / batchSize)} (${batch.length} shops)`);
+
+                    // Process each shop individually to avoid batch failures
+                    for (const shop of batch) {
+                        try {
+                            // Add validation for user location
+                            if (!userLocation.latitude || !userLocation.longitude) {
+                                console.error("❌ ProductsScreen: Invalid user location:", userLocation);
+                                continue;
+                            }
+
+                            const distanceMatrix = await LocationService.getDistanceMatrix(userLocation, { latitude: shop.latitude, longitude: shop.longitude });
+
+                            if (distanceMatrix?.distance && typeof distanceMatrix.distance === "number") {
+                                distances[shop.id] = LocationService.formatDistance(distanceMatrix.distance);
+                                successCount++;
+                                console.log(`✅ ProductsScreen: Distance calculated for ${shop.name}: ${distances[shop.id]}`);
+                            } else {
+                                console.log(`⚠️ ProductsScreen: Invalid distance response for shop ${shop.name} (${shop.id})`);
+                                failureCount++;
+                            }
+                        } catch (error) {
+                            console.error(`❌ ProductsScreen: Error calculating distance for shop ${shop.name} (${shop.id}):`, error instanceof Error ? error.message : error);
+                            failureCount++;
+
+                            // Continue with next shop instead of breaking the entire process
                             continue;
                         }
 
-                        const distanceMatrix = await LocationService.getDistanceMatrix(userLocation, { latitude: shop.latitude, longitude: shop.longitude });
-
-                        if (distanceMatrix?.distance && typeof distanceMatrix.distance === "number") {
-                            distances[shop.id] = LocationService.formatDistance(distanceMatrix.distance);
-                            successCount++;
-                            console.log(`✅ Distance calculated for ${shop.name}: ${distances[shop.id]}`);
-                        } else {
-                            console.log(`⚠️ Invalid distance response for shop ${shop.name} (${shop.id})`);
-                            failureCount++;
-                        }
-                    } catch (error) {
-                        console.error(`❌ Error calculating distance for shop ${shop.name} (${shop.id}):`, error instanceof Error ? error.message : error);
-                        failureCount++;
-
-                        // Continue with next shop instead of breaking the entire process
-                        continue;
+                        // Add small delay between requests to avoid rate limiting
+                        await new Promise((resolve) => setTimeout(resolve, 100));
                     }
 
-                    // Add small delay between requests to avoid rate limiting
-                    await new Promise((resolve) => setTimeout(resolve, 100));
+                    // Add delay between batches
+                    if (i + batchSize < shopCoordinates.length) {
+                        await new Promise((resolve) => setTimeout(resolve, 500));
+                    }
                 }
 
-                // Add delay between batches
-                if (i + batchSize < shopCoordinates.length) {
-                    await new Promise((resolve) => setTimeout(resolve, 500));
+                const totalShops = uniqueShops.size;
+                console.log(`📊 ProductsScreen: Distance calculation summary: ${successCount}/${totalShops} successful, ${failureCount} failed`);
+
+                if (successCount > 0) {
+                    console.log(
+                        `✅ ProductsScreen: Successfully calculated distances for ${successCount} shops:`,
+                        Object.entries(distances)
+                            .slice(0, 3)
+                            .map(([id, dist]) => `${id}: ${dist}`)
+                            .join(", ") + (successCount > 3 ? "..." : "")
+                    );
+                    setShopDistances(distances);
+                } else {
+                    console.log("⚠️ ProductsScreen: No distances were calculated successfully");
                 }
-            }
-
-            const totalShops = uniqueShops.size;
-            console.log(`📊 Distance calculation summary: ${successCount}/${totalShops} successful, ${failureCount} failed`);
-
-            if (successCount > 0) {
-                console.log(
-                    `✅ Successfully calculated distances for ${successCount} shops:`,
-                    Object.entries(distances)
-                        .slice(0, 3)
-                        .map(([id, dist]) => `${id}: ${dist}`)
-                        .join(", ") + (successCount > 3 ? "..." : "")
-                );
-                setShopDistances(distances);
-            } else {
-                console.log("⚠️ No distances were calculated successfully");
+            } catch (error) {
+                console.error("❌ ProductsScreen: Error in calculateDistances:", error);
             }
         };
 
@@ -277,44 +333,55 @@ const ProductsScreen: React.FC = () => {
     }, [filteredProducts, userLocation]);
 
     const fetchCategories = async () => {
+        console.log("📂 ProductsScreen: Fetching categories...");
         try {
             setLoadingCategories(true);
             const response = await productApi.getProductCategories();
-            setCategories(response.data);
+            console.log("✅ ProductsScreen: Categories fetched:", response.data?.length || 0, "items");
+            setCategories(response.data || []);
         } catch (error) {
-            console.error("Failed to fetch categories:", error);
+            console.error("❌ ProductsScreen: Failed to fetch categories:", error);
+            setCategories([]); // Set empty array as fallback
         } finally {
             setLoadingCategories(false);
         }
     };
 
     const fetchProductTypes = async () => {
+        console.log("🏷️ ProductsScreen: Fetching product types...");
         try {
             setLoadingTypes(true);
             const response = await productApi.getProductTypes();
-            setProductTypes(response.data);
+            console.log("✅ ProductsScreen: Product types fetched:", response.data?.length || 0, "items");
+            setProductTypes(response.data || []);
         } catch (error) {
-            console.error("Failed to fetch product types:", error);
+            console.error("❌ ProductsScreen: Failed to fetch product types:", error);
+            setProductTypes([]); // Set empty array as fallback
         } finally {
             setLoadingTypes(false);
         }
     };
 
     const fetchShops = async () => {
+        console.log("🏪 ProductsScreen: Fetching shops...");
         try {
             setLoadingShops(true);
             const response = await productApi.getShops();
-            setShops(response.data);
+            console.log("✅ ProductsScreen: Shops fetched:", response.data?.length || 0, "items");
+            setShops(response.data || []);
         } catch (error) {
-            console.error("Failed to fetch shops:", error);
+            console.error("❌ ProductsScreen: Failed to fetch shops:", error);
+            setShops([]); // Set empty array as fallback
         } finally {
             setLoadingShops(false);
         }
     };
 
     const loadProducts = async () => {
+        console.log("🛍️ ProductsScreen: Loading products...");
         try {
             setLoading(true);
+            setComponentError(null);
 
             // Build the query string with all filters and pagination
             let queryParams = [];
@@ -358,20 +425,26 @@ const ProductsScreen: React.FC = () => {
             }
 
             const queryString = queryParams.join("&");
-            console.log(`Loading products with query: ${queryString}`);
+            console.log(`🔍 ProductsScreen: Loading products with query: ${queryString}`);
 
             // Use the appropriate API call
             let response;
             if (searchQuery && searchQuery.trim() !== "") {
-                // If there's a search query, we might need to use a specialized search endpoint
+                console.log("🔍 ProductsScreen: Using enhanced search API");
                 response = await productApi.enhancedSearchProducts(searchQuery, currentPage, 10);
             } else {
-                // Otherwise use the standard products API
+                console.log("🛍️ ProductsScreen: Using standard products API");
                 response = await productApi.getProducts(queryString);
             }
 
+            console.log("📦 ProductsScreen: API response received:", {
+                dataLength: response?.data?.length || 0,
+                count: response?.count,
+                pagination: response?.pagination,
+            });
+
             // Extract pagination info
-            if (response.pagination) {
+            if (response?.pagination) {
                 setTotalPages(response.pagination.pages || 1);
                 setHasMoreProducts(currentPage < (response.pagination.pages || 1));
             } else {
@@ -379,20 +452,23 @@ const ProductsScreen: React.FC = () => {
             }
 
             // Update products list
-            const newProducts = response.data;
+            const newProducts = response?.data || [];
 
             // If loading the first page, replace the list
             // Otherwise append to the existing list
             if (currentPage === 1) {
+                console.log("📦 ProductsScreen: Setting new product list with", newProducts.length, "items");
                 setFilteredProducts(newProducts);
             } else {
+                console.log("📦 ProductsScreen: Appending", newProducts.length, "items to existing list");
                 setFilteredProducts((prevProducts) => [...prevProducts, ...newProducts]);
             }
 
-            console.log(`Loaded ${newProducts.length} products. Total: ${response.count}`);
+            console.log(`✅ ProductsScreen: Loaded ${newProducts.length} products. Total: ${response?.count || 0}`);
         } catch (error) {
-            console.error("Error loading products:", error);
-            alert("Failed to load products. Please try again.");
+            console.error("❌ ProductsScreen: Error loading products:", error);
+            setComponentError("Failed to load products. Please try again.");
+            // Don't show alert, just log and set error state
         } finally {
             setLoading(false);
             setLoadingMore(false);
@@ -400,43 +476,64 @@ const ProductsScreen: React.FC = () => {
     };
 
     const handleRefresh = async () => {
-        // Reset to first page when refreshing
-        setCurrentPage(1);
-        setHasMoreProducts(true);
-        setRefreshing(true);
-        await loadProducts();
-        setRefreshing(false);
+        console.log("🔄 ProductsScreen: Refreshing data...");
+        try {
+            // Reset to first page when refreshing
+            setCurrentPage(1);
+            setHasMoreProducts(true);
+            setRefreshing(true);
+            setComponentError(null);
+            await loadProducts();
+            console.log("✅ ProductsScreen: Refresh completed");
+        } catch (error) {
+            console.error("❌ ProductsScreen: Error during refresh:", error);
+        } finally {
+            setRefreshing(false);
+        }
     };
 
     // Function to handle loading more when user reaches end of list
     const handleLoadMore = () => {
-        if (!loading && !loadingMore && hasMoreProducts) {
-            console.log(`Loading more products. Current page: ${currentPage}, Total pages: ${totalPages}`);
-            setLoadingMore(true);
-            setCurrentPage((prevPage) => prevPage + 1);
+        try {
+            if (!loading && !loadingMore && hasMoreProducts) {
+                console.log(`📦 ProductsScreen: Loading more products. Current page: ${currentPage}, Total pages: ${totalPages}`);
+                setLoadingMore(true);
+                setCurrentPage((prevPage) => prevPage + 1);
+            }
+        } catch (error) {
+            console.error("❌ ProductsScreen: Error in handleLoadMore:", error);
         }
     };
 
     // Watch for currentPage changes to load more data
     useEffect(() => {
         if (currentPage > 1) {
+            console.log("📦 ProductsScreen: Page changed to", currentPage, "- loading more products");
             loadProducts();
         }
     }, [currentPage]);
 
     const handleNotificationPress = () => {
-        navigation.navigate("Notifications");
+        try {
+            console.log("🔔 ProductsScreen: Navigating to notifications");
+            navigation.navigate("Notifications");
+        } catch (error) {
+            console.error("❌ ProductsScreen: Error navigating to notifications:", error);
+        }
     };
 
     const handleAddToCart = async (productId: string) => {
+        console.log("🛒 ProductsScreen: Adding product to cart:", productId);
         try {
             await dispatch(addToCart({ productId, quantity: 1 })).unwrap();
+            console.log("✅ ProductsScreen: Product added to cart successfully");
             Toast.show({
                 type: "success",
                 text1: "Added to Cart",
                 text2: "Product has been added to your cart",
             });
         } catch (error) {
+            console.error("❌ ProductsScreen: Error adding product to cart:", error);
             Toast.show({
                 type: "error",
                 text1: "Error",
@@ -446,110 +543,149 @@ const ProductsScreen: React.FC = () => {
     };
 
     // Product item renderer with enhanced UI
-    const renderProductItem = ({ item }: { item: Product }) => (
-        <View style={styles.productCardWrapper}>
-            <Card3D style={styles.productCard}>
-                <TouchableOpacity onPress={() => navigation.navigate("ProductDetails", { productId: item._id })} activeOpacity={0.9} style={styles.cardTouchable}>
-                    <View style={styles.imageContainer}>
-                        <Image source={{ uri: item.image || "https://via.placeholder.com/150" }} style={styles.productImage} resizeMode="cover" />
-                        {item.discount > 0 && (
-                            <View style={styles.discountBadge}>
-                                <Text style={styles.discountText}>{Math.round(item.discount)}% OFF</Text>
-                            </View>
-                        )}
-                    </View>
-
-                    <View style={styles.productContent}>
-                        <Text style={styles.productName} numberOfLines={2}>
-                            {item.name}
-                        </Text>
-
-                        {item.category && (
-                            <View style={styles.categoryChip}>
-                                <Text style={styles.categoryChipText}>{item.category}</Text>
-                            </View>
-                        )}
-
-                        <View style={styles.shopInfoContainer}>
-                            <MaterialIcons name="store" size={10} color={theme.colors.textLight} />
-                            <Text style={styles.shopName} numberOfLines={1}>
-                                {item.shop?.name || "Shop"}
-                            </Text>
-                            {shopDistances[item.shop?._id] && (
-                                <>
-                                    <Text style={styles.distanceDot}>•</Text>
-                                    <View style={styles.distanceRow}>
-                                        <FontAwesome name="map-marker" size={8} color={theme.colors.primary} />
-                                        <Text style={styles.distanceText}>{shopDistances[item.shop._id]}</Text>
+    const renderProductItem = ({ item }: { item: Product }) => {
+        try {
+            return (
+                <View style={styles.productCardWrapper}>
+                    <Card3D style={styles.productCard}>
+                        <TouchableOpacity
+                            onPress={() => {
+                                try {
+                                    console.log("📱 ProductsScreen: Navigating to product details:", item._id);
+                                    navigation.navigate("ProductDetails", { productId: item._id });
+                                } catch (error) {
+                                    console.error("❌ ProductsScreen: Error navigating to product details:", error);
+                                }
+                            }}
+                            activeOpacity={0.9}
+                            style={styles.cardTouchable}
+                        >
+                            <View style={styles.imageContainer}>
+                                <Image source={{ uri: item.image || "https://via.placeholder.com/150" }} style={styles.productImage} resizeMode="cover" />
+                                {item.discount > 0 && (
+                                    <View style={styles.discountBadge}>
+                                        <Text style={styles.discountText}>{Math.round(item.discount)}% OFF</Text>
                                     </View>
-                                </>
-                            )}
-                        </View>
-
-                        {item.rating > 0 && (
-                            <View style={styles.ratingContainer}>
-                                <Ionicons name="star" size={12} color="#FFD700" />
-                                <Text style={styles.ratingText}>{item.rating.toFixed(1)}</Text>
-                                <Text style={styles.reviewCount}>({item.reviews?.length || 0})</Text>
-                            </View>
-                        )}
-
-                        <View style={styles.productBottom}>
-                            <View style={styles.priceContainer}>
-                                {item.discount > 0 ? (
-                                    <View style={styles.priceWrapper}>
-                                        <Text style={styles.discountedPrice}>₹{(item.price * (1 - item.discount / 100)).toFixed(2)}</Text>
-                                        <Text style={styles.originalPrice}>₹{item.price.toFixed(2)}</Text>
-                                    </View>
-                                ) : (
-                                    <Text style={styles.productPrice}>₹{item.price.toFixed(2)}</Text>
                                 )}
                             </View>
 
-                            <TouchableOpacity
-                                style={[styles.addButton, item.stock <= 0 && styles.addButtonDisabled]}
-                                onPress={() => item.stock > 0 && handleAddToCart(item._id)}
-                                disabled={item.stock <= 0}
-                                activeOpacity={0.8}
-                            >
-                                <Ionicons name={item.stock > 0 ? "add" : "close"} size={16} color={theme.colors.white} />
-                            </TouchableOpacity>
-                        </View>
+                            <View style={styles.productContent}>
+                                <Text style={styles.productName} numberOfLines={2}>
+                                    {item.name}
+                                </Text>
 
-                        {item.stock <= 0 && (
-                            <View style={styles.outOfStockContainer}>
-                                <Text style={styles.outOfStockText}>Out of Stock</Text>
+                                {item.category && (
+                                    <View style={styles.categoryChip}>
+                                        <Text style={styles.categoryChipText}>{item.category}</Text>
+                                    </View>
+                                )}
+
+                                <View style={styles.shopInfoContainer}>
+                                    <MaterialIcons name="store" size={10} color={theme.colors.textLight} />
+                                    <Text style={styles.shopName} numberOfLines={1}>
+                                        {item.shop?.name || "Shop"}
+                                    </Text>
+                                    {shopDistances[item.shop?._id] && (
+                                        <>
+                                            <Text style={styles.distanceDot}>•</Text>
+                                            <View style={styles.distanceRow}>
+                                                <FontAwesome name="map-marker" size={8} color={theme.colors.primary} />
+                                                <Text style={styles.distanceText}>{shopDistances[item.shop._id]}</Text>
+                                            </View>
+                                        </>
+                                    )}
+                                </View>
+
+                                {item.rating > 0 && (
+                                    <View style={styles.ratingContainer}>
+                                        <Ionicons name="star" size={12} color="#FFD700" />
+                                        <Text style={styles.ratingText}>{item.rating.toFixed(1)}</Text>
+                                        <Text style={styles.reviewCount}>({item.reviews?.length || 0})</Text>
+                                    </View>
+                                )}
+
+                                <View style={styles.productBottom}>
+                                    <View style={styles.priceContainer}>
+                                        {item.discount > 0 ? (
+                                            <View style={styles.priceWrapper}>
+                                                <Text style={styles.discountedPrice}>₹{(item.price * (1 - item.discount / 100)).toFixed(2)}</Text>
+                                                <Text style={styles.originalPrice}>₹{item.price.toFixed(2)}</Text>
+                                            </View>
+                                        ) : (
+                                            <Text style={styles.productPrice}>₹{item.price.toFixed(2)}</Text>
+                                        )}
+                                    </View>
+
+                                    <TouchableOpacity
+                                        style={[styles.addButton, item.stock <= 0 && styles.addButtonDisabled]}
+                                        onPress={() => item.stock > 0 && handleAddToCart(item._id)}
+                                        disabled={item.stock <= 0}
+                                        activeOpacity={0.8}
+                                    >
+                                        <Ionicons name={item.stock > 0 ? "add" : "close"} size={16} color={theme.colors.white} />
+                                    </TouchableOpacity>
+                                </View>
+
+                                {item.stock <= 0 && (
+                                    <View style={styles.outOfStockContainer}>
+                                        <Text style={styles.outOfStockText}>Out of Stock</Text>
+                                    </View>
+                                )}
                             </View>
-                        )}
+                        </TouchableOpacity>
+                    </Card3D>
+                </View>
+            );
+        } catch (error) {
+            console.error("❌ ProductsScreen: Error rendering product item:", error);
+            return (
+                <View style={styles.productCardWrapper}>
+                    <View style={styles.productCard}>
+                        <Text style={styles.errorText}>Error loading product</Text>
                     </View>
-                </TouchableOpacity>
-            </Card3D>
-        </View>
-    );
+                </View>
+            );
+        }
+    };
 
     const handleFilterPress = () => {
-        setFilterModalVisible(true);
-        setCurrentPriceRange(priceRange);
+        try {
+            console.log("🔧 ProductsScreen: Opening filter modal");
+            setFilterModalVisible(true);
+            setCurrentPriceRange(priceRange);
+        } catch (error) {
+            console.error("❌ ProductsScreen: Error opening filter modal:", error);
+        }
     };
 
     const applyFilters = () => {
-        setPriceRange(currentPriceRange);
-        setFilterModalVisible(false);
-        loadProducts();
+        try {
+            console.log("🔧 ProductsScreen: Applying filters");
+            setPriceRange(currentPriceRange);
+            setFilterModalVisible(false);
+            loadProducts();
+        } catch (error) {
+            console.error("❌ ProductsScreen: Error applying filters:", error);
+        }
     };
 
     const resetFilters = () => {
-        setSelectedCategory("");
-        setSelectedType("");
-        setSelectedShop("");
-        setPriceRange([0, 10000]);
-        setCurrentPriceRange([0, 10000]);
-        setSortBy("");
-        setInStock(false);
+        try {
+            console.log("🔧 ProductsScreen: Resetting filters");
+            setSelectedCategory("");
+            setSelectedType("");
+            setSelectedShop("");
+            setPriceRange([0, 10000]);
+            setCurrentPriceRange([0, 10000]);
+            setSortBy("");
+            setInStock(false);
 
-        // Don't clear search if we're currently searching
-        if (!isSearching) {
-            loadProducts();
+            // Don't clear search if we're currently searching
+            if (!isSearching) {
+                loadProducts();
+            }
+        } catch (error) {
+            console.error("❌ ProductsScreen: Error resetting filters:", error);
         }
     };
 
