@@ -157,7 +157,7 @@ const OrdersScreen: React.FC = () => {
                     <Text style={styles.itemsTitle}>Items:</Text>
                     {item.items.map((orderItem, index) => (
                         <Text key={index} style={styles.itemText}>
-                            {orderItem?.quantity}x {orderItem.product?.name}
+                            {orderItem.quantity}x {orderItem.product?.name}
                         </Text>
                     ))}
                 </View>

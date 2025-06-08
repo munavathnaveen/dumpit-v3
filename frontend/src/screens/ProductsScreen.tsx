@@ -19,6 +19,7 @@ import { BottomTabParamList } from "../navigation/types";
 import * as productApi from "../api/productApi";
 import { LocationService, Coordinates } from "../services/LocationService";
 import alert from "../utils/alert";
+import LoadingScreen from "../components/LoadingScreen";
 
 const sortOptions = [
     { label: "Price: Low to High", value: "price" },
@@ -74,6 +75,9 @@ const ProductsScreen: React.FC = () => {
     const [isScrolling, setIsScrolling] = useState(false);
     const [showNavigation, setShowNavigation] = useState(true);
     const scrollTimeout = useRef<NodeJS.Timeout | null>(null);
+
+    // Add new state for skeleton loading
+    const [showSkeletons, setShowSkeletons] = useState(true);
 
     // Create a properly implemented debounced search function with 1-second delay
     const debouncedSearch = useCallback(
@@ -429,6 +433,7 @@ const ProductsScreen: React.FC = () => {
         try {
             setLoading(true);
             setComponentError(null);
+            setShowSkeletons(true);
 
             // Build the query string with all filters and pagination
             let queryParams = [];
@@ -511,11 +516,16 @@ const ProductsScreen: React.FC = () => {
                 setFilteredProducts((prevProducts) => [...prevProducts, ...newProducts]);
             }
 
+            // Add a small delay before hiding skeletons to ensure smooth transition
+            setTimeout(() => {
+                setShowSkeletons(false);
+            }, 500);
+
             console.log(`✅ ProductsScreen: Loaded ${newProducts.length} products. Total: ${response?.count || 0}`);
         } catch (error) {
             console.error("❌ ProductsScreen: Error loading products:", error);
-            setComponentError("Failed to load products. Please try again.");
-            // Don't show alert, just log and set error state
+            setComponentError(error instanceof Error ? error.message : "Failed to load products. Please try again.");
+            setShowSkeletons(false);
         } finally {
             setLoading(false);
             setLoadingMore(false);
@@ -917,22 +927,45 @@ const ProductsScreen: React.FC = () => {
         };
     }, []);
 
+    // Modify the render section to use skeletons and better error handling
     if (loading && currentPage === 1 && products.length === 0) {
         return (
-            <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color={theme.colors.primary} />
-            </View>
+            <SafeAreaView style={styles.safeArea}>
+                <View style={styles.container}>
+                    <ScreenHeader title={shopId ? "Shop Products" : "Products"} showBackButton={true} onNotificationPress={handleNotificationPress} />
+                    <View style={styles.contentContainer}>
+                        <View style={styles.searchContainer}>
+                            <SearchBar placeholder="Search products..." onSearch={handleSearch} value={internalSearchQuery} style={styles.searchBar} />
+                            <View style={styles.filterRow}>
+                                <TouchableOpacity style={styles.filterButton} onPress={handleFilterPress}>
+                                    <FontAwesome name="filter" size={16} color={theme.colors.primary} />
+                                    <Text style={styles.filterButtonText}>Filters</Text>
+                                </TouchableOpacity>
+                            </View>
+                        </View>
+                    </View>
+                </View>
+            </SafeAreaView>
         );
     }
 
     if (error && currentPage === 1 && products.length === 0) {
         return (
-            <View style={styles.errorContainer}>
-                <Text style={styles.errorText}>{error}</Text>
-                <TouchableOpacity style={styles.retryButton} onPress={loadProducts}>
-                    <Text style={styles.retryButtonText}>Retry</Text>
-                </TouchableOpacity>
-            </View>
+            <SafeAreaView style={styles.safeArea}>
+                <View style={styles.container}>
+                    <ScreenHeader title={shopId ? "Shop Products" : "Products"} showBackButton={true} onNotificationPress={handleNotificationPress} />
+                    <View style={styles.contentContainer}>
+                        <View style={styles.errorContainer}>
+                            <FontAwesome name="exclamation-circle" size={48} color={theme.colors.error} />
+                            <Text style={styles.errorTitle}>Oops! Something went wrong</Text>
+                            <Text style={styles.errorText}>{error}</Text>
+                            <TouchableOpacity style={styles.retryButton} onPress={loadProducts}>
+                                <Text style={styles.retryButtonText}>Try Again</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </View>
+            </SafeAreaView>
         );
     }
 
@@ -943,14 +976,11 @@ const ProductsScreen: React.FC = () => {
                 <View style={styles.contentContainer}>
                     <View style={styles.searchContainer}>
                         <SearchBar placeholder="Search products..." onSearch={handleSearch} value={internalSearchQuery} style={styles.searchBar} />
-
                         <View style={styles.filterRow}>
                             <TouchableOpacity style={styles.filterButton} onPress={handleFilterPress}>
                                 <FontAwesome name="filter" size={16} color={theme.colors.primary} />
                                 <Text style={styles.filterButtonText}>Filters</Text>
                             </TouchableOpacity>
-
-                            {/* Active filters display */}
                             <View style={styles.activeFiltersContainer}>
                                 {(isSearching || selectedCategory || selectedType || selectedShop || priceRange[0] > 0 || priceRange[1] < 10000 || inStock) && (
                                     <TouchableOpacity
@@ -972,15 +1002,36 @@ const ProductsScreen: React.FC = () => {
                         </View>
                     </View>
 
-                    {loading && currentPage === 1 ? (
-                        <View style={styles.loaderContainer}>
-                            <ActivityIndicator size="large" color={theme.colors.primary} />
+                    {componentError ? (
+                        <View style={styles.errorContainer}>
+                            <FontAwesome name="exclamation-circle" size={32} color={theme.colors.error} />
+                            <Text style={styles.errorText}>{componentError}</Text>
+                            <TouchableOpacity style={styles.retryButton} onPress={loadProducts}>
+                                <Text style={styles.retryButtonText}>Retry</Text>
+                            </TouchableOpacity>
                         </View>
                     ) : (
                         <>
                             {filteredProducts.length === 0 ? (
                                 <View style={styles.emptyContainer}>
-                                    <Text style={styles.emptyText}>No products found</Text>
+                                    <FontAwesome name="search" size={48} color={theme.colors.gray} />
+                                    <Text style={styles.emptyTitle}>No Products Found</Text>
+                                    <Text style={styles.emptyText}>
+                                        {isSearching ? "We couldn't find any products matching your search" : "Try adjusting your filters or search for something else"}
+                                    </Text>
+                                    {isSearching && (
+                                        <TouchableOpacity
+                                            style={styles.retryButton}
+                                            onPress={() => {
+                                                setInternalSearchQuery("");
+                                                setSearchQuery("");
+                                                setIsSearching(false);
+                                                resetFilters();
+                                            }}
+                                        >
+                                            <Text style={styles.retryButtonText}>Clear Search</Text>
+                                        </TouchableOpacity>
+                                    )}
                                 </View>
                             ) : (
                                 <FlatList
@@ -1109,41 +1160,56 @@ const styles = StyleSheet.create({
         justifyContent: "center",
         alignItems: "center",
         padding: 20,
+        backgroundColor: theme.colors.white,
+        borderRadius: theme.borderRadius.large,
+        margin: theme.spacing.md,
+    },
+    errorTitle: {
+        fontSize: 20,
+        fontWeight: "bold",
+        color: theme.colors.text,
+        marginTop: theme.spacing.md,
+        marginBottom: theme.spacing.sm,
     },
     errorText: {
         color: theme.colors.error,
         fontSize: 16,
         textAlign: "center",
-        marginBottom: 20,
+        marginBottom: theme.spacing.md,
     },
     retryButton: {
         backgroundColor: theme.colors.primary,
-        paddingHorizontal: 20,
-        paddingVertical: 10,
-        borderRadius: 5,
+        paddingHorizontal: theme.spacing.lg,
+        paddingVertical: theme.spacing.sm,
+        borderRadius: theme.borderRadius.medium,
+        marginTop: theme.spacing.sm,
     },
     retryButtonText: {
         color: theme.colors.white,
         fontSize: 16,
+        fontWeight: "600",
     },
     emptyContainer: {
         flex: 1,
         justifyContent: "center",
         alignItems: "center",
-        padding: 20,
+        padding: theme.spacing.xl,
+        backgroundColor: theme.colors.white,
+        borderRadius: theme.borderRadius.large,
+        margin: theme.spacing.md,
     },
     emptyTitle: {
         fontSize: 22,
         fontWeight: "bold",
         color: theme.colors.text,
-        marginTop: 20,
-        marginBottom: 10,
+        marginTop: theme.spacing.lg,
+        marginBottom: theme.spacing.sm,
     },
     emptyText: {
         fontSize: 16,
         color: theme.colors.gray,
         textAlign: "center",
-        marginBottom: 20,
+        marginBottom: theme.spacing.lg,
     },
     resetButton: {
         paddingVertical: 12,

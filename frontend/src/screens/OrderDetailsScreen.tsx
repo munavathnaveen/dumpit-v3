@@ -361,7 +361,7 @@ const OrderDetailsScreen: React.FC = () => {
                     <View style={styles.addressContainer}>
                         <FontAwesome name="map-marker" size={18} color={theme.colors.primary} style={styles.addressIcon} />
                         <View style={styles.addressContent}>
-                            <Text style={styles.addressName}>{order.shippingAddress.name}</Text>
+                            <Text style={styles.addressName}>{order.shippingAddress?.name}</Text>
                             <Text style={styles.addressText}>
                                 {order.shippingAddress.street}, {order.shippingAddress.village}
                             </Text>
