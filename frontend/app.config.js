@@ -7,7 +7,28 @@ module.exports = {
     ...rest,
     name: "Dumpit",
     slug: "dumpit",
+    version: "1.0.0",
     assetBundlePatterns: ["**/*"],
+    orientation: "portrait",
+    icon: "./assets/icon.png",
+    userInterfaceStyle: "light",
+    splash: {
+        image: "./assets/splash.png",
+        resizeMode: "contain",
+        backgroundColor: "#ffffff",
+    },
+    ios: {
+        bundleIdentifier: "com.dumpit.app",
+        supportsTablet: true,
+    },
+    android: {
+        package: "com.dumpit.app",
+        adaptiveIcon: {
+            foregroundImage: "./assets/adaptive-icon.png",
+            backgroundColor: "#ffffff",
+        },
+        permissions: ["ACCESS_COARSE_LOCATION", "ACCESS_FINE_LOCATION", "CAMERA", "READ_EXTERNAL_STORAGE", "WRITE_EXTERNAL_STORAGE"],
+    },
     web: {
         favicon: "./assets/favicon.png",
     },

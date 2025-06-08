@@ -413,9 +413,9 @@ const OrderDetailsScreen: React.FC = () => {
                     <Text style={styles.sectionTitle}>Order Items</Text>
                     {order.items.map((item, index) => (
                         <View key={index} style={[styles.orderItem, index < order.items.length - 1 && styles.orderItemDivider]}>
-                            <Image source={{ uri: item.product.image || "https://via.placeholder.com/100" }} style={styles.productImage} />
+                            <Image source={{ uri: item.product?.image || "https://via.placeholder.com/100" }} style={styles.productImage} />
                             <View style={styles.productDetails}>
-                                <Text style={styles.productName}>{item.product.name}</Text>
+                                <Text style={styles.productName}>{item.product?.name}</Text>
                                 <Text style={styles.productPrice}>
                                     ₹{item.price.toFixed(2)} x {item.quantity}
                                 </Text>
@@ -473,7 +473,7 @@ const OrderDetailsScreen: React.FC = () => {
                                         latitude: order.tracking.currentLocation.coordinates[1],
                                         longitude: order.tracking.currentLocation.coordinates[0],
                                     },
-                                    title: order.shippingAddress.name,
+                                    title: order.shippingAddress?.name,
                                     description: formatAddress(order.shippingAddress),
                                     pinColor: theme.colors.primary,
                                 },

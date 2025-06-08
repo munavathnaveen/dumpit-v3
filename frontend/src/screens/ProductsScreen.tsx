@@ -89,6 +89,28 @@ const ProductsScreen: React.FC = () => {
         []
     );
 
+    // Check if component is ready for startup (to prevent crashes on direct app start)
+    const isComponentReadyForStartup = useCallback(() => {
+        try {
+            // Basic safety checks
+            if (!navigation || !dispatch) {
+                console.log("⚠️ ProductsScreen: Navigation or dispatch not ready");
+                return false;
+            }
+
+            // Check if Redux store is properly initialized
+            if (!products && products !== null) {
+                console.log("⚠️ ProductsScreen: Products state not initialized");
+                return false;
+            }
+
+            return true;
+        } catch (error) {
+            console.error("❌ ProductsScreen: Error checking component readiness:", error);
+            return false;
+        }
+    }, [navigation, dispatch, products]);
+
     // Handle search text changes
     const handleSearch = (text: string) => {
         try {
@@ -107,6 +129,16 @@ const ProductsScreen: React.FC = () => {
             setCurrentPage(1);
             setHasMoreProducts(true);
             setComponentError(null);
+
+            // Add startup safety check
+            if (!isComponentReadyForStartup()) {
+                console.log("⚠️ ProductsScreen: Component not ready for startup, waiting...");
+                // Delay initialization to allow other components to load
+                setTimeout(() => {
+                    initializeData();
+                }, 500);
+                return;
+            }
 
             // Log navigation params for debugging
             console.log("📍 ProductsScreen: Route params:", route.params);
@@ -138,15 +170,30 @@ const ProductsScreen: React.FC = () => {
         }
     }, []);
 
-    // Initialize all data
+    // Initialize all data with better error handling
     const initializeData = async () => {
         console.log("🚀 ProductsScreen: Initializing data...");
         try {
-            await Promise.all([loadProducts(), fetchCategories(), fetchProductTypes(), fetchShops()]);
+            // Add safety check before initialization
+            if (!isComponentReadyForStartup()) {
+                console.log("⚠️ ProductsScreen: Component still not ready, retrying in 1 second...");
+                setTimeout(initializeData, 1000);
+                return;
+            }
+
+            // Initialize data with individual error handling to prevent complete failure
+            const initPromises = [
+                loadProducts().catch((err) => console.error("Failed to load products:", err)),
+                fetchCategories().catch((err) => console.error("Failed to load categories:", err)),
+                fetchProductTypes().catch((err) => console.error("Failed to load product types:", err)),
+                fetchShops().catch((err) => console.error("Failed to load shops:", err)),
+            ];
+
+            await Promise.allSettled(initPromises);
             console.log("✅ ProductsScreen: Data initialization completed");
         } catch (error) {
             console.error("❌ ProductsScreen: Error initializing data:", error);
-            setComponentError("Failed to load initial data");
+            setComponentError("Failed to load initial data. Please refresh the screen.");
         }
     };
 
@@ -622,7 +669,7 @@ const ProductsScreen: React.FC = () => {
                                         disabled={item.stock <= 0}
                                         activeOpacity={0.8}
                                     >
-                                        <Ionicons name={item.stock > 0 ? "add" : "close"} size={16} color={theme.colors.white} />
+                                        <Ionicons name={item.stock > 0 ? "cart" : "close"} size={16} color={theme.colors.white} />
                                     </TouchableOpacity>
                                 </View>
 
