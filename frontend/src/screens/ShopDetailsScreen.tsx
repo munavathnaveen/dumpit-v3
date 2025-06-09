@@ -49,21 +49,29 @@ const ShopDetailsScreen: React.FC = () => {
                 const location = await LocationService.getCurrentLocation();
                 setUserLocation(location);
 
-                // If shop has location data, calculate distance
-                if (shop && shop.location && shop.location.coordinates && shop.location.coordinates.length === 2 && shop.location.coordinates[0] !== 0 && shop.location.coordinates[1] !== 0) {
+                // Check if shop and location data exists before calculating distance
+                if (shop?.location?.coordinates && 
+                    Array.isArray(shop.location.coordinates) && 
+                    shop.location.coordinates.length === 2 && 
+                    typeof shop.location.coordinates[0] === 'number' && 
+                    typeof shop.location.coordinates[1] === 'number' &&
+                    shop.location.coordinates[0] !== 0 && 
+                    shop.location.coordinates[1] !== 0) {
+                    
                     // Calculate distance to shop
                     const distanceMatrix = await LocationService.getDistanceMatrix(location, {
                         latitude: shop.location.coordinates[1],
                         longitude: shop.location.coordinates[0],
                     });
 
-                    if (distanceMatrix && distanceMatrix.distance && distanceMatrix.duration) {
+                    if (distanceMatrix?.distance && distanceMatrix?.duration) {
                         setDistance(LocationService.formatDistance(distanceMatrix.distance));
                         setDuration(distanceMatrix.duration);
                     }
                 }
             } catch (error) {
                 console.error("Error getting location or calculating distance:", error);
+                // Don't show error to user for location issues
             }
         };
 
@@ -75,16 +83,20 @@ const ShopDetailsScreen: React.FC = () => {
     const loadShopDetails = async () => {
         try {
             setLoading(true);
+            setError(null);
+            
             const shopResponse = await getShop(shopId);
             setShop(shopResponse.data);
 
             const productsResponse = await getProductsByShop(shopId);
-            setProducts(productsResponse.data);
+            setProducts(productsResponse.data || []);
 
             setLoading(false);
         } catch (err: any) {
-            setError(err.message || "Failed to load shop details");
+            const errorMessage = err?.response?.data?.error || err?.message || "Failed to load shop details";
+            setError(errorMessage);
             setLoading(false);
+            console.error("Error loading shop details:", err);
         }
     };
 
@@ -92,22 +104,38 @@ const ShopDetailsScreen: React.FC = () => {
         setRefreshing(true);
         try {
             await loadShopDetails();
+        } catch (error) {
+            console.error("Error refreshing shop details:", error);
         } finally {
             setRefreshing(false);
         }
     };
 
-    const handleAddToCart = (productId: string) => {
-        dispatch(addToCart({ productId, quantity: 1 }));
-        toast.success("Added to Cart", "Product has been added to your cart");
+    const handleAddToCart = async (productId: string) => {
+        try {
+            await dispatch(addToCart({ productId, quantity: 1 })).unwrap();
+            toast.success("Added to Cart", "Product has been added to your cart");
+        } catch (error) {
+            console.error("Error adding to cart:", error);
+            toast.error("Add to Cart Failed", "Unable to add product to cart. Please try again.");
+        }
     };
 
     const handleProductPress = (productId: string) => {
-        navigation.navigate("ProductDetails", { productId });
+        try {
+            navigation.navigate("ProductDetails", { productId });
+        } catch (error) {
+            console.error("Error navigating to product details:", error);
+        }
     };
 
     const handleGoBack = () => {
-        navigation.goBack();
+        try {
+            navigation.goBack();
+        } catch (error) {
+            console.error("Error going back:", error);
+            navigation.navigate("TabNavigator", { screen: "ShopsTab" });
+        }
     };
 
     const handleSubmitReview = async () => {
@@ -153,31 +181,48 @@ const ShopDetailsScreen: React.FC = () => {
         );
     };
 
-    const renderProductItem = ({ item }: { item: Product }) => (
-        <TouchableOpacity onPress={() => handleProductPress(item._id)} activeOpacity={0.8}>
-            <Card3D style={styles.productCard}>
-                <Image source={{ uri: item.image || "https://via.placeholder.com/150" }} style={styles.productImage} />
-                <View style={styles.productInfo}>
-                    <Text style={styles.productName} numberOfLines={1}>
-                        {item.name}
-                    </Text>
-                    <Text style={styles.productPrice}>₹{item.price.toFixed(2)}</Text>
-                    <View style={styles.productBottom}>
-                        <View style={styles.ratingContainer}>
-                            <FontAwesome name="star" size={12} color="#FFD700" />
-                            <Text style={styles.ratingText}>{item.rating.toFixed(1)}</Text>
+    const renderProductItem = ({ item }: { item: Product }) => {
+        if (!item?._id) {
+            return null;
+        }
+
+        return (
+            <TouchableOpacity onPress={() => handleProductPress(item._id)} activeOpacity={0.8}>
+                <Card3D style={styles.productCard}>
+                    <Image source={{ uri: item.image || "https://via.placeholder.com/150" }} style={styles.productImage} />
+                    <View style={styles.productInfo}>
+                        <Text style={styles.productName} numberOfLines={1}>
+                            {item.name || "Unknown Product"}
+                        </Text>
+                        <Text style={styles.productPrice}>₹{(item.price || 0).toFixed(2)}</Text>
+                        <View style={styles.productBottom}>
+                            <View style={styles.ratingContainer}>
+                                <FontAwesome name="star" size={12} color="#FFD700" />
+                                <Text style={styles.ratingText}>{(item.rating || 0).toFixed(1)}</Text>
+                            </View>
+                            <TouchableOpacity 
+                                style={styles.addButton} 
+                                onPress={() => handleAddToCart(item._id)} 
+                                disabled={(item.stock || 0) <= 0}
+                            >
+                                <FontAwesome name="plus" size={14} color={theme.colors.white} />
+                            </TouchableOpacity>
                         </View>
-                        <TouchableOpacity style={styles.addButton} onPress={() => handleAddToCart(item._id)} disabled={item.stock <= 0}>
-                            <FontAwesome name="plus" size={14} color={theme.colors.white} />
-                        </TouchableOpacity>
                     </View>
-                </View>
-            </Card3D>
-        </TouchableOpacity>
-    );
+                </Card3D>
+            </TouchableOpacity>
+        );
+    };
 
     const renderShopMap = () => {
-        if (!shop || !shop.location || !shop.location.coordinates || shop.location.coordinates.length !== 2 || shop.location.coordinates[0] === 0 || shop.location.coordinates[1] === 0) {
+        // Safely check if shop location data exists
+        if (!shop?.location?.coordinates || 
+            !Array.isArray(shop.location.coordinates) || 
+            shop.location.coordinates.length !== 2 || 
+            typeof shop.location.coordinates[0] !== 'number' || 
+            typeof shop.location.coordinates[1] !== 'number' ||
+            shop.location.coordinates[0] === 0 || 
+            shop.location.coordinates[1] === 0) {
             return null;
         }
 
@@ -215,8 +260,8 @@ const ShopDetailsScreen: React.FC = () => {
                         {
                             id: "shop",
                             coordinate: shopLocation,
-                            title: shop.name,
-                            description: shop.address ? `${shop.address.street}, ${shop.address.village}` : "",
+                            title: shop.name || "Shop",
+                            description: shop.address ? `${shop.address.street || ""}, ${shop.address.village || ""}` : "",
                             pinColor: theme.colors.primary,
                         },
                     ]}
@@ -227,8 +272,16 @@ const ShopDetailsScreen: React.FC = () => {
                     <TouchableOpacity
                         style={styles.mapButton}
                         onPress={() => {
-                            const url = `https://www.google.com/maps/dir/?api=1&destination=${shopLocation.latitude},${shopLocation.longitude}`;
-                            Linking.openURL(url);
+                            try {
+                                const url = `https://www.google.com/maps/dir/?api=1&destination=${shopLocation.latitude},${shopLocation.longitude}`;
+                                Linking.openURL(url).catch(err => {
+                                    console.error("Error opening maps:", err);
+                                    toast.error("Error", "Could not open maps application");
+                                });
+                            } catch (error) {
+                                console.error("Error creating maps URL:", error);
+                                toast.error("Error", "Could not open maps application");
+                            }
                         }}
                     >
                         <FontAwesome name="location-arrow" size={16} color={theme.colors.white} />
@@ -273,11 +326,11 @@ const ShopDetailsScreen: React.FC = () => {
                     </View>
 
                     <View style={styles.shopHeader}>
-                        <Text style={styles.shopName}>{shop.name}</Text>
+                        <Text style={styles.shopName}>{shop.name || "Unknown Shop"}</Text>
                         <View style={styles.ratingRow}>
                             <FontAwesome name="star" size={16} color="#FFD700" />
-                            <Text style={styles.ratingValue}>{shop.rating.toFixed(1)}</Text>
-                            <Text style={styles.reviewCount}>({shop.reviews ? shop.reviews.length : 0} reviews)</Text>
+                            <Text style={styles.ratingValue}>{(shop.rating || 0).toFixed(1)}</Text>
+                            <Text style={styles.reviewCount}>({shop.reviews?.length || 0} reviews)</Text>
                         </View>
 
                         <View
@@ -313,7 +366,7 @@ const ShopDetailsScreen: React.FC = () => {
 
                 <View style={styles.detailsContainer}>
                     <Text style={styles.sectionTitle}>About</Text>
-                    <Text style={styles.descriptionText}>{shop.description}</Text>
+                    <Text style={styles.descriptionText}>{shop.description || "No description available"}</Text>
 
                     <View style={styles.divider} />
 
@@ -321,11 +374,11 @@ const ShopDetailsScreen: React.FC = () => {
                     <View style={styles.contactItem}>
                         <FontAwesome name="map-marker" size={16} color={theme.colors.textLight} />
                         <Text style={styles.contactText}>
-                            {shop.address.street}, {shop.address.village}
+                            {shop.address?.street || ""}, {shop.address?.village || ""}
                             {"\n"}
-                            {shop.address.district}, {shop.address.state} - {shop.address.pincode}
+                            {shop.address?.district || ""}, {shop.address?.state || ""} - {shop.address?.pincode || ""}
                             {"\n"}
-                            Phone: {shop.address.phone}
+                            Phone: {shop.address?.phone || "Not available"}
                         </Text>
                     </View>
 
@@ -333,7 +386,7 @@ const ShopDetailsScreen: React.FC = () => {
 
                     <Text style={styles.sectionTitle}>Categories</Text>
                     <View style={styles.categoriesContainer}>
-                        {shop.categories.map((category, index) => (
+                        {(shop.categories || []).map((category, index) => (
                             <View key={index} style={styles.categoryChip}>
                                 <Text style={styles.categoryText}>{category}</Text>
                             </View>
@@ -348,11 +401,11 @@ const ShopDetailsScreen: React.FC = () => {
                         shop.reviews.slice(0, 3).map((review, index) => (
                             <View key={index} style={styles.reviewItem}>
                                 <View style={styles.reviewHeader}>
-                                    <Text style={styles.reviewerName}>{review.user.name}</Text>
-                                    <View style={styles.reviewRating}>{renderStarRating(review.rating, 14, false)}</View>
+                                    <Text style={styles.reviewerName}>{review.user?.name || "Anonymous"}</Text>
+                                    <View style={styles.reviewRating}>{renderStarRating(review.rating || 0, 14, false)}</View>
                                 </View>
-                                <Text style={styles.reviewText}>{review.text}</Text>
-                                <Text style={styles.reviewDate}>{new Date(review.createdAt).toLocaleDateString()}</Text>
+                                <Text style={styles.reviewText}>{review.text || ""}</Text>
+                                <Text style={styles.reviewDate}>{review.createdAt ? new Date(review.createdAt).toLocaleDateString() : ""}</Text>
                             </View>
                         ))
                     ) : (
@@ -376,7 +429,15 @@ const ShopDetailsScreen: React.FC = () => {
                             <Text style={styles.ratingLabel}>Rating:</Text>
                             <View style={styles.ratingSelector}>{renderStarRating(reviewRating, 24, true)}</View>
 
-                            <TextInput style={styles.reviewInput} placeholder="Write your review here..." value={reviewText} onChangeText={setReviewText} multiline numberOfLines={4} maxLength={200} />
+                            <TextInput 
+                                style={styles.reviewInput} 
+                                placeholder="Write your review here..." 
+                                value={reviewText} 
+                                onChangeText={setReviewText} 
+                                multiline 
+                                numberOfLines={4} 
+                                maxLength={200} 
+                            />
 
                             <View style={styles.reviewFormButtons}>
                                 <TouchableOpacity
@@ -408,7 +469,7 @@ const ShopDetailsScreen: React.FC = () => {
                         <View>
                             <FlatList
                                 data={products.slice(0, 4)}
-                                keyExtractor={(item) => item._id}
+                                keyExtractor={(item) => item._id || item.name || Math.random().toString()}
                                 renderItem={renderProductItem}
                                 horizontal
                                 showsHorizontalScrollIndicator={false}
@@ -417,12 +478,16 @@ const ShopDetailsScreen: React.FC = () => {
 
                             <TouchableOpacity
                                 style={styles.viewAllButton}
-                                onPress={() =>
-                                    navigation.navigate("TabNavigator", {
-                                        screen: "ProductsTab",
-                                        params: { shopId },
-                                    })
-                                }
+                                onPress={() => {
+                                    try {
+                                        navigation.navigate("TabNavigator", {
+                                            screen: "ProductsTab",
+                                            params: { shopId },
+                                        });
+                                    } catch (error) {
+                                        console.error("Error navigating to products:", error);
+                                    }
+                                }}
                             >
                                 <Text style={styles.viewAllButtonText}>View All Products</Text>
                                 <FontAwesome name="arrow-right" size={16} color={theme.colors.primary} />
@@ -433,33 +498,7 @@ const ShopDetailsScreen: React.FC = () => {
                     )}
 
                     <View style={styles.divider} />
-
-                    {shop.reviews && shop.reviews.length > 0 && (
-                        <>
-                            <Text style={styles.sectionTitle}>Reviews</Text>
-                            {shop.reviews.slice(0, 3).map((review, index) => (
-                                <View key={index} style={styles.reviewItem}>
-                                    <View style={styles.reviewHeader}>
-                                        <Text style={styles.reviewerName}>{review.user.name}</Text>
-                                        <View style={styles.reviewRating}>
-                                            <FontAwesome name="star" size={14} color="#FFD700" />
-                                            <Text style={styles.reviewRatingText}>{review.rating}</Text>
-                                        </View>
-                                    </View>
-                                    <Text style={styles.reviewText}>{review.text}</Text>
-                                    <Text style={styles.reviewDate}>{new Date(review.createdAt).toLocaleDateString()}</Text>
-                                </View>
-                            ))}
-                            {shop.reviews.length > 3 && (
-                                <TouchableOpacity style={styles.moreReviewsButton}>
-                                    <Text style={styles.moreReviewsText}>See all {shop.reviews.length} reviews</Text>
-                                </TouchableOpacity>
-                            )}
-                        </>
-                    )}
                 </View>
-
-                <View style={styles.divider} />
 
                 {renderShopMap()}
             </ScrollView>
@@ -732,10 +771,6 @@ const styles = StyleSheet.create({
     reviewRating: {
         flexDirection: "row",
         alignItems: "center",
-    },
-    reviewRatingText: {
-        marginLeft: 4,
-        color: theme.colors.text,
     },
     reviewText: {
         fontSize: 14,

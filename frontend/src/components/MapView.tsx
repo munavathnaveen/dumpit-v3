@@ -11,8 +11,6 @@ interface Location {
 
 interface Route {
     coords: Location[];
-    distance: number;
-    duration: number;
 }
 
 interface MapViewComponentProps {
@@ -61,6 +59,22 @@ const MapViewComponent: React.FC<MapViewComponentProps> = ({
     const [loading, setLoading] = useState(true);
     const [userLocation, setUserLocation] = useState<Location | null>(null);
     const [mapRegion, setMapRegion] = useState(initialRegion || initialMapRegion);
+    const [hasError, setHasError] = useState(false);
+
+    // Validate coordinates
+    const isValidCoordinate = (coord: Location): boolean => {
+        return (
+            coord &&
+            typeof coord.latitude === 'number' &&
+            typeof coord.longitude === 'number' &&
+            !isNaN(coord.latitude) &&
+            !isNaN(coord.longitude) &&
+            coord.latitude >= -90 &&
+            coord.latitude <= 90 &&
+            coord.longitude >= -180 &&
+            coord.longitude <= 180
+        );
+    };
 
     // Get user's current location
     useEffect(() => {
@@ -74,10 +88,20 @@ const MapViewComponent: React.FC<MapViewComponentProps> = ({
                 }
 
                 const location = await Location.getCurrentPositionAsync({});
+                
+                if (!location?.coords) {
+                    throw new Error("Invalid location response");
+                }
+
                 const currentLocation = {
                     latitude: location.coords.latitude,
                     longitude: location.coords.longitude,
                 };
+
+                // Validate coordinates before using
+                if (!isValidCoordinate(currentLocation)) {
+                    throw new Error("Invalid coordinates received from location service");
+                }
 
                 setUserLocation(currentLocation);
 
@@ -94,6 +118,7 @@ const MapViewComponent: React.FC<MapViewComponentProps> = ({
                 }
             } catch (error) {
                 console.error("Error getting location:", error);
+                setHasError(true);
             } finally {
                 setLoading(false);
             }
@@ -107,27 +132,42 @@ const MapViewComponent: React.FC<MapViewComponentProps> = ({
         let locationSubscription: Location.LocationSubscription;
 
         (async () => {
-            const { status } = await Location.requestForegroundPermissionsAsync();
-            if (status !== "granted") return;
+            try {
+                const { status } = await Location.requestForegroundPermissionsAsync();
+                if (status !== "granted") return;
 
-            locationSubscription = await Location.watchPositionAsync(
-                {
-                    accuracy: Location.Accuracy.High,
-                    distanceInterval: 10, // Update every 10 meters
-                },
-                (location) => {
-                    const newLocation = {
-                        latitude: location.coords.latitude,
-                        longitude: location.coords.longitude,
-                    };
+                locationSubscription = await Location.watchPositionAsync(
+                    {
+                        accuracy: Location.Accuracy.High,
+                        distanceInterval: 10, // Update every 10 meters
+                    },
+                    (location) => {
+                        if (!location?.coords) {
+                            console.error("Invalid location update received");
+                            return;
+                        }
 
-                    setUserLocation(newLocation);
+                        const newLocation = {
+                            latitude: location.coords.latitude,
+                            longitude: location.coords.longitude,
+                        };
 
-                    if (onUserLocationChange) {
-                        onUserLocationChange(newLocation);
+                        // Validate coordinates before using
+                        if (!isValidCoordinate(newLocation)) {
+                            console.error("Invalid coordinates in location update");
+                            return;
+                        }
+
+                        setUserLocation(newLocation);
+
+                        if (onUserLocationChange) {
+                            onUserLocationChange(newLocation);
+                        }
                     }
-                }
-            );
+                );
+            } catch (error) {
+                console.error("Error setting up location watching:", error);
+            }
         })();
 
         return () => {
@@ -139,14 +179,25 @@ const MapViewComponent: React.FC<MapViewComponentProps> = ({
 
     // Fit all markers on the map
     const fitAllMarkers = () => {
-        if (mapRef.current && markers.length > 0) {
-            mapRef.current.fitToSuppliedMarkers(
-                markers.map((marker) => marker.id),
-                {
-                    edgePadding: { top: 50, right: 50, bottom: 50, left: 50 },
-                    animated: true,
+        try {
+            if (mapRef.current && markers.length > 0) {
+                // Validate all marker coordinates before fitting
+                const validMarkers = markers.filter(marker => 
+                    marker && marker.coordinate && isValidCoordinate(marker.coordinate)
+                );
+
+                if (validMarkers.length > 0) {
+                    mapRef.current.fitToSuppliedMarkers(
+                        validMarkers.map((marker) => marker.id),
+                        {
+                            edgePadding: { top: 50, right: 50, bottom: 50, left: 50 },
+                            animated: true,
+                        }
+                    );
                 }
-            );
+            }
+        } catch (error) {
+            console.error("Error fitting markers:", error);
         }
     };
 
@@ -159,16 +210,35 @@ const MapViewComponent: React.FC<MapViewComponentProps> = ({
 
     // Handle map presses for editable maps
     const handleMapPress = (event: any) => {
-        if (editable && onMapPress) {
-            onMapPress(event.nativeEvent.coordinate);
+        try {
+            if (editable && onMapPress && event?.nativeEvent?.coordinate) {
+                const coordinate = event.nativeEvent.coordinate;
+                if (isValidCoordinate(coordinate)) {
+                    onMapPress(coordinate);
+                }
+            }
+        } catch (error) {
+            console.error("Error handling map press:", error);
         }
     };
 
     // Handle region changes
     const handleRegionChange = (newRegion: Region) => {
-        setMapRegion(newRegion);
-        if (onRegionChange) {
-            onRegionChange(newRegion);
+        try {
+            // Validate region before using
+            if (newRegion && 
+                typeof newRegion.latitude === 'number' &&
+                typeof newRegion.longitude === 'number' &&
+                !isNaN(newRegion.latitude) &&
+                !isNaN(newRegion.longitude)) {
+                
+                setMapRegion(newRegion);
+                if (onRegionChange) {
+                    onRegionChange(newRegion);
+                }
+            }
+        } catch (error) {
+            console.error("Error handling region change:", error);
         }
     };
 
@@ -180,38 +250,83 @@ const MapViewComponent: React.FC<MapViewComponentProps> = ({
         );
     }
 
-    return (
-        <View style={[styles.container, style]}>
-            <MapView
-                ref={mapRef}
-                style={styles.map}
-                provider={PROVIDER_GOOGLE}
-                region={mapRegion}
-                onRegionChangeComplete={handleRegionChange}
-                showsUserLocation={showsUserLocation}
-                followsUserLocation={followsUserLocation}
-                zoomEnabled={zoomEnabled}
-                showsMyLocationButton={true}
-                showsCompass={true}
-                loadingEnabled={true}
-                onPress={handleMapPress}
-            >
-                {markers.map((marker) => (
-                    <Marker
-                        key={marker.id}
-                        identifier={marker.id}
-                        coordinate={marker.coordinate}
-                        title={marker.title}
-                        description={marker.description}
-                        pinColor={marker.pinColor}
-                        onPress={() => onMarkerPress && onMarkerPress(marker.id)}
-                    />
-                ))}
+    if (hasError) {
+        return (
+            <View style={[styles.container, style, styles.errorContainer]}>
+                {/* Could add error UI here */}
+            </View>
+        );
+    }
 
-                {route && route.coords.length > 0 && <Polyline coordinates={route.coords} strokeWidth={4} strokeColor={theme.colors.primary} />}
-            </MapView>
-        </View>
+    // Filter out invalid markers
+    const validMarkers = markers.filter(marker => 
+        marker && 
+        marker.coordinate && 
+        isValidCoordinate(marker.coordinate) &&
+        marker.id
     );
+
+    // Filter out invalid route coordinates
+    const validRoute = route && route.coords ? {
+        ...route,
+        coords: route.coords.filter(coord => isValidCoordinate(coord))
+    } : null;
+
+    try {
+        return (
+            <View style={[styles.container, style]}>
+                <MapView
+                    ref={mapRef}
+                    style={styles.map}
+                    provider={PROVIDER_GOOGLE}
+                    region={mapRegion}
+                    onRegionChangeComplete={handleRegionChange}
+                    showsUserLocation={showsUserLocation}
+                    followsUserLocation={followsUserLocation}
+                    zoomEnabled={zoomEnabled}
+                    showsMyLocationButton={true}
+                    showsCompass={true}
+                    loadingEnabled={true}
+                    onPress={handleMapPress}
+                >
+                    {validMarkers.map((marker) => (
+                        <Marker
+                            key={marker.id}
+                            identifier={marker.id}
+                            coordinate={marker.coordinate}
+                            title={marker.title || ""}
+                            description={marker.description || ""}
+                            pinColor={marker.pinColor}
+                            onPress={() => {
+                                try {
+                                    if (onMarkerPress) {
+                                        onMarkerPress(marker.id);
+                                    }
+                                } catch (error) {
+                                    console.error("Error handling marker press:", error);
+                                }
+                            }}
+                        />
+                    ))}
+
+                    {validRoute && validRoute.coords.length > 0 && (
+                        <Polyline 
+                            coordinates={validRoute.coords} 
+                            strokeWidth={4} 
+                            strokeColor={theme.colors.primary} 
+                        />
+                    )}
+                </MapView>
+            </View>
+        );
+    } catch (error) {
+        console.error("Error rendering MapView:", error);
+        return (
+            <View style={[styles.container, style, styles.errorContainer]}>
+                {/* Error fallback UI */}
+            </View>
+        );
+    }
 };
 
 const styles = StyleSheet.create({
@@ -235,6 +350,9 @@ const styles = StyleSheet.create({
     map: {
         width: "100%",
         height: "100%",
+    },
+    errorContainer: {
+        backgroundColor: theme.colors.lightGray,
     },
 });
 

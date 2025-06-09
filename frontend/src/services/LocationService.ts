@@ -63,32 +63,56 @@ export interface DirectionsResult {
 export class LocationService {
     // Get current location coordinates with better accuracy
     static async getCurrentLocation(): Promise<Coordinates> {
-        const { status } = await Location.requestForegroundPermissionsAsync();
-
-        if (status !== "granted") {
-            throw new Error("Permission to access location was denied");
-        }
-
         try {
-            // Try to get high accuracy location
-            const location = await Location.getCurrentPositionAsync({
-                accuracy: Location.Accuracy.High,
-            });
+            const { status } = await Location.requestForegroundPermissionsAsync();
 
-            console.log("Got high accuracy location:", location.coords);
-            return {
-                latitude: location.coords.latitude,
-                longitude: location.coords.longitude,
-            };
+            if (status !== "granted") {
+                throw new Error("Permission to access location was denied");
+            }
+
+            try {
+                // Try to get high accuracy location
+                const location = await Location.getCurrentPositionAsync({
+                    accuracy: Location.Accuracy.High,
+                });
+
+                // Validate coordinates
+                if (!location?.coords || 
+                    typeof location.coords.latitude !== 'number' || 
+                    typeof location.coords.longitude !== 'number' ||
+                    isNaN(location.coords.latitude) || 
+                    isNaN(location.coords.longitude)) {
+                    throw new Error("Invalid location coordinates received");
+                }
+
+                console.log("Got high accuracy location:", location.coords);
+                return {
+                    latitude: location.coords.latitude,
+                    longitude: location.coords.longitude,
+                };
+            } catch (error) {
+                console.error("Error getting high accuracy location, falling back to regular accuracy", error);
+
+                // Fall back to regular accuracy
+                const location = await Location.getCurrentPositionAsync({});
+
+                // Validate fallback coordinates
+                if (!location?.coords || 
+                    typeof location.coords.latitude !== 'number' || 
+                    typeof location.coords.longitude !== 'number' ||
+                    isNaN(location.coords.latitude) || 
+                    isNaN(location.coords.longitude)) {
+                    throw new Error("Invalid fallback location coordinates received");
+                }
+
+                return {
+                    latitude: location.coords.latitude,
+                    longitude: location.coords.longitude,
+                };
+            }
         } catch (error) {
-            console.error("Error getting high accuracy location, falling back to regular accuracy", error);
-
-            // Fall back to regular accuracy
-            const location = await Location.getCurrentPositionAsync({});
-            return {
-                latitude: location.coords.latitude,
-                longitude: location.coords.longitude,
-            };
+            console.error("Error getting current location:", error);
+            throw new Error(error instanceof Error ? error.message : "Failed to get current location");
         }
     }
 
@@ -167,13 +191,31 @@ export class LocationService {
         polyline?: string;
     }> {
         try {
+            // Validate input coordinates
+            const validateCoordinates = (coords: Coordinates | Coordinates[]) => {
+                const coordArray = Array.isArray(coords) ? coords : [coords];
+                return coordArray.every(coord => 
+                    coord && 
+                    typeof coord.latitude === 'number' && 
+                    typeof coord.longitude === 'number' &&
+                    !isNaN(coord.latitude) && 
+                    !isNaN(coord.longitude) &&
+                    coord.latitude >= -90 && coord.latitude <= 90 &&
+                    coord.longitude >= -180 && coord.longitude <= 180
+                );
+            };
+
+            if (!validateCoordinates(origins) || !validateCoordinates(destinations)) {
+                throw new Error("Invalid coordinates provided");
+            }
+
             const cacheKey = JSON.stringify({ origins, destinations });
             try {
                 const cachedData = await AsyncStorage.getItem(`distance_matrix_${cacheKey}`);
                 if (cachedData) {
                     const { result, timestamp } = JSON.parse(cachedData);
                     const fifteenMinutesAgo = Date.now() - 15 * 60 * 1000;
-                    if (timestamp > fifteenMinutesAgo) {
+                    if (timestamp > fifteenMinutesAgo && result) {
                         return result;
                     }
                 }
@@ -183,15 +225,29 @@ export class LocationService {
 
             const response = await locationApi.calculateDistance(origins, destinations);
 
-            if (!response.success || !response.data || !response.data.rows?.[0]?.elements?.[0]) {
+            if (!response?.success || !response?.data) {
                 throw new Error("Failed to calculate distance - no response data");
             }
 
-            const element = response.data.rows[0].elements[0];
+            // More thorough validation of response structure
+            if (!response.data.rows || 
+                !Array.isArray(response.data.rows) || 
+                response.data.rows.length === 0) {
+                throw new Error("Invalid response structure - missing rows");
+            }
+
+            const firstRow = response.data.rows[0];
+            if (!firstRow?.elements || 
+                !Array.isArray(firstRow.elements) || 
+                firstRow.elements.length === 0) {
+                throw new Error("Invalid response structure - missing elements");
+            }
+
+            const element = firstRow.elements[0];
 
             // Check if the element has a successful status and contains distance/duration data
-            if (element.status !== "OK") {
-                throw new Error(`Distance calculation failed with status: ${element.status}`);
+            if (!element || element.status !== "OK") {
+                throw new Error(`Distance calculation failed with status: ${element?.status || "unknown"}`);
             }
 
             // Verify that distance and duration properties exist
@@ -200,7 +256,9 @@ export class LocationService {
             }
 
             // Ensure the distance and duration have the expected properties
-            if (typeof element.distance.value !== "number" || typeof element.duration.text !== "string") {
+            if (typeof element.distance.value !== "number" || 
+                typeof element.duration.text !== "string" ||
+                isNaN(element.distance.value)) {
                 console.error("Invalid distance matrix element structure:", element);
                 throw new Error("Invalid distance matrix response structure");
             }

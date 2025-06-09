@@ -60,7 +60,10 @@ const ProductDetailsScreen: React.FC = () => {
                         setLocalProduct(response.data);
 
                         // If shop has coordinates, set up the map region
-                        if (response.data?.shop?.location?.coordinates) {
+                        if (response.data?.shop?.location?.coordinates && 
+                            Array.isArray(response.data.shop.location.coordinates) && 
+                            response.data.shop.location.coordinates.length === 2) {
+                            
                             const shopCoords = {
                                 latitude: response.data.shop.location.coordinates[1],
                                 longitude: response.data.shop.location.coordinates[0],
@@ -102,39 +105,47 @@ const ProductDetailsScreen: React.FC = () => {
     const handleRefresh = async () => {
         setRefreshing(true);
 
-        // Refresh standard product data
-        await dispatch(getProduct(productId));
+        try {
+            // Refresh standard product data
+            await dispatch(getProduct(productId));
 
-        // Also fetch with distance if location is available
-        if (userLocation) {
-            try {
-                console.log("Refreshing product with distance data...");
-                const response = await productApi.getProductWithDistance(productId, userLocation);
-                console.log(
-                    "Refreshed product with distance data:",
-                    response.data?.shop?.distance
-                        ? `Distance: ${typeof response.data.shop.distance === "number" ? LocationService.formatDistance(response.data.shop.distance) : response.data.shop.distance}`
-                        : "No distance data"
-                );
-                setLocalProduct(response.data);
+            // Also fetch with distance if location is available
+            if (userLocation) {
+                try {
+                    console.log("Refreshing product with distance data...");
+                    const response = await productApi.getProductWithDistance(productId, userLocation);
+                    console.log(
+                        "Refreshed product with distance data:",
+                        response.data?.shop?.distance
+                            ? `Distance: ${typeof response.data.shop.distance === "number" ? LocationService.formatDistance(response.data.shop.distance) : response.data.shop.distance}`
+                            : "No distance data"
+                    );
+                    setLocalProduct(response.data);
 
-                // If shop has coordinates, refresh distance matrix
-                if (response.data?.shop?.location?.coordinates && userLocation) {
-                    const shopCoords = {
-                        latitude: response.data.shop.location.coordinates[1],
-                        longitude: response.data.shop.location.coordinates[0],
-                    };
+                    // If shop has coordinates, refresh distance matrix
+                    if (response.data?.shop?.location?.coordinates && 
+                        Array.isArray(response.data.shop.location.coordinates) && 
+                        response.data.shop.location.coordinates.length === 2 && 
+                        userLocation) {
+                        
+                        const shopCoords = {
+                            latitude: response.data.shop.location.coordinates[1],
+                            longitude: response.data.shop.location.coordinates[0],
+                        };
 
-                    try {
-                        const matrix = await LocationService.getDistanceMatrix(userLocation, shopCoords);
-                        setDistanceMatrix(matrix);
-                    } catch (err) {
-                        console.error("Error refreshing distance matrix:", err);
+                        try {
+                            const matrix = await LocationService.getDistanceMatrix(userLocation, shopCoords);
+                            setDistanceMatrix(matrix);
+                        } catch (err) {
+                            console.error("Error refreshing distance matrix:", err);
+                        }
                     }
+                } catch (err) {
+                    console.error("Error refreshing product with distance:", err);
                 }
-            } catch (err) {
-                console.error("Error refreshing product with distance:", err);
             }
+        } catch (error) {
+            console.error("Error refreshing product:", error);
         }
 
         setRefreshing(false);
@@ -151,14 +162,14 @@ const ProductDetailsScreen: React.FC = () => {
 
         try {
             // Check if the product is in stock
-            if (productData.stock <= 0) {
+            if ((productData.stock || 0) <= 0) {
                 toast.error("Out of Stock", "This product is currently unavailable");
                 return;
             }
 
             // Check if quantity is valid
-            if (quantity <= 0 || quantity > productData.stock) {
-                toast.error("Invalid Quantity", `Please select a quantity between 1 and ${productData.stock}`);
+            if (quantity <= 0 || quantity > (productData.stock || 0)) {
+                toast.error("Invalid Quantity", `Please select a quantity between 1 and ${productData.stock || 0}`);
                 return;
             }
 
@@ -183,13 +194,18 @@ const ProductDetailsScreen: React.FC = () => {
 
     const handleQuantityChange = (value: number) => {
         const newQuantity = quantity + value;
-        if (newQuantity >= 1 && productData && newQuantity <= productData.stock) {
+        if (newQuantity >= 1 && productData && newQuantity <= (productData.stock || 0)) {
             setQuantity(newQuantity);
         }
     };
 
     const handleGoBack = () => {
-        navigation.goBack();
+        try {
+            navigation.goBack();
+        } catch (error) {
+            console.error("Error going back:", error);
+            navigation.navigate("TabNavigator", { screen: "ProductsTab" });
+        }
     };
 
     const handleSubmitReview = async () => {
@@ -235,19 +251,35 @@ const ProductDetailsScreen: React.FC = () => {
             </View>
         );
     };
+
     console.log(productData);
+    
     const openGoogleMaps = () => {
-        if (!productData?.shop?.location?.coordinates || !userLocation) return;
+        if (!productData?.shop?.location?.coordinates || 
+            !Array.isArray(productData.shop.location.coordinates) || 
+            productData.shop.location.coordinates.length !== 2 || 
+            !userLocation) {
+            toast.error("Error", "Location data not available");
+            return;
+        }
 
-        const destination = `${productData.shop.location.coordinates[1]},${productData.shop.location.coordinates[0]}`;
-        const origin = `${userLocation.latitude},${userLocation.longitude}`;
-        const url = Platform.select({
-            ios: `maps://app?saddr=${origin}&daddr=${destination}`,
-            android: `google.navigation:q=${destination}&mode=d`,
-        });
+        try {
+            const destination = `${productData.shop.location.coordinates[1]},${productData.shop.location.coordinates[0]}`;
+            const origin = `${userLocation.latitude},${userLocation.longitude}`;
+            const url = Platform.select({
+                ios: `maps://app?saddr=${origin}&daddr=${destination}`,
+                android: `google.navigation:q=${destination}&mode=d`,
+            });
 
-        if (url) {
-            Linking.openURL(url).catch((err) => Alert.alert("Error", "Could not open Google Maps"));
+            if (url) {
+                Linking.openURL(url).catch((err) => {
+                    console.error("Error opening maps:", err);
+                    Alert.alert("Error", "Could not open Google Maps");
+                });
+            }
+        } catch (error) {
+            console.error("Error creating maps URL:", error);
+            toast.error("Error", "Could not open maps application");
         }
     };
 
@@ -275,10 +307,12 @@ const ProductDetailsScreen: React.FC = () => {
     }
 
     // Calculate discounted price if there's a discount
-    const discountedPrice = productData.discount > 0 ? productData.price - productData.price * (productData.discount / 100) : null;
+    const discountedPrice = (productData.discount || 0) > 0 ? (productData.price || 0) - (productData.price || 0) * ((productData.discount || 0) / 100) : null;
 
     // Extract shop coordinates if available
-    const shopCoordinates = productData.shop?.location?.coordinates
+    const shopCoordinates = productData.shop?.location?.coordinates && 
+        Array.isArray(productData.shop.location.coordinates) && 
+        productData.shop.location.coordinates.length === 2
         ? {
               latitude: productData.shop.location.coordinates[1],
               longitude: productData.shop.location.coordinates[0],
@@ -304,17 +338,17 @@ const ProductDetailsScreen: React.FC = () => {
                 <Image source={{ uri: productData.image || "https://via.placeholder.com/400" }} style={styles.productImage} resizeMode="cover" />
 
                 <View style={styles.contentContainer}>
-                    <Text style={styles.productName}>{productData.name}</Text>
+                    <Text style={styles.productName}>{productData.name || "Unknown Product"}</Text>
 
                     <View style={styles.categoryContainer}>
-                        <Text style={styles.categoryText}>{productData.category}</Text>
-                        <Text style={styles.typeText}>{productData.type}</Text>
+                        <Text style={styles.categoryText}>{productData.category || "General"}</Text>
+                        <Text style={styles.typeText}>{productData.type || "Product"}</Text>
                     </View>
 
                     {/* Shop info and distance section */}
                     {productData.shop && (
                         <View style={styles.shopInfoContainer}>
-                            <Text style={styles.shopTitle}>Sold by: {productData.shop.name}</Text>
+                            <Text style={styles.shopTitle}>Sold by: {productData.shop.name || "Unknown Shop"}</Text>
 
                             {distanceText && (
                                 <View style={styles.distanceContainer}>
@@ -331,7 +365,7 @@ const ProductDetailsScreen: React.FC = () => {
                             {shopCoordinates && mapRegion && (
                                 <View style={styles.mapContainer}>
                                     <MapView provider={PROVIDER_GOOGLE} style={[styles.map, showFullMap && styles.expandedMap]} region={mapRegion} zoomEnabled scrollEnabled={showFullMap}>
-                                        <Marker coordinate={shopCoordinates} title={productData.shop.name} description={productData.name} />
+                                        <Marker coordinate={shopCoordinates} title={productData.shop.name || "Shop"} description={productData.name || "Product"} />
                                         {userLocation && <Marker coordinate={userLocation} title="Your Location" pinColor="blue" />}
                                     </MapView>
 
@@ -353,13 +387,26 @@ const ProductDetailsScreen: React.FC = () => {
                                 <View style={styles.addressContainer}>
                                     <Text style={styles.addressLabel}>Address:</Text>
                                     <Text style={styles.addressText}>
-                                        {productData.shop.address.street}, {productData.shop.address.village}
+                                        {productData.shop.address.street || ""}, {productData.shop.address.village || ""}
                                     </Text>
                                     <Text style={styles.addressText}>
-                                        {productData.shop.address.district}, {productData.shop.address.state} - {productData.shop.address.pincode}
+                                        {productData.shop.address.district || ""}, {productData.shop.address.state || ""} - {productData.shop.address.pincode || ""}
                                     </Text>
                                     {productData.shop.address.phone && (
-                                        <TouchableOpacity style={styles.phoneContainer} onPress={() => Linking.openURL(`tel:${productData.shop.address.phone}`)}>
+                                        <TouchableOpacity 
+                                            style={styles.phoneContainer} 
+                                            onPress={() => {
+                                                try {
+                                                    Linking.openURL(`tel:${productData.shop.address.phone}`).catch(err => {
+                                                        console.error("Error opening phone:", err);
+                                                        toast.error("Error", "Could not open phone application");
+                                                    });
+                                                } catch (error) {
+                                                    console.error("Error creating phone URL:", error);
+                                                    toast.error("Error", "Could not open phone application");
+                                                }
+                                            }}
+                                        >
                                             <Ionicons name="call" size={16} color={theme.colors.primary} />
                                             <Text style={styles.phoneText}>{productData.shop.address.phone}</Text>
                                         </TouchableOpacity>
@@ -373,36 +420,38 @@ const ProductDetailsScreen: React.FC = () => {
                         {discountedPrice ? (
                             <>
                                 <Text style={styles.priceLabel}>Price:</Text>
-                                <Text style={[styles.priceValue, styles.strikethrough]}>₹{productData.price.toFixed(2)}</Text>
+                                <Text style={[styles.priceValue, styles.strikethrough]}>₹{(productData.price || 0).toFixed(2)}</Text>
                                 <Text style={styles.discountedPrice}>₹{discountedPrice.toFixed(2)}</Text>
                                 <View style={styles.discountBadge}>
-                                    <Text style={styles.discountText}>{productData.discount}% OFF</Text>
+                                    <Text style={styles.discountText}>{productData.discount || 0}% OFF</Text>
                                 </View>
                             </>
                         ) : (
                             <>
                                 <Text style={styles.priceLabel}>Price:</Text>
-                                <Text style={styles.priceValue}>₹{productData.price.toFixed(2)}</Text>
+                                <Text style={styles.priceValue}>₹{(productData.price || 0).toFixed(2)}</Text>
                             </>
                         )}
 
-                        <Text style={styles.stockText}>{productData.stock > 0 ? `In Stock (${productData.stock} ${productData.units || "units"})` : "Out of Stock"}</Text>
+                        <Text style={styles.stockText}>
+                            {(productData.stock || 0) > 0 ? `In Stock (${productData.stock || 0} ${productData.units || "units"})` : "Out of Stock"}
+                        </Text>
                     </View>
 
-                    {productData.stock > 0 && (
+                    {(productData.stock || 0) > 0 && (
                         <View style={styles.quantityContainer}>
                             <Text style={styles.quantityLabel}>Quantity:</Text>
                             <TouchableOpacity style={styles.quantityButton} onPress={() => handleQuantityChange(-1)} disabled={quantity <= 1}>
                                 <Text style={styles.quantityButtonText}>-</Text>
                             </TouchableOpacity>
                             <Text style={styles.quantityValue}>{quantity}</Text>
-                            <TouchableOpacity style={styles.quantityButton} onPress={() => handleQuantityChange(1)} disabled={quantity >= productData.stock}>
+                            <TouchableOpacity style={styles.quantityButton} onPress={() => handleQuantityChange(1)} disabled={quantity >= (productData.stock || 0)}>
                                 <Text style={styles.quantityButtonText}>+</Text>
                             </TouchableOpacity>
                         </View>
                     )}
 
-                    {productData.stock > 0 && (
+                    {(productData.stock || 0) > 0 && (
                         <TouchableOpacity style={styles.addToCartButton} onPress={handleAddToCart}>
                             <Text style={styles.addToCartButtonText}>Add to Cart</Text>
                         </TouchableOpacity>
@@ -410,7 +459,7 @@ const ProductDetailsScreen: React.FC = () => {
 
                     <View style={styles.descriptionContainer}>
                         <Text style={styles.sectionTitle}>Description</Text>
-                        <Text style={styles.descriptionText}>{productData.description}</Text>
+                        <Text style={styles.descriptionText}>{productData.description || "No description available"}</Text>
                     </View>
 
                     <View style={styles.reviewsContainer}>
@@ -459,12 +508,12 @@ const ProductDetailsScreen: React.FC = () => {
                                     <View key={index} style={styles.reviewItem}>
                                         <View style={styles.reviewHeader}>
                                             <View style={styles.reviewUser}>
-                                                <Text style={styles.reviewUserName}>{review.user.name}</Text>
-                                                <Text style={styles.reviewDate}>{new Date(review.createdAt).toLocaleDateString()}</Text>
+                                                <Text style={styles.reviewUserName}>{review.user?.name || "Anonymous"}</Text>
+                                                <Text style={styles.reviewDate}>{review.createdAt ? new Date(review.createdAt).toLocaleDateString() : ""}</Text>
                                             </View>
-                                            {renderStarRating(review.rating, 14)}
+                                            {renderStarRating(review.rating || 0, 14)}
                                         </View>
-                                        <Text style={styles.reviewText}>{review.text}</Text>
+                                        <Text style={styles.reviewText}>{review.text || ""}</Text>
                                     </View>
                                 )
                             )
