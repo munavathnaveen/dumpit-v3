@@ -313,19 +313,19 @@ const VendorOrderDetailsScreen: React.FC = () => {
                             <View style={styles.infoRow}>
                                 <Ionicons name="person-outline" size={18} color={theme.colors.gray} />
                                 <Text style={styles.infoLabel}>Name:</Text>
-                                <Text style={styles.infoValue}>{order.user.name}</Text>
+                                <Text style={styles.infoValue}>{order.user ? order.user.name : "N/A"}</Text>
                             </View>
 
                             <View style={styles.infoRow}>
                                 <Ionicons name="mail-outline" size={18} color={theme.colors.gray} />
                                 <Text style={styles.infoLabel}>Email:</Text>
-                                <Text style={styles.infoValue}>{order.user.email}</Text>
+                                <Text style={styles.infoValue}>{order.user ? order.user.email : "N/A"}</Text>
                             </View>
 
                             <View style={styles.infoRow}>
                                 <Ionicons name="call-outline" size={18} color={theme.colors.gray} />
                                 <Text style={styles.infoLabel}>Phone:</Text>
-                                <Text style={styles.infoValue}>{order.user.phone || order.shippingAddress.phone || "N/A"}</Text>
+                                <Text style={styles.infoValue}>{order.user ? (order.user.phone || order.shippingAddress.phone || "N/A") : (order.shippingAddress.phone || "N/A")}</Text>
                             </View>
 
                             <View style={styles.divider} />

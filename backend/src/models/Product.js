@@ -90,6 +90,15 @@ const ProductSchema = new mongoose.Schema(
             type: Boolean,
             default: false,
         },
+        colors: {
+            type: [String],
+            validate: {
+                validator: function (value) {
+                    return this.type === "paint" ? Array.isArray(value) && value.length > 0 : value === undefined;
+                },
+                message: "Colors must be provided and non-empty if the product type is 'paint'",
+            },
+        },
         isActive: {
             type: Boolean,
             default: true,
