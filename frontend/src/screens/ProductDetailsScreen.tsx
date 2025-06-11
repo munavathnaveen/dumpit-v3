@@ -107,7 +107,7 @@ const ProductDetailsScreen: React.FC = () => {
 
         try {
             // Refresh standard product data
-            await dispatch(getProduct(productId));
+            await dispatch(getProduct(productId)).unwrap();
 
             // Also fetch with distance if location is available
             if (userLocation) {
@@ -120,24 +120,42 @@ const ProductDetailsScreen: React.FC = () => {
                             ? `Distance: ${typeof response.data.shop.distance === "number" ? LocationService.formatDistance(response.data.shop.distance) : response.data.shop.distance}`
                             : "No distance data"
                     );
-                    setLocalProduct(response.data);
-
-                    // If shop has coordinates, refresh distance matrix
-                    if (response.data?.shop?.location?.coordinates && 
-                        Array.isArray(response.data.shop.location.coordinates) && 
-                        response.data.shop.location.coordinates.length === 2 && 
-                        userLocation) {
+                    
+                    // Validate response structure
+                    if (response && response.data) {
+                        // Validate shop data if it exists
+                        if (response.data.shop) {
+                            // Ensure location coordinates are valid
+                            if (response.data.shop.location?.coordinates && (
+                                !Array.isArray(response.data.shop.location.coordinates) ||
+                                response.data.shop.location.coordinates.length !== 2 ||
+                                typeof response.data.shop.location.coordinates[0] !== 'number' ||
+                                typeof response.data.shop.location.coordinates[1] !== 'number'
+                            )) {
+                                console.warn('Invalid shop location coordinates in refresh');
+                                delete response.data.shop.location;
+                            }
+                        }
                         
-                        const shopCoords = {
-                            latitude: response.data.shop.location.coordinates[1],
-                            longitude: response.data.shop.location.coordinates[0],
-                        };
+                        setLocalProduct(response.data);
 
-                        try {
-                            const matrix = await LocationService.getDistanceMatrix(userLocation, shopCoords);
-                            setDistanceMatrix(matrix);
-                        } catch (err) {
-                            console.error("Error refreshing distance matrix:", err);
+                        // If shop has coordinates, refresh distance matrix
+                        if (response.data?.shop?.location?.coordinates && 
+                            Array.isArray(response.data.shop.location.coordinates) && 
+                            response.data.shop.location.coordinates.length === 2 && 
+                            userLocation) {
+                            
+                            const shopCoords = {
+                                latitude: response.data.shop.location.coordinates[1],
+                                longitude: response.data.shop.location.coordinates[0],
+                            };
+
+                            try {
+                                const matrix = await LocationService.getDistanceMatrix(userLocation, shopCoords);
+                                setDistanceMatrix(matrix);
+                            } catch (err) {
+                                console.error("Error refreshing distance matrix:", err);
+                            }
                         }
                     }
                 } catch (err) {

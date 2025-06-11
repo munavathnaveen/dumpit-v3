@@ -85,18 +85,96 @@ const ShopDetailsScreen: React.FC = () => {
             setLoading(true);
             setError(null);
             
+            console.log('Loading shop details for shopId:', shopId);
+            
             const shopResponse = await getShop(shopId);
-            setShop(shopResponse.data);
+            console.log('Shop response:', shopResponse);
+            
+            // Validate response structure
+            if (!shopResponse || !shopResponse.data) {
+                throw new Error('Invalid shop response structure');
+            }
+            
+            const shopData = shopResponse.data;
+            
+            // Validate essential shop data
+            if (!shopData._id || !shopData.name) {
+                throw new Error('Invalid shop data - missing essential fields');
+            }
+            
+            // Ensure location structure is valid if it exists
+            if (shopData.location && shopData.location.coordinates) {
+                if (!Array.isArray(shopData.location.coordinates) || 
+                    shopData.location.coordinates.length !== 2 ||
+                    typeof shopData.location.coordinates[0] !== 'number' ||
+                    typeof shopData.location.coordinates[1] !== 'number') {
+                    console.warn('Invalid location coordinates, removing location data');
+                    delete (shopData as any).location;
+                }
+            }
+            
+            // Ensure address structure is valid
+            if (shopData.address && typeof shopData.address !== 'object') {
+                console.warn('Invalid address structure, setting to default');
+                shopData.address = {
+                    village: '',
+                    street: '',
+                    district: '',
+                    state: '',
+                    pincode: '',
+                    phone: ''
+                };
+            }
+            
+            // Ensure reviews is an array
+            if (!Array.isArray(shopData.reviews)) {
+                shopData.reviews = [];
+            }
+            
+            // Ensure categories is an array
+            if (!Array.isArray(shopData.categories)) {
+                shopData.categories = [];
+            }
+            
+            setShop(shopData);
 
-            const productsResponse = await getProductsByShop(shopId);
-            setProducts(productsResponse.data || []);
+            // Load products with error handling
+            try {
+                console.log('Loading products for shop:', shopId);
+                const productsResponse = await getProductsByShop(shopId);
+                console.log('Products response:', productsResponse);
+                
+                if (productsResponse && productsResponse.data && Array.isArray(productsResponse.data)) {
+                    setProducts(productsResponse.data);
+                } else {
+                    console.warn('Invalid products response, setting empty array');
+                    setProducts([]);
+                }
+            } catch (productError) {
+                console.error('Error loading products:', productError);
+                setProducts([]); // Set empty array instead of crashing
+            }
 
             setLoading(false);
         } catch (err: any) {
-            const errorMessage = err?.response?.data?.error || err?.message || "Failed to load shop details";
+            console.error("Error loading shop details:", err);
+            
+            let errorMessage = "Failed to load shop details";
+            
+            if (err?.message) {
+                errorMessage = err.message;
+            } else if (err?.response?.data?.error) {
+                errorMessage = err.response.data.error;
+            } else if (err?.response?.status === 404) {
+                errorMessage = "Shop not found";
+            } else if (err?.response?.status === 401) {
+                errorMessage = "Authentication required";
+            } else if (err?.status === 0) {
+                errorMessage = "Network error. Please check your connection.";
+            }
+            
             setError(errorMessage);
             setLoading(false);
-            console.error("Error loading shop details:", err);
         }
     };
 

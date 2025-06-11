@@ -114,7 +114,15 @@ exports.getShops = async (req, res, next) => {
 // @access  Public
 exports.getShop = async (req, res, next) => {
     try {
-        const shop = (await Shop.findById(req.user.shop_id)) || (await Shop.findById(req.params.id));
+        let shop;
+        
+        // If user is authenticated and has a shop_id, they might be requesting their own shop
+        if (req.user && req.user.shop_id && !req.params.id) {
+            shop = await Shop.findById(req.user.shop_id);
+        } else {
+            // For public access, use the shop ID from params
+            shop = await Shop.findById(req.params.id);
+        }
 
         if (!shop) {
             return next(new ErrorResponse(`Shop not found with id of ${req.params.id}`, 404));
