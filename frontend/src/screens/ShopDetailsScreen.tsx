@@ -1,1005 +1,1103 @@
-import React, { useEffect, useState } from "react";
-import { View, Text, StyleSheet, ScrollView, Image, TouchableOpacity, ActivityIndicator, FlatList, Dimensions, RefreshControl, TextInput, Alert, Linking } from "react-native";
-import { FontAwesome } from "@expo/vector-icons";
-import { useDispatch } from "react-redux";
-import Toast from "react-native-toast-message";
+import React, { useEffect, useState, useCallback } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  Image,
+  TouchableOpacity,
+  Dimensions,
+  ActivityIndicator,
+  FlatList,
+  Share,
+  Platform,
+  useWindowDimensions,
+  Linking,
+} from 'react-native';
+import { useNavigation, RouteProp } from '@react-navigation/native';
+import { useRoute } from '@react-navigation/core';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useSelector } from 'react-redux';
 
-import { AppDispatch } from "../store";
-import { theme } from "../theme";
-import { getShop, addShopReview } from "../api/shopApi";
-import { getProductsByShop } from "../api/productApi";
-import { addToCart } from "../store/cartSlice";
-import { useNavigation, useRoute } from "../navigation/hooks";
-import Card3D from "../components/Card3D";
-import { Product } from "../types/product";
-import { Shop } from "../api/shopApi";
-import MapViewComponent from "../components/MapView";
-import { LocationService, Coordinates } from "../services/LocationService";
-import toast from "../utils/toast";
+import { MainStackParamList } from '../navigation/types';
+import { Shop } from '../types/shop';
+import { Product } from '../types/product';
+import * as shopApi from '../api/shopApi';
+import * as productApi from '../api/productApi';
+import { theme } from '../theme';
+import ScreenHeader from '../components/ScreenHeader';
+import Button from '../components/Button';
+import MapView from '../components/MapView';
+import Card3D from '../components/Card3D';
+import AddReviewModal from '../components/AddReviewModal';
+import { RootState } from '../store';
+import alert from '../utils/alert';
 
-const { width } = Dimensions.get("window");
+type ShopDetailsScreenRouteProp = RouteProp<MainStackParamList, 'ShopDetails'>;
+type ShopDetailsScreenNavigationProp = NativeStackNavigationProp<MainStackParamList, 'ShopDetails'>;
+
+const { width: screenWidth } = Dimensions.get('window');
 
 const ShopDetailsScreen: React.FC = () => {
-    const route = useRoute<"ShopDetails">();
-    const navigation = useNavigation<"ShopDetails">();
-    const dispatch = useDispatch<AppDispatch>();
+  const route = useRoute<ShopDetailsScreenRouteProp>();
+  const navigation = useNavigation<ShopDetailsScreenNavigationProp>();
+  const { user } = useSelector((state: RootState) => state.auth);
+  const dimensions = useWindowDimensions();
 
-    const { shopId } = route.params;
-    const [shop, setShop] = useState<Shop | null>(null);
-    const [products, setProducts] = useState<Product[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
-    const [refreshing, setRefreshing] = useState(false);
-    const [showReviewForm, setShowReviewForm] = useState(false);
-    const [reviewText, setReviewText] = useState("");
-    const [reviewRating, setReviewRating] = useState(5);
-    const [submittingReview, setSubmittingReview] = useState(false);
-    const [userLocation, setUserLocation] = useState<Coordinates | null>(null);
-    const [distance, setDistance] = useState<string | null>(null);
-    const [duration, setDuration] = useState<string | null>(null);
+  const { shopId } = route.params;
 
-    useEffect(() => {
-        loadShopDetails();
-    }, [shopId]);
+  // State management
+  const [shop, setShop] = useState<Shop | null>(null);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [productsLoading, setProductsLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [selectedTab, setSelectedTab] = useState<'overview' | 'products' | 'reviews'>('overview');
+  const [showAllReviews, setShowAllReviews] = useState(false);
+  const [showReviewModal, setShowReviewModal] = useState(false);
 
-    useEffect(() => {
-        const getUserLocationAndDistance = async () => {
-            try {
-                // Get user's current location
-                const location = await LocationService.getCurrentLocation();
-                setUserLocation(location);
+  // Responsive calculations
+  const imageHeight = dimensions.width < 380 ? 200 : 250;
+  const cardPadding = dimensions.width < 380 ? 12 : 16;
+  const productCardWidth = (dimensions.width - 48) / 2; // 2 columns with padding
 
-                // Check if shop and location data exists before calculating distance
-                if (shop?.location?.coordinates && 
-                    Array.isArray(shop.location.coordinates) && 
-                    shop.location.coordinates.length === 2 && 
-                    typeof shop.location.coordinates[0] === 'number' && 
-                    typeof shop.location.coordinates[1] === 'number' &&
-                    shop.location.coordinates[0] !== 0 && 
-                    shop.location.coordinates[1] !== 0) {
-                    
-                    // Calculate distance to shop
-                    const distanceMatrix = await LocationService.getDistanceMatrix(location, {
-                        latitude: shop.location.coordinates[1],
-                        longitude: shop.location.coordinates[0],
-                    });
+  // Fetch shop details
+  const fetchShopDetails = useCallback(async () => {
+    try {
+      setLoading(true);
+      const response = await shopApi.getShop(shopId);
+      
+      if (response.success && response.data) {
+        setShop(response.data);
+      } else {
+        throw new Error('Shop not found');
+      }
+    } catch (error) {
+      console.error('Error fetching shop details:', error);
+      alert('Error', 'Failed to load shop details. Please try again.');
+      navigation.goBack();
+    } finally {
+      setLoading(false);
+    }
+  }, [shopId, navigation]);
 
-                    if (distanceMatrix?.distance && distanceMatrix?.duration) {
-                        setDistance(LocationService.formatDistance(distanceMatrix.distance));
-                        setDuration(distanceMatrix.duration);
-                    }
-                }
-            } catch (error) {
-                console.error("Error getting location or calculating distance:", error);
-                // Don't show error to user for location issues
-            }
-        };
+  // Fetch shop products
+  const fetchShopProducts = useCallback(async () => {
+    try {
+      setProductsLoading(true);
+      const response = await productApi.getProductsByShop(shopId);
+      
+      if (response.success && response.data) {
+        setProducts(response.data);
+      }
+    } catch (error) {
+      console.error('Error fetching shop products:', error);
+    } finally {
+      setProductsLoading(false);
+    }
+  }, [shopId]);
 
-        if (shop) {
-            getUserLocationAndDistance();
-        }
-    }, [shop]);
+  // Initial load
+  useEffect(() => {
+    fetchShopDetails();
+    fetchShopProducts();
+  }, [fetchShopDetails, fetchShopProducts]);
 
-    const loadShopDetails = async () => {
-        try {
-            setLoading(true);
-            setError(null);
-            
-            console.log('Loading shop details for shopId:', shopId);
-            
-            const shopResponse = await getShop(shopId);
-            console.log('Shop response:', shopResponse);
-            
-            // Validate response structure
-            if (!shopResponse || !shopResponse.data) {
-                throw new Error('Invalid shop response structure');
-            }
-            
-            const shopData = shopResponse.data;
-            
-            // Validate essential shop data
-            if (!shopData._id || !shopData.name) {
-                throw new Error('Invalid shop data - missing essential fields');
-            }
-            
-            // Ensure location structure is valid if it exists
-            if (shopData.location && shopData.location.coordinates) {
-                if (!Array.isArray(shopData.location.coordinates) || 
-                    shopData.location.coordinates.length !== 2 ||
-                    typeof shopData.location.coordinates[0] !== 'number' ||
-                    typeof shopData.location.coordinates[1] !== 'number') {
-                    console.warn('Invalid location coordinates, removing location data');
-                    delete (shopData as any).location;
-                }
-            }
-            
-            // Ensure address structure is valid
-            if (shopData.address && typeof shopData.address !== 'object') {
-                console.warn('Invalid address structure, setting to default');
-                shopData.address = {
-                    village: '',
-                    street: '',
-                    district: '',
-                    state: '',
-                    pincode: '',
-                    phone: ''
-                };
-            }
-            
-            // Ensure reviews is an array
-            if (!Array.isArray(shopData.reviews)) {
-                shopData.reviews = [];
-            }
-            
-            // Ensure categories is an array
-            if (!Array.isArray(shopData.categories)) {
-                shopData.categories = [];
-            }
-            
-            setShop(shopData);
+  // Handle refresh
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await Promise.all([fetchShopDetails(), fetchShopProducts()]);
+    setRefreshing(false);
+  }, [fetchShopDetails, fetchShopProducts]);
 
-            // Load products with error handling
-            try {
-                console.log('Loading products for shop:', shopId);
-                const productsResponse = await getProductsByShop(shopId);
-                console.log('Products response:', productsResponse);
-                
-                if (productsResponse && productsResponse.data && Array.isArray(productsResponse.data)) {
-                    setProducts(productsResponse.data);
-                } else {
-                    console.warn('Invalid products response, setting empty array');
-                    setProducts([]);
-                }
-            } catch (productError) {
-                console.error('Error loading products:', productError);
-                setProducts([]); // Set empty array instead of crashing
-            }
+  // Navigate to product details
+  const navigateToProduct = useCallback((productId: string) => {
+    navigation.navigate('ProductDetails', { productId });
+  }, [navigation]);
 
-            setLoading(false);
-        } catch (err: any) {
-            console.error("Error loading shop details:", err);
-            
-            let errorMessage = "Failed to load shop details";
-            
-            if (err?.message) {
-                errorMessage = err.message;
-            } else if (err?.response?.data?.error) {
-                errorMessage = err.response.data.error;
-            } else if (err?.response?.status === 404) {
-                errorMessage = "Shop not found";
-            } else if (err?.response?.status === 401) {
-                errorMessage = "Authentication required";
-            } else if (err?.status === 0) {
-                errorMessage = "Network error. Please check your connection.";
-            }
-            
-            setError(errorMessage);
-            setLoading(false);
-        }
-    };
+  // Navigate to all products with shop filter
+  const navigateToAllProducts = useCallback(() => {
+    navigation.navigate('Products', { shopId });
+  }, [navigation, shopId]);
 
-    const handleRefresh = async () => {
-        setRefreshing(true);
-        try {
-            await loadShopDetails();
-        } catch (error) {
-            console.error("Error refreshing shop details:", error);
-        } finally {
-            setRefreshing(false);
-        }
-    };
+  // Handle phone call
+  const handleCall = useCallback(() => {
+    if (shop?.address?.phone) {
+      Linking.openURL(`tel:${shop.address.phone}`);
+    }
+  }, [shop]);
 
-    const handleAddToCart = async (productId: string) => {
-        try {
-            await dispatch(addToCart({ productId, quantity: 1 })).unwrap();
-            toast.success("Added to Cart", "Product has been added to your cart");
-        } catch (error) {
-            console.error("Error adding to cart:", error);
-            toast.error("Add to Cart Failed", "Unable to add product to cart. Please try again.");
-        }
-    };
+  // Share shop
+  const handleShare = useCallback(async () => {
+    if (!shop) return;
 
-    const handleProductPress = (productId: string) => {
-        try {
-            navigation.navigate("ProductDetails", { productId });
-        } catch (error) {
-            console.error("Error navigating to product details:", error);
-        }
-    };
+    try {
+      const message = `Check out this shop: ${shop.name}\nAddress: ${shop.address?.village || 'Address not available'}\nRating: ${shop.rating?.toFixed(1) || 'No rating'}⭐`;
+      
+      await Share.share({
+        message,
+        title: shop.name,
+        url: Platform.OS === 'ios' ? '' : undefined,
+      });
+    } catch (error) {
+      console.error('Error sharing shop:', error);
+    }
+  }, [shop]);
 
-    const handleGoBack = () => {
-        try {
-            navigation.goBack();
-        } catch (error) {
-            console.error("Error going back:", error);
-            navigation.navigate("TabNavigator", { screen: "ShopsTab" });
-        }
-    };
-
-    const handleSubmitReview = async () => {
-        if (!shop) return;
-
-        if (!reviewText.trim()) {
-            toast.error("Review Required", "Please enter review text");
-            return;
-        }
-
-        try {
-            setSubmittingReview(true);
-            await addShopReview(shopId, {
-                rating: reviewRating,
-                text: reviewText,
-            });
-
-            // Refresh shop data to show the new review
-            const shopResponse = await getShop(shopId);
-            setShop(shopResponse.data);
-
-            setShowReviewForm(false);
-            setReviewText("");
-            setReviewRating(5);
-            toast.success("Review Submitted", "Your review has been added successfully");
-        } catch (error) {
-            console.error("Failed to submit review:", error);
-            toast.error("Review Failed", "Failed to submit your review. Please try again.");
-        } finally {
-            setSubmittingReview(false);
-        }
-    };
-
-    const renderStarRating = (rating: number, size: number, interactive: boolean = false) => {
-        return (
-            <View style={{ flexDirection: "row" }}>
-                {[1, 2, 3, 4, 5].map((star) => (
-                    <TouchableOpacity key={star} onPress={() => interactive && setReviewRating(star)} disabled={!interactive}>
-                        <FontAwesome name={star <= rating ? "star" : "star-o"} size={size} color={star <= rating ? "#FFD700" : theme.colors.textLight} style={{ marginRight: 2 }} />
-                    </TouchableOpacity>
-                ))}
-            </View>
-        );
-    };
-
-    const renderProductItem = ({ item }: { item: Product }) => {
-        if (!item?._id) {
-            return null;
-        }
-
-        return (
-            <TouchableOpacity onPress={() => handleProductPress(item._id)} activeOpacity={0.8}>
-                <Card3D style={styles.productCard}>
-                    <Image source={{ uri: item.image || "https://via.placeholder.com/150" }} style={styles.productImage} />
-                    <View style={styles.productInfo}>
-                        <Text style={styles.productName} numberOfLines={1}>
-                            {item.name || "Unknown Product"}
-                        </Text>
-                        <Text style={styles.productPrice}>₹{(item.price || 0).toFixed(2)}</Text>
-                        <View style={styles.productBottom}>
-                            <View style={styles.ratingContainer}>
-                                <FontAwesome name="star" size={12} color="#FFD700" />
-                                <Text style={styles.ratingText}>{(item.rating || 0).toFixed(1)}</Text>
-                            </View>
-                            <TouchableOpacity 
-                                style={styles.addButton} 
-                                onPress={() => handleAddToCart(item._id)} 
-                                disabled={(item.stock || 0) <= 0}
-                            >
-                                <FontAwesome name="plus" size={14} color={theme.colors.white} />
-                            </TouchableOpacity>
-                        </View>
-                    </View>
-                </Card3D>
-            </TouchableOpacity>
-        );
-    };
-
-    const renderShopMap = () => {
-        // Safely check if shop location data exists
-        if (!shop?.location?.coordinates || 
-            !Array.isArray(shop.location.coordinates) || 
-            shop.location.coordinates.length !== 2 || 
-            typeof shop.location.coordinates[0] !== 'number' || 
-            typeof shop.location.coordinates[1] !== 'number' ||
-            shop.location.coordinates[0] === 0 || 
-            shop.location.coordinates[1] === 0) {
-            return null;
-        }
-
-        const shopLocation = {
-            latitude: shop.location.coordinates[1],
-            longitude: shop.location.coordinates[0],
-        };
-
-        return (
-            <View style={styles.mapContainer}>
-                <Text style={styles.sectionTitle}>Shop Location</Text>
-
-                {distance && duration && (
-                    <View style={styles.distanceContainer}>
-                        <View style={styles.distanceItem}>
-                            <FontAwesome name="map-marker" size={16} color={theme.colors.primary} />
-                            <Text style={styles.distanceText}>{distance} away</Text>
-                        </View>
-                        <View style={styles.distanceItem}>
-                            <FontAwesome name="clock-o" size={16} color={theme.colors.primary} />
-                            <Text style={styles.distanceText}>{duration} by car</Text>
-                        </View>
-                    </View>
-                )}
-
-                <MapViewComponent
-                    style={styles.map}
-                    initialRegion={{
-                        latitude: shopLocation.latitude,
-                        longitude: shopLocation.longitude,
-                        latitudeDelta: 0.01,
-                        longitudeDelta: 0.01,
-                    }}
-                    markers={[
-                        {
-                            id: "shop",
-                            coordinate: shopLocation,
-                            title: shop.name || "Shop",
-                            description: shop.address ? `${shop.address.street || ""}, ${shop.address.village || ""}` : "",
-                            pinColor: theme.colors.primary,
-                        },
-                    ]}
-                    showsUserLocation={true}
-                />
-
-                <View style={styles.mapButtonsContainer}>
-                    <TouchableOpacity
-                        style={styles.mapButton}
-                        onPress={() => {
-                            try {
-                                const url = `https://www.google.com/maps/dir/?api=1&destination=${shopLocation.latitude},${shopLocation.longitude}`;
-                                Linking.openURL(url).catch(err => {
-                                    console.error("Error opening maps:", err);
-                                    toast.error("Error", "Could not open maps application");
-                                });
-                            } catch (error) {
-                                console.error("Error creating maps URL:", error);
-                                toast.error("Error", "Could not open maps application");
-                            }
-                        }}
-                    >
-                        <FontAwesome name="location-arrow" size={16} color={theme.colors.white} />
-                        <Text style={styles.mapButtonText}>Directions</Text>
-                    </TouchableOpacity>
-                </View>
-            </View>
-        );
-    };
-
-    if (loading) {
-        return (
-            <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color={theme.colors.primary} />
-            </View>
-        );
+  // Add shop review
+  const handleAddReview = useCallback(async (rating: number, text: string) => {
+    if (!user) {
+      alert('Please Login', 'You need to login to add a review');
+      return;
     }
 
-    if (error || !shop) {
-        return (
-            <View style={styles.errorContainer}>
-                <Text style={styles.errorText}>{error || "Shop not found. Please try again."}</Text>
-                <TouchableOpacity style={styles.backButton} onPress={handleGoBack}>
-                    <Text style={styles.backButtonText}>Go Back</Text>
-                </TouchableOpacity>
-            </View>
-        );
+    if (!shop) return;
+
+    try {
+      await shopApi.addShopReview(shop._id, { rating, text });
+      
+      // Refresh shop details to show new review
+      await fetchShopDetails();
+      
+      alert('Success', 'Your review has been added successfully!');
+    } catch (error) {
+      console.error('Error adding review:', error);
+      throw new Error('Failed to add review. Please try again.');
     }
+  }, [user, shop, fetchShopDetails]);
+
+  // Render stars for rating
+  const renderStars = (rating: number, size: number = 16) => {
+    const stars = [];
+    const fullStars = Math.floor(rating);
+    const hasHalfStar = rating % 1 !== 0;
+
+    for (let i = 0; i < fullStars; i++) {
+      stars.push(
+        <Ionicons key={i} name="star" size={size} color={theme.colors.warning} />
+      );
+    }
+
+    if (hasHalfStar) {
+      stars.push(
+        <Ionicons key="half" name="star-half" size={size} color={theme.colors.warning} />
+      );
+    }
+
+    const emptyStars = 5 - Math.ceil(rating);
+    for (let i = 0; i < emptyStars; i++) {
+      stars.push(
+        <Ionicons key={`empty-${i}`} name="star-outline" size={size} color={theme.colors.gray} />
+      );
+    }
+
+    return <View style={styles.starsContainer}>{stars}</View>;
+  };
+
+  // Render shop header
+  const renderShopHeader = () => {
+    if (!shop) return null;
 
     return (
-        <View style={styles.container}>
-            <TouchableOpacity style={styles.backIconButton} onPress={handleGoBack}>
-                <FontAwesome name="arrow-left" size={20} color={theme.colors.dark} />
-            </TouchableOpacity>
-
-            <ScrollView showsVerticalScrollIndicator={false} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}>
-                <Image source={{ uri: shop.image || "https://via.placeholder.com/400" }} style={styles.coverImage} resizeMode="cover" />
-
-                <View style={styles.shopInfoContainer}>
-                    <View style={styles.logoContainer}>
-                        <Image source={{ uri: shop.image || "https://via.placeholder.com/100" }} style={styles.logoImage} resizeMode="cover" />
-                    </View>
-
-                    <View style={styles.shopHeader}>
-                        <Text style={styles.shopName}>{shop.name || "Unknown Shop"}</Text>
-                        <View style={styles.ratingRow}>
-                            <FontAwesome name="star" size={16} color="#FFD700" />
-                            <Text style={styles.ratingValue}>{(shop.rating || 0).toFixed(1)}</Text>
-                            <Text style={styles.reviewCount}>({shop.reviews?.length || 0} reviews)</Text>
-                        </View>
-
-                        <View
-                            style={[
-                                styles.statusBadge,
-                                {
-                                    backgroundColor: shop.isOpen ? `${theme.colors.success}20` : `${theme.colors.error}20`,
-                                    borderColor: shop.isOpen ? theme.colors.success : theme.colors.error,
-                                },
-                            ]}
-                        >
-                            <View
-                                style={[
-                                    styles.statusDot,
-                                    {
-                                        backgroundColor: shop.isOpen ? theme.colors.success : theme.colors.error,
-                                    },
-                                ]}
-                            />
-                            <Text
-                                style={[
-                                    styles.statusText,
-                                    {
-                                        color: shop.isOpen ? theme.colors.success : theme.colors.error,
-                                    },
-                                ]}
-                            >
-                                {shop.isOpen ? "Open Now" : "Closed"}
-                            </Text>
-                        </View>
-                    </View>
+      <View style={styles.headerContainer}>
+        {/* Shop image */}
+        <View style={[styles.imageContainer, { height: imageHeight }]}>
+          {shop.image ? (
+            <Image source={{ uri: shop.image }} style={styles.shopImage} />
+          ) : (
+            <View style={styles.placeholderImage}>
+              <Ionicons name="storefront-outline" size={60} color={theme.colors.gray} />
+              <Text style={styles.placeholderText}>No Image</Text>
+            </View>
+          )}
+          
+          {/* Overlay gradient */}
+          <LinearGradient
+            colors={['transparent', 'rgba(0,0,0,0.7)']}
+            style={styles.imageOverlay}
+          />
+          
+          {/* Shop info overlay */}
+          <View style={styles.shopInfoOverlay}>
+            <Text style={styles.shopName}>{shop.name}</Text>
+            <View style={styles.ratingContainer}>
+              {renderStars(shop.rating || 0, 14)}
+              <Text style={styles.ratingText}>
+                {(shop.rating || 0).toFixed(1)} ({shop.reviews?.length || 0} reviews)
+              </Text>
+            </View>
+            <View style={styles.statusContainer}>
+              <View style={[
+                styles.statusBadge, 
+                { backgroundColor: shop.isOpen ? theme.colors.success : theme.colors.error }
+              ]}>
+                <Text style={styles.statusText}>
+                  {shop.isOpen ? 'Open' : 'Closed'}
+                </Text>
+              </View>
+              {shop.isVerified && (
+                <View style={styles.verifiedBadge}>
+                  <Ionicons name="checkmark-circle" size={16} color={theme.colors.primary} />
+                  <Text style={styles.verifiedText}>Verified</Text>
                 </View>
+              )}
+            </View>
+          </View>
 
-                <View style={styles.detailsContainer}>
-                    <Text style={styles.sectionTitle}>About</Text>
-                    <Text style={styles.descriptionText}>{shop.description || "No description available"}</Text>
-
-                    <View style={styles.divider} />
-
-                    <Text style={styles.sectionTitle}>Contact</Text>
-                    <View style={styles.contactItem}>
-                        <FontAwesome name="map-marker" size={16} color={theme.colors.textLight} />
-                        <Text style={styles.contactText}>
-                            {shop.address?.street || ""}, {shop.address?.village || ""}
-                            {"\n"}
-                            {shop.address?.district || ""}, {shop.address?.state || ""} - {shop.address?.pincode || ""}
-                            {"\n"}
-                            Phone: {shop.address?.phone || "Not available"}
-                        </Text>
-                    </View>
-
-                    <View style={styles.divider} />
-
-                    <Text style={styles.sectionTitle}>Categories</Text>
-                    <View style={styles.categoriesContainer}>
-                        {(shop.categories || []).map((category, index) => (
-                            <View key={index} style={styles.categoryChip}>
-                                <Text style={styles.categoryText}>{category}</Text>
-                            </View>
-                        ))}
-                    </View>
-
-                    <View style={styles.divider} />
-
-                    <Text style={styles.sectionTitle}>Reviews</Text>
-
-                    {shop.reviews && shop.reviews.length > 0 ? (
-                        shop.reviews.slice(0, 3).map((review, index) => (
-                            <View key={index} style={styles.reviewItem}>
-                                <View style={styles.reviewHeader}>
-                                    <Text style={styles.reviewerName}>{review.user?.name || "Anonymous"}</Text>
-                                    <View style={styles.reviewRating}>{renderStarRating(review.rating || 0, 14, false)}</View>
-                                </View>
-                                <Text style={styles.reviewText}>{review.text || ""}</Text>
-                                <Text style={styles.reviewDate}>{review.createdAt ? new Date(review.createdAt).toLocaleDateString() : ""}</Text>
-                            </View>
-                        ))
-                    ) : (
-                        <Text style={styles.noReviewsText}>No reviews yet. Be the first to leave a review!</Text>
-                    )}
-
-                    {shop.reviews && shop.reviews.length > 3 && (
-                        <TouchableOpacity style={styles.moreReviewsButton}>
-                            <Text style={styles.moreReviewsText}>See all {shop.reviews.length} reviews</Text>
-                        </TouchableOpacity>
-                    )}
-
-                    {!showReviewForm ? (
-                        <TouchableOpacity style={styles.addReviewButton} onPress={() => setShowReviewForm(true)}>
-                            <Text style={styles.addReviewText}>Add Review</Text>
-                        </TouchableOpacity>
-                    ) : (
-                        <Card3D style={styles.reviewFormContainer} elevation="medium">
-                            <Text style={styles.reviewFormTitle}>Write a Review</Text>
-
-                            <Text style={styles.ratingLabel}>Rating:</Text>
-                            <View style={styles.ratingSelector}>{renderStarRating(reviewRating, 24, true)}</View>
-
-                            <TextInput 
-                                style={styles.reviewInput} 
-                                placeholder="Write your review here..." 
-                                value={reviewText} 
-                                onChangeText={setReviewText} 
-                                multiline 
-                                numberOfLines={4} 
-                                maxLength={200} 
-                            />
-
-                            <View style={styles.reviewFormButtons}>
-                                <TouchableOpacity
-                                    style={[styles.reviewButton, styles.cancelButton]}
-                                    onPress={() => {
-                                        setShowReviewForm(false);
-                                        setReviewText("");
-                                        setReviewRating(5);
-                                    }}
-                                >
-                                    <Text style={styles.cancelButtonText}>Cancel</Text>
-                                </TouchableOpacity>
-
-                                <TouchableOpacity
-                                    style={[styles.reviewButton, styles.submitButton, submittingReview && styles.disabledButton]}
-                                    onPress={handleSubmitReview}
-                                    disabled={submittingReview}
-                                >
-                                    {submittingReview ? <ActivityIndicator size="small" color="#FFFFFF" /> : <Text style={styles.submitButtonText}>Submit</Text>}
-                                </TouchableOpacity>
-                            </View>
-                        </Card3D>
-                    )}
-
-                    <Text style={styles.sectionTitle}>Products</Text>
-                    {loading ? (
-                        <ActivityIndicator size="small" color={theme.colors.primary} style={styles.productsLoading} />
-                    ) : products.length > 0 ? (
-                        <View>
-                            <FlatList
-                                data={products.slice(0, 4)}
-                                keyExtractor={(item) => item._id || item.name || Math.random().toString()}
-                                renderItem={renderProductItem}
-                                horizontal
-                                showsHorizontalScrollIndicator={false}
-                                contentContainerStyle={styles.productsList}
-                            />
-
-                            <TouchableOpacity
-                                style={styles.viewAllButton}
-                                onPress={() => {
-                                    try {
-                                        navigation.navigate("TabNavigator", {
-                                            screen: "ProductsTab",
-                                            params: { shopId },
-                                        });
-                                    } catch (error) {
-                                        console.error("Error navigating to products:", error);
-                                    }
-                                }}
-                            >
-                                <Text style={styles.viewAllButtonText}>View All Products</Text>
-                                <FontAwesome name="arrow-right" size={16} color={theme.colors.primary} />
-                            </TouchableOpacity>
-                        </View>
-                    ) : (
-                        <Text style={styles.noProductsText}>This shop doesn't have any products yet.</Text>
-                    )}
-
-                    <View style={styles.divider} />
-                </View>
-
-                {renderShopMap()}
-            </ScrollView>
+          {/* Share button */}
+          <TouchableOpacity style={styles.shareButton} onPress={handleShare}>
+            <Ionicons name="share-outline" size={24} color={theme.colors.white} />
+          </TouchableOpacity>
         </View>
+      </View>
     );
+  };
+
+  // Render tab selector
+  const renderTabSelector = () => (
+    <View style={styles.tabContainer}>
+      {[
+        { key: 'overview', label: 'Overview', icon: 'information-circle-outline' },
+        { key: 'products', label: 'Products', icon: 'grid-outline' },
+        { key: 'reviews', label: 'Reviews', icon: 'star-outline' },
+      ].map((tab) => (
+        <TouchableOpacity
+          key={tab.key}
+          style={[
+            styles.tabButton,
+            selectedTab === tab.key && styles.activeTabButton,
+          ]}
+          onPress={() => setSelectedTab(tab.key as any)}
+        >
+          <Ionicons
+            name={tab.icon as any}
+            size={20}
+            color={selectedTab === tab.key ? theme.colors.primary : theme.colors.gray}
+          />
+          <Text
+            style={[
+              styles.tabText,
+              selectedTab === tab.key && styles.activeTabText,
+            ]}
+          >
+            {tab.label}
+          </Text>
+        </TouchableOpacity>
+      ))}
+    </View>
+  );
+
+  // Render overview tab
+  const renderOverviewTab = () => {
+    if (!shop) return null;
+
+    return (
+      <ScrollView style={styles.tabContent} showsVerticalScrollIndicator={false}>
+        {/* Basic Info */}
+        <Card3D style={[styles.infoCard, { padding: cardPadding }]}>
+          <Text style={styles.sectionTitle}>Shop Information</Text>
+          
+          {shop.description && (
+            <View style={styles.infoRow}>
+              <Text style={styles.infoLabel}>Description:</Text>
+              <Text style={styles.infoValue}>{shop.description}</Text>
+            </View>
+          )}
+
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>Categories:</Text>
+            <View style={styles.categoriesContainer}>
+              {shop.categories?.map((category, index) => (
+                <View key={index} style={styles.categoryBadge}>
+                  <Text style={styles.categoryText}>{category}</Text>
+                </View>
+              )) || <Text style={styles.infoValue}>No categories listed</Text>}
+            </View>
+          </View>
+
+          {shop.address && (
+            <View style={styles.addressContainer}>
+              <Text style={styles.infoLabel}>Address:</Text>
+              <View style={styles.addressDetails}>
+                <Text style={styles.addressText}>
+                  {shop.address.street}, {shop.address.village}
+                </Text>
+                <Text style={styles.addressText}>
+                  {shop.address.district}, {shop.address.state} - {shop.address.pincode}
+                </Text>
+                {shop.address.phone && (
+                  <TouchableOpacity style={styles.phoneContainer} onPress={handleCall}>
+                    <Ionicons name="call-outline" size={16} color={theme.colors.primary} />
+                    <Text style={styles.phoneText}>{shop.address.phone}</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            </View>
+          )}
+        </Card3D>
+
+        {/* Map */}
+        {shop.location?.coordinates && shop.location.coordinates[0] !== 0 && (
+          <Card3D style={[styles.mapCard, { padding: cardPadding }]}>
+            <Text style={styles.sectionTitle}>Location</Text>
+            <View style={styles.mapContainer}>
+              <MapView
+                style={styles.map}
+                initialRegion={{
+                  latitude: shop.location.coordinates[1],
+                  longitude: shop.location.coordinates[0],
+                  latitudeDelta: 0.005,
+                  longitudeDelta: 0.005,
+                }}
+                markers={[
+                  {
+                    id: shop._id,
+                    coordinate: {
+                      latitude: shop.location.coordinates[1],
+                      longitude: shop.location.coordinates[0],
+                    },
+                    title: shop.name,
+                    description: shop.address?.village || '',
+                  },
+                ]}
+                zoomEnabled={true}
+                showsUserLocation={true}
+              />
+            </View>
+          </Card3D>
+        )}
+
+        {/* Business Details */}
+        <Card3D style={[styles.infoCard, { padding: cardPadding }]}>
+          <Text style={styles.sectionTitle}>Business Details</Text>
+          
+          <View style={styles.businessRow}>
+            <View style={styles.businessDetail}>
+              <Text style={styles.businessLabel}>Min. Order</Text>
+              <Text style={styles.businessValue}>₹{shop.minimumOrderAmount || 0}</Text>
+            </View>
+            <View style={styles.businessDetail}>
+              <Text style={styles.businessLabel}>Shipping Fee</Text>
+              <Text style={styles.businessValue}>₹{shop.shippingFee || 0}</Text>
+            </View>
+          </View>
+
+          <View style={styles.businessRow}>
+            <View style={styles.businessDetail}>
+              <Text style={styles.businessLabel}>Free Shipping</Text>
+              <Text style={styles.businessValue}>₹{shop.freeShippingThreshold || 0}+</Text>
+            </View>
+            <View style={styles.businessDetail}>
+              <Text style={styles.businessLabel}>Tax Rate</Text>
+              <Text style={styles.businessValue}>{shop.taxRate || 0}%</Text>
+            </View>
+          </View>
+        </Card3D>
+
+        <View style={styles.bottomSpacing} />
+      </ScrollView>
+    );
+  };
+
+  // Render product card
+  const renderProductCard = ({ item: product }: { item: Product }) => {
+    const discountedPrice = product.discount > 0 
+      ? product.price - (product.price * product.discount / 100)
+      : product.price;
+
+    return (
+      <TouchableOpacity
+        style={[styles.productCard, { width: productCardWidth }]}
+        onPress={() => navigateToProduct(product._id)}
+      >
+        <View style={styles.productImageContainer}>
+          {product.image ? (
+            <Image source={{ uri: product.image }} style={styles.productImage} />
+          ) : (
+            <View style={styles.productImagePlaceholder}>
+              <Ionicons name="image-outline" size={30} color={theme.colors.gray} />
+            </View>
+          )}
+          {product.discount > 0 && (
+            <View style={styles.discountBadge}>
+              <Text style={styles.discountText}>{product.discount}% OFF</Text>
+            </View>
+          )}
+        </View>
+        
+        <View style={styles.productInfo}>
+          <Text style={styles.productName} numberOfLines={2}>{product.name}</Text>
+          <View style={styles.productPriceContainer}>
+            <Text style={styles.productPrice}>₹{discountedPrice.toFixed(2)}</Text>
+            {product.discount > 0 && (
+              <Text style={styles.originalProductPrice}>₹{product.price.toFixed(2)}</Text>
+            )}
+          </View>
+          <View style={styles.productRatingContainer}>
+            {renderStars(product.rating || 0, 12)}
+            <Text style={styles.productRatingText}>({product.reviews?.length || 0})</Text>
+          </View>
+        </View>
+      </TouchableOpacity>
+    );
+  };
+
+  // Render products tab
+  const renderProductsTab = () => (
+    <View style={styles.tabContent}>
+      {productsLoading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={theme.colors.primary} />
+          <Text style={styles.loadingText}>Loading products...</Text>
+        </View>
+      ) : products.length > 0 ? (
+        <>
+          <View style={styles.productsHeader}>
+            <Text style={styles.productsCount}>{products.length} Products</Text>
+            <TouchableOpacity onPress={navigateToAllProducts}>
+              <Text style={styles.viewAllText}>View All</Text>
+            </TouchableOpacity>
+          </View>
+          
+          <FlatList
+            data={products.slice(0, 10)} // Show first 10 products
+            renderItem={renderProductCard}
+            keyExtractor={(item) => item._id}
+            numColumns={2}
+            contentContainerStyle={styles.productsGrid}
+            columnWrapperStyle={styles.productRow}
+            showsVerticalScrollIndicator={false}
+            scrollEnabled={false} // Disable scroll since it's inside ScrollView
+          />
+          
+          {products.length > 10 && (
+            <Button
+              title="View All Products"
+              onPress={navigateToAllProducts}
+              style={styles.viewAllButton}
+            />
+          )}
+        </>
+      ) : (
+        <View style={styles.emptyContainer}>
+          <Ionicons name="cube-outline" size={64} color={theme.colors.gray} />
+          <Text style={styles.emptyText}>No products available</Text>
+        </View>
+      )}
+    </View>
+  );
+
+  // Render reviews tab
+  const renderReviewsTab = () => {
+    if (!shop?.reviews || shop.reviews.length === 0) {
+      return (
+        <View style={styles.tabContent}>
+          <Card3D style={[styles.reviewsCard, { padding: cardPadding }]}>
+            <View style={styles.reviewsHeader}>
+              <View style={styles.reviewsHeaderLeft}>
+                <Text style={styles.sectionTitle}>Reviews (0)</Text>
+              </View>
+
+              {user && (
+                <TouchableOpacity
+                  style={styles.addReviewButton}
+                  onPress={() => setShowReviewModal(true)}
+                >
+                  <Ionicons name="add" size={16} color={theme.colors.white} />
+                  <Text style={styles.addReviewText}>Add Review</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+
+            <View style={styles.emptyContainer}>
+              <Ionicons name="star-outline" size={48} color={theme.colors.gray} />
+              <Text style={styles.emptyText}>No reviews yet</Text>
+              <Text>Be the first to review this shop!</Text>
+            </View>
+          </Card3D>
+        </View>
+      );
+    }
+
+    const reviewsToShow = showAllReviews ? shop.reviews : shop.reviews.slice(0, 5);
+
+    return (
+      <ScrollView style={styles.tabContent} showsVerticalScrollIndicator={false}>
+        <Card3D style={[styles.reviewsCard, { padding: cardPadding }]}>
+          <View style={styles.reviewsHeader}>
+            <View style={styles.reviewsHeaderLeft}>
+              <Text style={styles.sectionTitle}>Reviews ({shop.reviews.length})</Text>
+              <View style={styles.overallRating}>
+                {renderStars(shop.rating || 0, 18)}
+                <Text style={styles.overallRatingText}>{(shop.rating || 0).toFixed(1)}</Text>
+              </View>
+            </View>
+
+            {user && (
+              <TouchableOpacity
+                style={styles.addReviewButton}
+                onPress={() => setShowReviewModal(true)}
+              >
+                <Ionicons name="add" size={16} color={theme.colors.white} />
+                <Text style={styles.addReviewText}>Add Review</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+
+          {reviewsToShow.map((review, index) => (
+            <View key={index} style={styles.reviewItem}>
+              <View style={styles.reviewHeader}>
+                <Text style={styles.reviewerName}>{review.user.name}</Text>
+                {renderStars(review.rating, 14)}
+              </View>
+              <Text style={styles.reviewText}>{review.text}</Text>
+              <Text style={styles.reviewDate}>
+                {new Date(review.createdAt).toLocaleDateString()}
+              </Text>
+            </View>
+          ))}
+
+          {shop.reviews.length > 5 && (
+            <TouchableOpacity
+              style={styles.showMoreReviews}
+              onPress={() => setShowAllReviews(!showAllReviews)}
+            >
+              <Text style={styles.showMoreReviewsText}>
+                {showAllReviews ? 'Show Less' : `Show ${shop.reviews.length - 5} More Reviews`}
+              </Text>
+            </TouchableOpacity>
+          )}
+        </Card3D>
+        
+        <View style={styles.bottomSpacing} />
+      </ScrollView>
+    );
+  };
+
+  // Loading state
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color={theme.colors.primary} />
+        <Text style={styles.loadingText}>Loading shop details...</Text>
+      </View>
+    );
+  }
+
+  // Error state
+  if (!shop) {
+    return (
+      <View style={styles.errorContainer}>
+        <Ionicons name="alert-circle-outline" size={64} color={theme.colors.error} />
+        <Text style={styles.errorText}>Shop not found</Text>
+        <Button
+          title="Go Back"
+          onPress={() => navigation.goBack()}
+          style={styles.errorButton}
+        />
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.container}>
+      <ScreenHeader
+        title="Shop Details"
+        showBackButton={true}
+      />
+      
+      <ScrollView 
+        style={styles.scrollView}
+        showsVerticalScrollIndicator={false}
+      >
+        {renderShopHeader()}
+        {renderTabSelector()}
+        
+        {selectedTab === 'overview' && renderOverviewTab()}
+        {selectedTab === 'products' && renderProductsTab()}
+        {selectedTab === 'reviews' && renderReviewsTab()}
+      </ScrollView>
+
+      {/* Add Review Modal */}
+      <AddReviewModal
+        visible={showReviewModal}
+        onClose={() => setShowReviewModal(false)}
+        onSubmit={handleAddReview}
+        title="Review Shop"
+        subtitle={shop?.name}
+      />
+    </View>
+  );
 };
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        backgroundColor: theme.colors.background,
-    },
-    loadingContainer: {
-        flex: 1,
-        justifyContent: "center",
-        alignItems: "center",
-    },
-    errorContainer: {
-        flex: 1,
-        justifyContent: "center",
-        alignItems: "center",
-        padding: 20,
-    },
-    errorText: {
-        fontSize: 16,
-        color: theme.colors.error,
-        textAlign: "center",
-        marginBottom: 20,
-    },
-    backButton: {
-        backgroundColor: theme.colors.primary,
-        paddingVertical: 12,
-        paddingHorizontal: 24,
-        borderRadius: 25,
-    },
-    backButtonText: {
-        color: theme.colors.white,
-        fontWeight: "bold",
-    },
-    backIconButton: {
-        position: "absolute",
-        top: 40,
-        left: 20,
-        zIndex: 10,
-        backgroundColor: theme.colors.white,
-        borderRadius: 20,
-        width: 40,
-        height: 40,
-        justifyContent: "center",
-        alignItems: "center",
-        shadowColor: theme.colors.dark,
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.3,
-        shadowRadius: 3,
-        elevation: 5,
-    },
-    coverImage: {
-        width: width,
-        height: width * 0.6,
-    },
-    shopInfoContainer: {
-        flexDirection: "row",
-        padding: 16,
-        backgroundColor: theme.colors.cardBg,
-        borderRadius: 12,
-        marginTop: -40,
-        marginHorizontal: 16,
-        shadowColor: theme.colors.dark,
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.2,
-        shadowRadius: 4,
-        elevation: 5,
-    },
-    logoContainer: {
-        marginRight: 16,
-    },
-    logoImage: {
-        width: 80,
-        height: 80,
-        borderRadius: 40,
-        borderWidth: 2,
-        borderColor: theme.colors.white,
-    },
-    shopHeader: {
-        flex: 1,
-    },
-    shopName: {
-        fontSize: 24,
-        fontWeight: "bold",
-        color: theme.colors.text,
-        marginBottom: 4,
-    },
-    ratingRow: {
-        flexDirection: "row",
-        alignItems: "center",
-        marginBottom: 8,
-    },
-    ratingValue: {
-        fontSize: 16,
-        fontWeight: "bold",
-        color: theme.colors.text,
-        marginLeft: 4,
-    },
-    reviewCount: {
-        fontSize: 14,
-        color: theme.colors.textLight,
-        marginLeft: 4,
-    },
-    statusBadge: {
-        flexDirection: "row",
-        alignItems: "center",
-        paddingVertical: 4,
-        paddingHorizontal: 8,
-        borderRadius: 12,
-        borderWidth: 1,
-        alignSelf: "flex-start",
-    },
-    statusDot: {
-        width: 8,
-        height: 8,
-        borderRadius: 4,
-        marginRight: 4,
-    },
-    statusText: {
-        fontSize: 12,
-        fontWeight: "bold",
-    },
-    detailsContainer: {
-        padding: 16,
-    },
-    sectionTitle: {
-        fontSize: 18,
-        fontWeight: "bold",
-        color: theme.colors.text,
-        marginBottom: 8,
-    },
-    descriptionText: {
-        fontSize: 16,
-        color: theme.colors.text,
-        lineHeight: 24,
-    },
-    divider: {
-        height: 1,
-        backgroundColor: theme.colors.border,
-        marginVertical: 16,
-    },
-    contactItem: {
-        flexDirection: "row",
-        marginBottom: 12,
-    },
-    contactText: {
-        fontSize: 16,
-        color: theme.colors.text,
-        marginLeft: 12,
-        flex: 1,
-        lineHeight: 22,
-    },
-    categoriesContainer: {
-        flexDirection: "row",
-        flexWrap: "wrap",
-    },
-    categoryChip: {
-        backgroundColor: `${theme.colors.primary}15`,
-        paddingVertical: 6,
-        paddingHorizontal: 12,
-        borderRadius: 16,
-        marginRight: 8,
-        marginBottom: 8,
-    },
-    categoryText: {
-        fontSize: 14,
-        color: theme.colors.primary,
-    },
-    productsList: {
-        paddingRight: 16,
-    },
-    productCard: {
-        width: 160,
-        marginRight: 12,
-        borderRadius: 12,
-        backgroundColor: theme.colors.cardBg,
-        overflow: "hidden",
-    },
-    productImage: {
-        width: "100%",
-        height: 120,
-        borderTopLeftRadius: 12,
-        borderTopRightRadius: 12,
-    },
-    productInfo: {
-        padding: 10,
-    },
-    productName: {
-        fontSize: 16,
-        fontWeight: "bold",
-        color: theme.colors.text,
-        marginBottom: 4,
-    },
-    productPrice: {
-        fontSize: 14,
-        fontWeight: "bold",
-        color: theme.colors.primary,
-        marginBottom: 8,
-    },
-    productBottom: {
-        flexDirection: "row",
-        justifyContent: "space-between",
-        alignItems: "center",
-    },
-    ratingContainer: {
-        flexDirection: "row",
-        alignItems: "center",
-    },
-    ratingText: {
-        fontSize: 12,
-        color: theme.colors.text,
-        marginLeft: 4,
-    },
-    addButton: {
-        width: 24,
-        height: 24,
-        borderRadius: 12,
-        backgroundColor: theme.colors.primary,
-        justifyContent: "center",
-        alignItems: "center",
-    },
-    viewAllButton: {
-        flexDirection: "row",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: 12,
-        marginTop: 16,
-        borderWidth: 1,
-        borderColor: theme.colors.primary,
-        borderRadius: theme.borderRadius.medium,
-        backgroundColor: "transparent",
-    },
-    viewAllButtonText: {
-        fontSize: 16,
-        color: theme.colors.primary,
-        fontWeight: "bold",
-        marginRight: 8,
-    },
-    noProductsText: {
-        color: theme.colors.textLight,
-        fontSize: 16,
-        textAlign: "center",
-        marginTop: 20,
-    },
-    productsLoading: {
-        marginTop: 20,
-    },
-    reviewItem: {
-        marginHorizontal: 16,
-        marginBottom: 12,
-        padding: 12,
-        backgroundColor: theme.colors.cardBg,
-        borderRadius: 8,
-    },
-    reviewHeader: {
-        flexDirection: "row",
-        justifyContent: "space-between",
-        marginBottom: 8,
-    },
-    reviewerName: {
-        fontSize: 16,
-        fontWeight: "500",
-        color: theme.colors.text,
-    },
-    reviewRating: {
-        flexDirection: "row",
-        alignItems: "center",
-    },
-    reviewText: {
-        fontSize: 14,
-        color: theme.colors.text,
-        marginBottom: 4,
-    },
-    reviewDate: {
-        fontSize: 12,
-        color: theme.colors.textLight,
-    },
-    noReviewsText: {
-        textAlign: "center",
-        marginHorizontal: 16,
-        marginVertical: 12,
-        color: theme.colors.textLight,
-        fontStyle: "italic",
-    },
-    moreReviewsButton: {
-        alignItems: "center",
-        paddingVertical: 8,
-    },
-    moreReviewsText: {
-        color: theme.colors.primary,
-        fontSize: 14,
-    },
-    addReviewButton: {
-        backgroundColor: theme.colors.primary,
-        padding: 12,
-        borderRadius: 8,
-        marginHorizontal: 16,
-        marginTop: 16,
-        marginBottom: 16,
-        alignItems: "center",
-    },
-    addReviewText: {
-        color: theme.colors.white,
-        fontWeight: "bold",
-        fontSize: 16,
-    },
-    reviewFormContainer: {
-        backgroundColor: theme.colors.cardBg,
-        borderRadius: 8,
-        padding: 16,
-        marginHorizontal: 16,
-        marginTop: 16,
-        marginBottom: 16,
-    },
-    reviewFormTitle: {
-        fontSize: 18,
-        fontWeight: "bold",
-        color: theme.colors.text,
-        marginBottom: 12,
-    },
-    ratingLabel: {
-        fontSize: 16,
-        color: theme.colors.text,
-        marginBottom: 8,
-    },
-    ratingSelector: {
-        flexDirection: "row",
-        marginBottom: 16,
-    },
-    reviewInput: {
-        backgroundColor: theme.colors.background,
-        borderRadius: 8,
-        padding: 12,
-        minHeight: 100,
-        textAlignVertical: "top",
-        marginBottom: 16,
-        borderColor: theme.colors.border,
-        borderWidth: 1,
-    },
-    reviewFormButtons: {
-        flexDirection: "row",
-        justifyContent: "space-between",
-    },
-    reviewButton: {
-        padding: 12,
-        borderRadius: 8,
-        flex: 1,
-        alignItems: "center",
-    },
-    cancelButton: {
-        backgroundColor: theme.colors.lightGray,
-        marginRight: 8,
-    },
-    cancelButtonText: {
-        color: theme.colors.text,
-        fontWeight: "bold",
-    },
-    submitButton: {
-        backgroundColor: theme.colors.primary,
-        marginLeft: 8,
-    },
-    submitButtonText: {
-        color: theme.colors.white,
-        fontWeight: "bold",
-    },
-    disabledButton: {
-        opacity: 0.7,
-    },
-    mapContainer: {
-        marginHorizontal: 16,
-        marginVertical: 20,
-        borderRadius: 12,
-        overflow: "hidden",
-        backgroundColor: theme.colors.cardBg,
-        ...theme.shadow.small,
-    },
-    map: {
-        height: 200,
-        width: "100%",
-        borderRadius: 12,
-    },
-    distanceContainer: {
-        flexDirection: "row",
-        marginVertical: 8,
-        marginHorizontal: 16,
-    },
-    distanceItem: {
-        flexDirection: "row",
-        alignItems: "center",
-        marginRight: 20,
-    },
-    distanceText: {
-        marginLeft: 6,
-        color: theme.colors.gray,
-        fontSize: 14,
-    },
-    mapButtonsContainer: {
-        flexDirection: "row",
-        justifyContent: "flex-end",
-        padding: 12,
-    },
-    mapButton: {
-        flexDirection: "row",
-        alignItems: "center",
-        backgroundColor: theme.colors.primary,
-        paddingVertical: 8,
-        paddingHorizontal: 12,
-        borderRadius: 25,
-        ...theme.shadow.small,
-    },
-    mapButtonText: {
-        color: theme.colors.white,
-        marginLeft: 6,
-        fontWeight: "600",
-    },
-    sectionContainer: {
-        padding: 16,
-    },
+  container: {
+    flex: 1,
+    backgroundColor: theme.colors.background,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: theme.colors.background,
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: theme.colors.gray,
+    fontWeight: '500',
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+    backgroundColor: theme.colors.background,
+  },
+  errorText: {
+    fontSize: 18,
+    color: theme.colors.error,
+    fontWeight: '600',
+    textAlign: 'center',
+    marginVertical: 16,
+  },
+  errorButton: {
+    marginTop: 16,
+  },
+
+  // Header styles
+  headerContainer: {
+    backgroundColor: theme.colors.white,
+  },
+  imageContainer: {
+    position: 'relative',
+    backgroundColor: theme.colors.lightGray,
+  },
+  shopImage: {
+    width: '100%',
+    height: '100%',
+    resizeMode: 'cover',
+  },
+  placeholderImage: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: theme.colors.lightGray,
+  },
+  placeholderText: {
+    marginTop: 8,
+    fontSize: 14,
+    color: theme.colors.gray,
+  },
+  imageOverlay: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 120,
+  },
+  shopInfoOverlay: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    padding: 16,
+  },
+  shopName: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: theme.colors.white,
+    marginBottom: 8,
+  },
+  ratingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  starsContainer: {
+    flexDirection: 'row',
+    marginRight: 8,
+  },
+  ratingText: {
+    color: theme.colors.white,
+    fontSize: 14,
+  },
+  statusContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  statusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginRight: 8,
+  },
+  statusText: {
+    color: theme.colors.white,
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  verifiedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: theme.colors.white,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  verifiedText: {
+    color: theme.colors.primary,
+    fontSize: 12,
+    fontWeight: 'bold',
+    marginLeft: 4,
+  },
+  shareButton: {
+    position: 'absolute',
+    top: 16,
+    right: 16,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+
+  // Tab styles
+  tabContainer: {
+    flexDirection: 'row',
+    backgroundColor: theme.colors.white,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.lightGray,
+  },
+  tabButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 8,
+  },
+  activeTabButton: {
+    borderBottomWidth: 2,
+    borderBottomColor: theme.colors.primary,
+  },
+  tabText: {
+    marginLeft: 6,
+    fontSize: 14,
+    color: theme.colors.gray,
+    fontWeight: '500',
+  },
+  activeTabText: {
+    color: theme.colors.primary,
+    fontWeight: '600',
+  },
+  tabContent: {
+    flex: 1,
+    backgroundColor: theme.colors.background,
+  },
+
+  // Overview tab styles
+  infoCard: {
+    margin: 16,
+    backgroundColor: theme.colors.white,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: theme.colors.dark,
+    marginBottom: 12,
+  },
+  infoRow: {
+    marginBottom: 12,
+  },
+  infoLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: theme.colors.dark,
+    marginBottom: 4,
+  },
+  infoValue: {
+    fontSize: 14,
+    color: theme.colors.gray,
+    lineHeight: 20,
+  },
+  categoriesContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginTop: 4,
+  },
+  categoryBadge: {
+    backgroundColor: theme.colors.primaryLight,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginRight: 8,
+    marginBottom: 4,
+  },
+  categoryText: {
+    fontSize: 12,
+    color: theme.colors.white,
+    fontWeight: '500',
+  },
+  addressContainer: {
+    marginBottom: 0,
+  },
+  addressDetails: {
+    marginTop: 4,
+  },
+  addressText: {
+    fontSize: 14,
+    color: theme.colors.gray,
+    lineHeight: 20,
+  },
+  phoneContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  phoneText: {
+    fontSize: 14,
+    color: theme.colors.primary,
+    fontWeight: '500',
+    marginLeft: 6,
+  },
+
+  // Map styles
+  mapCard: {
+    margin: 16,
+    marginTop: 8,
+    backgroundColor: theme.colors.white,
+  },
+  mapContainer: {
+    height: 200,
+    borderRadius: 8,
+    overflow: 'hidden',
+  },
+  map: {
+    flex: 1,
+  },
+
+  // Business details styles
+  businessRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
+  businessDetail: {
+    flex: 1,
+    alignItems: 'center',
+    paddingHorizontal: 8,
+  },
+  businessLabel: {
+    fontSize: 12,
+    color: theme.colors.gray,
+    marginBottom: 4,
+  },
+  businessValue: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: theme.colors.dark,
+  },
+
+  // Products tab styles
+  productsHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  productsCount: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: theme.colors.dark,
+  },
+  viewAllText: {
+    fontSize: 14,
+    color: theme.colors.primary,
+    fontWeight: '600',
+  },
+  productsGrid: {
+    paddingHorizontal: 16,
+  },
+  productRow: {
+    justifyContent: 'space-between',
+  },
+  productCard: {
+    backgroundColor: theme.colors.white,
+    borderRadius: 12,
+    marginBottom: 16,
+    ...theme.shadow.small,
+  },
+  productImageContainer: {
+    position: 'relative',
+    height: 120,
+    borderTopLeftRadius: 12,
+    borderTopRightRadius: 12,
+    overflow: 'hidden',
+  },
+  productImage: {
+    width: '100%',
+    height: '100%',
+    resizeMode: 'cover',
+  },
+  productImagePlaceholder: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: theme.colors.lightGray,
+  },
+  discountBadge: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    backgroundColor: theme.colors.success,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  discountText: {
+    color: theme.colors.white,
+    fontSize: 10,
+    fontWeight: 'bold',
+  },
+  productInfo: {
+    padding: 12,
+  },
+  productName: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: theme.colors.dark,
+    marginBottom: 6,
+  },
+  productPriceContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  productPrice: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: theme.colors.primary,
+    marginRight: 6,
+  },
+  originalProductPrice: {
+    fontSize: 12,
+    color: theme.colors.gray,
+    textDecorationLine: 'line-through',
+  },
+  productRatingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  productRatingText: {
+    fontSize: 12,
+    color: theme.colors.gray,
+    marginLeft: 4,
+  },
+  viewAllButton: {
+    margin: 16,
+  },
+
+  // Reviews tab styles
+  reviewsCard: {
+    margin: 16,
+    backgroundColor: theme.colors.white,
+  },
+  reviewsHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 16,
+  },
+  reviewsHeaderLeft: {
+    flex: 1,
+  },
+  addReviewButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: theme.colors.primary,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    marginLeft: 12,
+  },
+  addReviewText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: theme.colors.white,
+    marginLeft: 4,
+  },
+  overallRating: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  overallRatingText: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: theme.colors.dark,
+    marginLeft: 8,
+  },
+  reviewItem: {
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.lightGray,
+    paddingVertical: 12,
+  },
+  reviewHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  reviewerName: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: theme.colors.dark,
+  },
+  reviewText: {
+    fontSize: 14,
+    color: theme.colors.gray,
+    lineHeight: 20,
+    marginBottom: 4,
+  },
+  reviewDate: {
+    fontSize: 12,
+    color: theme.colors.gray,
+  },
+  showMoreReviews: {
+    alignItems: 'center',
+    paddingTop: 12,
+  },
+  showMoreReviewsText: {
+    fontSize: 14,
+    color: theme.colors.primary,
+    fontWeight: '600',
+  },
+
+  // Empty state styles
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 40,
+  },
+  emptyText: {
+    fontSize: 16,
+    color: theme.colors.gray,
+    marginTop: 16,
+    textAlign: 'center',
+  },
+
+  bottomSpacing: {
+    height: 20,
+  },
 });
 
-export default ShopDetailsScreen;
+export default ShopDetailsScreen; 

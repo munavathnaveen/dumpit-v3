@@ -179,8 +179,7 @@ export class LocationService {
         }
     }
 
-    // Calculate distance between two coordinates - removed to avoid conflicts
-    // Use getDistanceMatrix instead for simplified format
+ 
 
     static async getDistanceMatrix(
         origins: Coordinates | Coordinates[],
@@ -223,64 +222,116 @@ export class LocationService {
                 console.log("Cache access error:", e);
             }
 
-            const response = await locationApi.calculateDistance(origins, destinations);
+            // Convert to arrays for processing
+            const originArray = Array.isArray(origins) ? origins : [origins];
+            const destinationArray = Array.isArray(destinations) ? destinations : [destinations];
 
-            if (!response?.success || !response?.data) {
-                throw new Error("Failed to calculate distance - no response data");
-            }
+            const origin = originArray[0];
+            const destination = destinationArray[0];
 
-            // More thorough validation of response structure
-            if (!response.data.rows || 
-                !Array.isArray(response.data.rows) || 
-                response.data.rows.length === 0) {
-                throw new Error("Invalid response structure - missing rows");
-            }
-
-            const firstRow = response.data.rows[0];
-            if (!firstRow?.elements || 
-                !Array.isArray(firstRow.elements) || 
-                firstRow.elements.length === 0) {
-                throw new Error("Invalid response structure - missing elements");
-            }
-
-            const element = firstRow.elements[0];
-
-            // Check if the element has a successful status and contains distance/duration data
-            if (!element || element.status !== "OK") {
-                throw new Error(`Distance calculation failed with status: ${element?.status || "unknown"}`);
-            }
-
-            // Verify that distance and duration properties exist
-            if (!element.distance || !element.duration) {
-                throw new Error("Distance calculation response missing distance or duration data");
-            }
-
-            // Ensure the distance and duration have the expected properties
-            if (typeof element.distance.value !== "number" || 
-                typeof element.duration.text !== "string" ||
-                isNaN(element.distance.value)) {
-                console.error("Invalid distance matrix element structure:", element);
-                throw new Error("Invalid distance matrix response structure");
-            }
-
-            const result = {
-                distance: element.distance.value,
-                duration: element.duration.text,
-            };
-
+            // Try Google Maps Distance Matrix API first
             try {
-                await AsyncStorage.setItem(
-                    `distance_matrix_${cacheKey}`,
-                    JSON.stringify({
-                        result,
-                        timestamp: Date.now(),
-                    })
-                );
-            } catch (e) {
-                console.log("Cache write error:", e);
+                const googleResult = await this.getGoogleDistanceMatrix(origin, destination);
+                if (googleResult) {
+                    const result = {
+                        distance: googleResult.distance * 1000, // Convert back to meters for consistency
+                        duration: googleResult.duration,
+                    };
+
+                    try {
+                        await AsyncStorage.setItem(
+                            `distance_matrix_${cacheKey}`,
+                            JSON.stringify({
+                                result,
+                                timestamp: Date.now(),
+                            })
+                        );
+                    } catch (e) {
+                        console.log("Cache write error:", e);
+                    }
+
+                    return result;
+                }
+            } catch (googleError) {
+                console.log("Google Distance Matrix API failed, trying backend:", googleError);
             }
 
-            return result;
+            // Fallback to backend API
+            try {
+                const response = await locationApi.calculateDistance(origins, destinations);
+
+                if (!response?.success || !response?.data) {
+                    throw new Error("Failed to calculate distance - no response data");
+                }
+
+                // More thorough validation of response structure
+                if (!response.data.rows || 
+                    !Array.isArray(response.data.rows) || 
+                    response.data.rows.length === 0) {
+                    throw new Error("Invalid response structure - missing rows");
+                }
+
+                const firstRow = response.data.rows[0];
+                if (!firstRow?.elements || 
+                    !Array.isArray(firstRow.elements) || 
+                    firstRow.elements.length === 0) {
+                    throw new Error("Invalid response structure - missing elements");
+                }
+
+                const element = firstRow.elements[0];
+
+                // Check if the element has a successful status and contains distance/duration data
+                if (!element || element.status !== "OK") {
+                    throw new Error(`Distance calculation failed with status: ${element?.status || "unknown"}`);
+                }
+
+                // Verify that distance and duration properties exist
+                if (!element.distance || !element.duration) {
+                    throw new Error("Distance calculation response missing distance or duration data");
+                }
+
+                // Ensure the distance and duration have the expected properties
+                if (typeof element.distance.value !== "number" || 
+                    typeof element.duration.text !== "string" ||
+                    isNaN(element.distance.value)) {
+                    console.error("Invalid distance matrix element structure:", element);
+                    throw new Error("Invalid distance matrix response structure");
+                }
+
+                const result = {
+                    distance: element.distance.value,
+                    duration: element.duration.text,
+                };
+
+                try {
+                    await AsyncStorage.setItem(
+                        `distance_matrix_${cacheKey}`,
+                        JSON.stringify({
+                            result,
+                            timestamp: Date.now(),
+                        })
+                    );
+                } catch (e) {
+                    console.log("Cache write error:", e);
+                }
+
+                return result;
+            } catch (backendError) {
+                console.log("Backend distance calculation failed, using haversine fallback:", backendError);
+                
+                // Final fallback: Haversine calculation
+                const distance = this.calculateHaversineDistance(origin, destination);
+                const averageSpeedKmPerHour = 40;
+                const durationHours = distance / averageSpeedKmPerHour;
+                const durationMinutes = Math.round(durationHours * 60);
+
+                const result = {
+                    distance: distance * 1000, // Convert to meters
+                    duration: `${durationMinutes} min`,
+                };
+
+                return result;
+            }
         } catch (error) {
             console.error("Error getting distance matrix:", error);
             throw new Error(error instanceof Error ? error.message : "Failed to get distance matrix");
@@ -421,6 +472,119 @@ export class LocationService {
             const hours = Math.floor(seconds / 3600);
             const minutes = Math.floor((seconds % 3600) / 60);
             return `${hours} hr ${minutes} min`;
+        }
+    }
+
+    /**
+     * Calculate distance between two coordinates using Haversine formula
+     * @param coord1 First coordinate
+     * @param coord2 Second coordinate
+     * @returns Distance in kilometers
+     */
+    static calculateHaversineDistance(coord1: Coordinates, coord2: Coordinates): number {
+        const R = 6371; // Earth's radius in kilometers
+        const dLat = (coord2.latitude - coord1.latitude) * Math.PI / 180;
+        const dLon = (coord2.longitude - coord1.longitude) * Math.PI / 180;
+        const a = 
+            Math.sin(dLat/2) * Math.sin(dLat/2) +
+            Math.cos(coord1.latitude * Math.PI / 180) * Math.cos(coord2.latitude * Math.PI / 180) * 
+            Math.sin(dLon/2) * Math.sin(dLon/2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        return R * c;
+    }
+
+    /**
+     * Get distance and duration using Google Maps Distance Matrix API
+     * Based on latest API: https://developers.google.com/maps/documentation/distance-matrix/overview
+     */
+    private static async getGoogleDistanceMatrix(
+        origin: Coordinates,
+        destination: Coordinates
+    ): Promise<{
+        distance: number;
+        duration: string;
+        polyline?: string;
+    } | null> {
+        try {
+            const { GOOGLE_MAPS_API_KEY } = await import('../utils/config');
+            
+            if (!GOOGLE_MAPS_API_KEY) {
+                console.warn("Google Maps API key not configured");
+                return null;
+            }
+
+            // Format coordinates for Google Maps API
+            const origins = `${origin.latitude},${origin.longitude}`;
+            const destinations = `${destination.latitude},${destination.longitude}`;
+
+            // Use latest Google Maps Distance Matrix API
+            const apiUrl = `https://maps.googleapis.com/maps/api/distancematrix/json?origins=${origins}&destinations=${destinations}&units=metric&mode=driving&language=en&key=${GOOGLE_MAPS_API_KEY}`;
+
+            const response = await fetch(apiUrl);
+            const data = await response.json();
+
+            if (data.status === 'OK' && data.rows?.[0]?.elements?.[0]?.status === 'OK') {
+                const element = data.rows[0].elements[0];
+                
+                return {
+                    distance: element.distance.value / 1000, // Convert from meters to kilometers
+                    duration: element.duration.text,
+                    polyline: undefined, // Distance Matrix API doesn't provide polyline
+                };
+            } else {
+                console.warn("Google Distance Matrix API returned non-OK status:", data.status);
+                return null;
+            }
+        } catch (error) {
+            console.error("Error calling Google Distance Matrix API:", error);
+            return null;
+        }
+    }
+
+    /**
+     * Calculate shop distance for product display using latest Google Maps methods
+     * Uses Routes API if available, falls back to Distance Matrix API, then Haversine formula
+     * Based on: https://developers.google.com/maps/documentation/routes/overview
+     */
+    static async calculateShopDistance(
+        userLocation: Coordinates,
+        shopLocation: Coordinates
+    ): Promise<{
+        distance: number;
+        distanceText: string;
+        duration?: string;
+    }> {
+        try {
+            // Try Google Distance Matrix API first
+            try {
+                const result = await this.getGoogleDistanceMatrix(userLocation, shopLocation);
+                if (result) {
+                    return {
+                        distance: result.distance,
+                        distanceText: this.formatDistance(result.distance * 1000),
+                        duration: result.duration,
+                    };
+                }
+            } catch (apiError) {
+                console.log("Google Distance Matrix API failed, falling back to haversine:", apiError);
+            }
+
+            // Fallback to Haversine calculation
+            const distance = this.calculateHaversineDistance(userLocation, shopLocation);
+            
+            return {
+                distance,
+                distanceText: this.formatDistance(distance * 1000),
+                duration: undefined,
+            };
+        } catch (error) {
+            console.error("Error calculating shop distance:", error);
+            // Return very large distance to indicate error
+            return {
+                distance: 999,
+                distanceText: "Distance unavailable",
+                duration: undefined,
+            };
         }
     }
 }
