@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo, memo } from 'react';
 import {
   View,
   Text,
@@ -13,6 +13,7 @@ import {
   Platform,
   useWindowDimensions,
   Linking,
+  RefreshControl,
 } from 'react-native';
 import { useNavigation, RouteProp } from '@react-navigation/native';
 import { useRoute } from '@react-navigation/core';
@@ -40,6 +41,154 @@ type ShopDetailsScreenNavigationProp = NativeStackNavigationProp<MainStackParamL
 
 const { width: screenWidth } = Dimensions.get('window');
 
+// Constants
+const REVIEWS_PER_PAGE = 5;
+const PRODUCTS_PER_PAGE = 10;
+const MAP_ZOOM_LEVEL = 0.005;
+
+// Memoized components
+const ProductCard = memo(({ 
+    product, 
+    onPress, 
+    width 
+}: { 
+    product: Product; 
+    onPress: () => void; 
+    width: number;
+}) => {
+    const discountedPrice = product.discount > 0 
+        ? product.price - (product.price * product.discount / 100)
+        : product.price;
+
+    return (
+        <TouchableOpacity
+            style={[styles.productCard, { width }]}
+            onPress={onPress}
+            activeOpacity={0.8}
+        >
+            <View style={styles.productImageContainer}>
+                {product.image ? (
+                    <Image 
+                        source={{ uri: product.image }} 
+                        style={styles.productImage} 
+                    />
+                ) : (
+                    <View style={styles.productImagePlaceholder}>
+                        <Ionicons 
+                            name="image-outline" 
+                            size={30} 
+                            color={theme.colors.gray} 
+                        />
+                    </View>
+                )}
+                {product.discount > 0 && (
+                    <View style={styles.discountBadge}>
+                        <Text style={styles.discountText}>
+                            {product.discount}% OFF
+                        </Text>
+                    </View>
+                )}
+            </View>
+            
+            <View style={styles.productInfo}>
+                <Text style={styles.productName} numberOfLines={2}>
+                    {product.name}
+                </Text>
+                <View style={styles.productPriceContainer}>
+                    <Text style={styles.productPrice}>
+                        ₹{discountedPrice.toFixed(2)}
+                    </Text>
+                    {product.discount > 0 && (
+                        <Text style={styles.originalProductPrice}>
+                            ₹{product.price.toFixed(2)}
+                        </Text>
+                    )}
+                </View>
+                <View style={styles.productRatingContainer}>
+                    <RatingStars rating={product.rating || 0} size={12} />
+                    <Text style={styles.productRatingText}>
+                        ({product.reviews?.length || 0})
+                    </Text>
+                </View>
+            </View>
+        </TouchableOpacity>
+    );
+});
+
+const RatingStars = memo(({ 
+    rating, 
+    size = 16 
+}: { 
+    rating: number; 
+    size?: number;
+}) => {
+    const stars = [];
+    const fullStars = Math.floor(rating);
+    const hasHalfStar = rating % 1 !== 0;
+
+    for (let i = 0; i < fullStars; i++) {
+        stars.push(
+            <Ionicons 
+                key={i} 
+                name="star" 
+                size={size} 
+                color={theme.colors.warning} 
+            />
+        );
+    }
+
+    if (hasHalfStar) {
+        stars.push(
+            <Ionicons 
+                key="half" 
+                name="star-half" 
+                size={size} 
+                color={theme.colors.warning} 
+            />
+        );
+    }
+
+    const emptyStars = 5 - Math.ceil(rating);
+    for (let i = 0; i < emptyStars; i++) {
+        stars.push(
+            <Ionicons 
+                key={`empty-${i}`} 
+                name="star-outline" 
+                size={size} 
+                color={theme.colors.gray} 
+            />
+        );
+    }
+
+    return <View style={styles.starsContainer}>{stars}</View>;
+});
+
+const ReviewItem = memo(({ 
+    review 
+}: { 
+    review: {
+        user: { name: string };
+        rating: number;
+        text: string;
+        createdAt: string;
+    };
+}) => (
+    <View style={styles.reviewItem}>
+        <View style={styles.reviewHeader}>
+            <Text style={styles.reviewerName}>
+                {review.user.name}
+            </Text>
+            <RatingStars rating={review.rating} size={14} />
+        </View>
+        <Text style={styles.reviewText}>
+            {review.text}
+        </Text>
+        <Text style={styles.reviewDate}>
+            {new Date(review.createdAt).toLocaleDateString()}
+        </Text>
+    </View>
+));
+
 const ShopDetailsScreen: React.FC = () => {
   const route = useRoute<ShopDetailsScreenRouteProp>();
   const navigation = useNavigation<ShopDetailsScreenNavigationProp>();
@@ -58,10 +207,21 @@ const ShopDetailsScreen: React.FC = () => {
   const [showAllReviews, setShowAllReviews] = useState(false);
   const [showReviewModal, setShowReviewModal] = useState(false);
 
-  // Responsive calculations
-  const imageHeight = dimensions.width < 380 ? 200 : 250;
-  const cardPadding = dimensions.width < 380 ? 12 : 16;
-  const productCardWidth = (dimensions.width - 48) / 2; // 2 columns with padding
+  // Memoized values
+  const imageHeight = useMemo(() => 
+    dimensions.width < 380 ? 200 : 250,
+    [dimensions.width]
+  );
+
+  const cardPadding = useMemo(() => 
+    dimensions.width < 380 ? 12 : 16,
+    [dimensions.width]
+  );
+
+  const productCardWidth = useMemo(() => 
+    (dimensions.width - 48) / 2,
+    [dimensions.width]
+  );
 
   // Fetch shop details
   const fetchShopDetails = useCallback(async () => {
@@ -105,36 +265,39 @@ const ShopDetailsScreen: React.FC = () => {
     fetchShopProducts();
   }, [fetchShopDetails, fetchShopProducts]);
 
-  // Handle refresh
+  // Memoized handlers
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
-    await Promise.all([fetchShopDetails(), fetchShopProducts()]);
-    setRefreshing(false);
+    try {
+      await Promise.all([
+        fetchShopDetails(),
+        fetchShopProducts()
+      ]);
+    } catch (error) {
+      console.error('Error refreshing:', error);
+      alert('Error', 'Failed to refresh data. Please try again.');
+    } finally {
+      setRefreshing(false);
+    }
   }, [fetchShopDetails, fetchShopProducts]);
 
-  // Navigate to product details
-  const navigateToProduct = useCallback((productId: string) => {
+  const handleProductPress = useCallback((productId: string) => {
     navigation.navigate('ProductDetails', { productId });
   }, [navigation]);
 
-  // Navigate to all products with shop filter
-  const navigateToAllProducts = useCallback(() => {
-    navigation.navigate('Products', { shopId });
-  }, [navigation, shopId]);
-
-  // Handle phone call
   const handleCall = useCallback(() => {
     if (shop?.address?.phone) {
       Linking.openURL(`tel:${shop.address.phone}`);
     }
   }, [shop]);
 
-  // Share shop
   const handleShare = useCallback(async () => {
     if (!shop) return;
 
     try {
-      const message = `Check out this shop: ${shop.name}\nAddress: ${shop.address?.village || 'Address not available'}\nRating: ${shop.rating?.toFixed(1) || 'No rating'}⭐`;
+      const message = `Check out this shop: ${shop.name}\nAddress: ${
+        shop.address?.village || 'Address not available'
+      }\nRating: ${shop.rating?.toFixed(1) || 'No rating'}⭐`;
       
       await Share.share({
         message,
@@ -143,10 +306,10 @@ const ShopDetailsScreen: React.FC = () => {
       });
     } catch (error) {
       console.error('Error sharing shop:', error);
+      alert('Error', 'Failed to share shop. Please try again.');
     }
   }, [shop]);
 
-  // Add shop review
   const handleAddReview = useCallback(async (rating: number, text: string) => {
     if (!user) {
       alert('Please Login', 'You need to login to add a review');
@@ -157,44 +320,18 @@ const ShopDetailsScreen: React.FC = () => {
 
     try {
       await shopApi.addShopReview(shop._id, { rating, text });
-      
-      // Refresh shop details to show new review
       await fetchShopDetails();
-      
       alert('Success', 'Your review has been added successfully!');
     } catch (error) {
       console.error('Error adding review:', error);
-      throw new Error('Failed to add review. Please try again.');
+      alert('Error', 'Failed to add review. Please try again.');
     }
   }, [user, shop, fetchShopDetails]);
 
-  // Render stars for rating
-  const renderStars = (rating: number, size: number = 16) => {
-    const stars = [];
-    const fullStars = Math.floor(rating);
-    const hasHalfStar = rating % 1 !== 0;
-
-    for (let i = 0; i < fullStars; i++) {
-      stars.push(
-        <Ionicons key={i} name="star" size={size} color={theme.colors.warning} />
-      );
-    }
-
-    if (hasHalfStar) {
-      stars.push(
-        <Ionicons key="half" name="star-half" size={size} color={theme.colors.warning} />
-      );
-    }
-
-    const emptyStars = 5 - Math.ceil(rating);
-    for (let i = 0; i < emptyStars; i++) {
-      stars.push(
-        <Ionicons key={`empty-${i}`} name="star-outline" size={size} color={theme.colors.gray} />
-      );
-    }
-
-    return <View style={styles.starsContainer}>{stars}</View>;
-  };
+  // Navigate to all products with shop filter
+  const navigateToAllProducts = useCallback(() => {
+    navigation.navigate('Products', { shopId });
+  }, [navigation, shopId]);
 
   // Render shop header
   const renderShopHeader = () => {
@@ -223,7 +360,7 @@ const ShopDetailsScreen: React.FC = () => {
           <View style={styles.shopInfoOverlay}>
             <Text style={styles.shopName}>{shop.name}</Text>
             <View style={styles.ratingContainer}>
-              {renderStars(shop.rating || 0, 14)}
+              <RatingStars rating={shop.rating || 0} size={14} />
               <Text style={styles.ratingText}>
                 {(shop.rating || 0).toFixed(1)} ({shop.reviews?.length || 0} reviews)
               </Text>
@@ -348,8 +485,8 @@ const ShopDetailsScreen: React.FC = () => {
                 initialRegion={{
                   latitude: shop.location.coordinates[1],
                   longitude: shop.location.coordinates[0],
-                  latitudeDelta: 0.005,
-                  longitudeDelta: 0.005,
+                  latitudeDelta: MAP_ZOOM_LEVEL,
+                  longitudeDelta: MAP_ZOOM_LEVEL,
                 }}
                 markers={[
                   {
@@ -402,47 +539,13 @@ const ShopDetailsScreen: React.FC = () => {
   };
 
   // Render product card
-  const renderProductCard = ({ item: product }: { item: Product }) => {
-    const discountedPrice = product.discount > 0 
-      ? product.price - (product.price * product.discount / 100)
-      : product.price;
-
-    return (
-      <TouchableOpacity
-        style={[styles.productCard, { width: productCardWidth }]}
-        onPress={() => navigateToProduct(product._id)}
-      >
-        <View style={styles.productImageContainer}>
-          {product.image ? (
-            <Image source={{ uri: product.image }} style={styles.productImage} />
-          ) : (
-            <View style={styles.productImagePlaceholder}>
-              <Ionicons name="image-outline" size={30} color={theme.colors.gray} />
-            </View>
-          )}
-          {product.discount > 0 && (
-            <View style={styles.discountBadge}>
-              <Text style={styles.discountText}>{product.discount}% OFF</Text>
-            </View>
-          )}
-        </View>
-        
-        <View style={styles.productInfo}>
-          <Text style={styles.productName} numberOfLines={2}>{product.name}</Text>
-          <View style={styles.productPriceContainer}>
-            <Text style={styles.productPrice}>₹{discountedPrice.toFixed(2)}</Text>
-            {product.discount > 0 && (
-              <Text style={styles.originalProductPrice}>₹{product.price.toFixed(2)}</Text>
-            )}
-          </View>
-          <View style={styles.productRatingContainer}>
-            {renderStars(product.rating || 0, 12)}
-            <Text style={styles.productRatingText}>({product.reviews?.length || 0})</Text>
-          </View>
-        </View>
-      </TouchableOpacity>
-    );
-  };
+  const renderProductCard = ({ item: product }: { item: Product }) => (
+    <ProductCard
+      product={product}
+      onPress={() => handleProductPress(product._id)}
+      width={productCardWidth}
+    />
+  );
 
   // Render products tab
   const renderProductsTab = () => (
@@ -462,17 +565,17 @@ const ShopDetailsScreen: React.FC = () => {
           </View>
           
           <FlatList
-            data={products.slice(0, 10)} // Show first 10 products
+            data={products.slice(0, PRODUCTS_PER_PAGE)}
             renderItem={renderProductCard}
             keyExtractor={(item) => item._id}
             numColumns={2}
             contentContainerStyle={styles.productsGrid}
             columnWrapperStyle={styles.productRow}
             showsVerticalScrollIndicator={false}
-            scrollEnabled={false} // Disable scroll since it's inside ScrollView
+            scrollEnabled={false}
           />
           
-          {products.length > 10 && (
+          {products.length > PRODUCTS_PER_PAGE && (
             <Button
               title="View All Products"
               onPress={navigateToAllProducts}
@@ -521,7 +624,7 @@ const ShopDetailsScreen: React.FC = () => {
       );
     }
 
-    const reviewsToShow = showAllReviews ? shop.reviews : shop.reviews.slice(0, 5);
+    const reviewsToShow = showAllReviews ? shop.reviews : shop.reviews.slice(0, REVIEWS_PER_PAGE);
 
     return (
       <ScrollView style={styles.tabContent} showsVerticalScrollIndicator={false}>
@@ -530,7 +633,7 @@ const ShopDetailsScreen: React.FC = () => {
             <View style={styles.reviewsHeaderLeft}>
               <Text style={styles.sectionTitle}>Reviews ({shop.reviews.length})</Text>
               <View style={styles.overallRating}>
-                {renderStars(shop.rating || 0, 18)}
+                <RatingStars rating={shop.rating || 0} size={18} />
                 <Text style={styles.overallRatingText}>{(shop.rating || 0).toFixed(1)}</Text>
               </View>
             </View>
@@ -547,25 +650,16 @@ const ShopDetailsScreen: React.FC = () => {
           </View>
 
           {reviewsToShow.map((review, index) => (
-            <View key={index} style={styles.reviewItem}>
-              <View style={styles.reviewHeader}>
-                <Text style={styles.reviewerName}>{review.user.name}</Text>
-                {renderStars(review.rating, 14)}
-              </View>
-              <Text style={styles.reviewText}>{review.text}</Text>
-              <Text style={styles.reviewDate}>
-                {new Date(review.createdAt).toLocaleDateString()}
-              </Text>
-            </View>
+            <ReviewItem key={index} review={review} />
           ))}
 
-          {shop.reviews.length > 5 && (
+          {shop.reviews.length > REVIEWS_PER_PAGE && (
             <TouchableOpacity
               style={styles.showMoreReviews}
               onPress={() => setShowAllReviews(!showAllReviews)}
             >
               <Text style={styles.showMoreReviewsText}>
-                {showAllReviews ? 'Show Less' : `Show ${shop.reviews.length - 5} More Reviews`}
+                {showAllReviews ? 'Show Less' : `Show ${shop.reviews.length - REVIEWS_PER_PAGE} More Reviews`}
               </Text>
             </TouchableOpacity>
           )}
@@ -611,6 +705,14 @@ const ShopDetailsScreen: React.FC = () => {
       <ScrollView 
         style={styles.scrollView}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            colors={[theme.colors.primary]}
+            tintColor={theme.colors.primary}
+          />
+        }
       >
         {renderShopHeader()}
         {renderTabSelector()}
@@ -1100,4 +1202,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default ShopDetailsScreen; 
+export default memo(ShopDetailsScreen); 

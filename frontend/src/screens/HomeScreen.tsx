@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useMemo } from "react";
+import React, { useEffect, useState, useCallback, useMemo, memo } from "react";
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Image, ActivityIndicator, Dimensions, ImageBackground, useWindowDimensions } from "react-native";
 import { useSelector, useDispatch } from "react-redux";
 import { useNavigation } from "@react-navigation/native";
@@ -24,6 +24,12 @@ import { Shop as ApiShop } from "../api/shopApi";
 const { width } = Dimensions.get("window");
 const CARD_WIDTH = width * 0.7;
 const SHOP_CARD_WIDTH = width * 0.8;
+
+// Constants
+const AD_ROTATION_INTERVAL = 5000;
+const NEARBY_SHOPS_LIMIT = 5;
+const FEATURED_PRODUCTS_LIMIT = 6;
+const CATEGORIES_PER_ROW = 5;
 
 type HomeScreenNavigationProp = NativeStackNavigationProp<MainStackParamList, "Home">;
 
@@ -89,6 +95,226 @@ const adBanners: AdBanner[] = [
     },
 ];
 
+// Memoized components
+const ProductCard = memo(({ product, onPress, width }: { product: Product; onPress: () => void; width: number }) => {
+    const imageUrl = product.images?.[0] || "https://via.placeholder.com/150";
+    const originalPrice = product.rate || 0;
+    const discountPercent = product.discount || 0;
+    const discountedPrice = originalPrice - originalPrice * (discountPercent / 100);
+
+    return (
+        <TouchableOpacity 
+            style={[styles.productCard, { width }]} 
+            onPress={onPress} 
+            activeOpacity={0.8}
+        >
+            <Card3D style={styles.productCardContainer}>
+                <View style={styles.productImageContainer}>
+                    <Image 
+                        source={{ uri: imageUrl }} 
+                        style={styles.productImage} 
+                        resizeMode="cover"
+                    />
+                    {discountPercent > 0 && (
+                        <View style={styles.discountBadge}>
+                            <Text style={styles.discountText}>
+                                {Math.round(discountPercent)}%
+                            </Text>
+                        </View>
+                    )}
+                </View>
+
+                <View style={styles.productInfo}>
+                    <Text style={styles.productName} numberOfLines={2}>
+                        {product.name}
+                    </Text>
+
+                    {product.shop && (
+                        <Text style={styles.shopName} numberOfLines={1}>
+                            {product.shop.name}
+                        </Text>
+                    )}
+
+                    <View style={styles.productPriceContainer}>
+                        <Text style={styles.productPrice}>
+                            ₹{discountedPrice.toFixed(0)}
+                        </Text>
+                        {discountPercent > 0 && (
+                            <Text style={styles.originalPrice}>
+                                ₹{originalPrice.toFixed(0)}
+                            </Text>
+                        )}
+                    </View>
+
+                    {product.rating > 0 && (
+                        <View style={styles.ratingContainer}>
+                            <Ionicons name="star" size={12} color="#FFD700" />
+                            <Text style={styles.ratingText}>
+                                {product.rating.toFixed(1)}
+                            </Text>
+                        </View>
+                    )}
+                </View>
+            </Card3D>
+        </TouchableOpacity>
+    );
+});
+
+const ShopCard = memo(({ shop, onPress, width }: { shop: Shop; onPress: () => void; width: number }) => (
+    <TouchableOpacity 
+        style={[styles.shopCardWrapper, { width }]} 
+        onPress={onPress} 
+        activeOpacity={0.8}
+    >
+        <Card3D style={styles.shopCard}>
+            <LinearGradient 
+                colors={["#478DA8", "#7373D1"]} 
+                style={styles.shopCardGradient} 
+                start={{ x: 0, y: 0 }} 
+                end={{ x: 1, y: 1 }}
+            >
+                <View style={styles.shopCardContent}>
+                    <View style={styles.shopImageContainer}>
+                        <View style={styles.shopImageWrapper}>
+                            <Image
+                                source={{
+                                    uri: shop.image || "https://i.ibb.co/rskZwbK/shop-placeholder.jpg",
+                                }}
+                                style={styles.shopImage}
+                                resizeMode="cover"
+                            />
+                            <View 
+                                style={[
+                                    styles.statusIndicator, 
+                                    { backgroundColor: shop.isOpen ? "#4ade80" : "#f87171" }
+                                ]} 
+                            />
+                        </View>
+                    </View>
+
+                    <View style={styles.shopContent}>
+                        <Text style={styles.shopCardName} numberOfLines={1}>
+                            {shop.name}
+                        </Text>
+
+                        <View style={styles.shopRatingContainer}>
+                            <Ionicons name="star" size={14} color="#FFD700" />
+                            <Text style={styles.shopRating}>
+                                {shop.rating ? shop.rating.toFixed(1) : "0.0"}
+                            </Text>
+                            <Text style={styles.shopRatingCount}>
+                                ({shop.reviews ? shop.reviews.length : 0})
+                            </Text>
+                        </View>
+
+                        <View style={styles.shopDetailRow}>
+                            <Ionicons 
+                                name="location-outline" 
+                                size={14} 
+                                color="rgba(255,255,255,0.8)" 
+                            />
+                            <Text style={styles.shopAddress} numberOfLines={2}>
+                                {shop.address 
+                                    ? `${shop.address.village || shop.address.city || ""}, ${
+                                        shop.address.district || shop.address.street || ""
+                                    }` 
+                                    : "Location not available"
+                                }
+                            </Text>
+                        </View>
+
+                        {shop.categories && shop.categories.length > 0 && (
+                            <View style={styles.shopCategoriesContainer}>
+                                {shop.categories.slice(0, 2).map((category, index) => (
+                                    <View 
+                                        key={`${shop._id}-category-${index}-${category}`} 
+                                        style={styles.categoryTag}
+                                    >
+                                        <Text style={styles.categoryTagText}>
+                                            {category}
+                                        </Text>
+                                    </View>
+                                ))}
+                                {shop.categories.length > 2 && (
+                                    <Text style={styles.moreCategoriesText}>
+                                        +{shop.categories.length - 2}
+                                    </Text>
+                                )}
+                            </View>
+                        )}
+
+                        {shop.distance && (
+                            <View style={styles.distanceContainer}>
+                                <Ionicons 
+                                    name="navigate-outline" 
+                                    size={12} 
+                                    color="rgba(255,255,255,0.9)" 
+                                />
+                                <Text style={styles.distanceText}>
+                                    {typeof shop.distance === "number" 
+                                        ? `${shop.distance.toFixed(1)} km` 
+                                        : shop.distance
+                                    }
+                                </Text>
+                            </View>
+                        )}
+                    </View>
+                </View>
+            </LinearGradient>
+        </Card3D>
+    </TouchableOpacity>
+));
+
+const CategoryItem = memo(({ 
+    category, 
+    index, 
+    onPress, 
+    width 
+}: { 
+    category: string; 
+    index: number; 
+    onPress: () => void; 
+    width: number;
+}) => {
+    const colorSets = [
+        { bg: "#FFE1D1", text: "#FF6B35", icon: "cube-outline" },
+        { bg: "#E6F7FF", text: "#0CB0D3", icon: "construct-outline" },
+        { bg: "#EEFBEF", text: "#53B175", icon: "layers-outline" },
+        { bg: "#FFF6E6", text: "#FFA726", icon: "hammer-outline" },
+        { bg: "#F4E8FF", text: "#9C27B0", icon: "grid-outline" },
+        { bg: "#E8F5E9", text: "#4CAF50", icon: "analytics-outline" },
+    ];
+
+    const colorSet = colorSets[index % colorSets.length];
+
+    return (
+        <TouchableOpacity
+            style={[
+                styles.categoryCard, 
+                { 
+                    backgroundColor: colorSet.bg, 
+                    width 
+                }
+            ]}
+            onPress={onPress}
+        >
+            <View style={styles.categoryIconContainer}>
+                <Ionicons 
+                    name={colorSet.icon as any} 
+                    size={24} 
+                    color={colorSet.text} 
+                />
+            </View>
+            <Text 
+                style={[styles.categoryName, { color: colorSet.text }]} 
+                numberOfLines={2}
+            >
+                {category}
+            </Text>
+        </TouchableOpacity>
+    );
+});
+
 const HomeScreen: React.FC = () => {
     const navigation = useNavigation<HomeScreenNavigationProp>();
     const dispatch = useDispatch<AppDispatch>();
@@ -108,11 +334,26 @@ const HomeScreen: React.FC = () => {
     });
     const [currentAdIndex, setCurrentAdIndex] = useState(0);
 
-    // Responsive width calculations
-    const cardWidth = dimensions.width < 380 ? dimensions.width * 0.85 : dimensions.width * 0.7;
-    const shopCardWidth = dimensions.width < 380 ? dimensions.width * 0.9 : dimensions.width * 0.8;
-    const productCardWidth = dimensions.width * 0.45; // Increased from 0.4 to 0.45 for larger product cards
-    const categoryCardWidth = dimensions.width < 380 ? dimensions.width * 0.2 : dimensions.width * 0.18; // Made categories smaller
+    // Memoized values
+    const cardWidth = useMemo(() => 
+        dimensions.width < 380 ? dimensions.width * 0.85 : dimensions.width * 0.7,
+        [dimensions.width]
+    );
+
+    const shopCardWidth = useMemo(() => 
+        dimensions.width < 380 ? dimensions.width * 0.9 : dimensions.width * 0.8,
+        [dimensions.width]
+    );
+
+    const productCardWidth = useMemo(() => 
+        dimensions.width * 0.45,
+        [dimensions.width]
+    );
+
+    const categoryCardWidth = useMemo(() => 
+        dimensions.width < 380 ? dimensions.width * 0.2 : dimensions.width * 0.18,
+        [dimensions.width]
+    );
 
     useEffect(() => {
         getLocation();
@@ -123,7 +364,7 @@ const HomeScreen: React.FC = () => {
         // Auto rotate ads
         const adInterval = setInterval(() => {
             setCurrentAdIndex((prev) => (prev + 1) % adBanners.length);
-        }, 5000);
+        }, AD_ROTATION_INTERVAL);
 
         return () => clearInterval(adInterval);
     }, []);
@@ -314,17 +555,18 @@ const HomeScreen: React.FC = () => {
         navigation.navigate("Notifications");
     };
 
-    const navigateToProductDetails = (productId: string) => {
+    // Memoized handlers
+    const handleProductPress = useCallback((productId: string) => {
         navigation.navigate("ProductDetails", { productId });
-    };
+    }, [navigation]);
 
-    const navigateToShopDetails = (shopId: string) => {
+    const handleShopPress = useCallback((shopId: string) => {
         navigation.navigate("ShopDetails", { shopId });
-    };
+    }, [navigation]);
 
-    const navigateToProductsByCategory = (category: string) => {
+    const handleCategoryPress = useCallback((category: string) => {
         navigation.navigate("ProductsTab", { category });
-    };
+    }, [navigation]);
 
     const renderAdBanner = () => {
         const ad = adBanners[currentAdIndex];
@@ -348,119 +590,6 @@ const HomeScreen: React.FC = () => {
                     ))}
                 </View>
             </Card3D>
-        );
-    };
-
-    const renderProductCard = (product: Product) => {
-        if (!product) return null;
-
-        // Get image URL with fallback
-        const imageUrl = product.images && product.images.length > 0 ? product.images[0] : "https://via.placeholder.com/150";
-
-        // Calculate discounted price if applicable
-        const originalPrice = product.rate || 0;
-        const discountPercent = product.discount || 0;
-        const discountedPrice = originalPrice - originalPrice * (discountPercent / 100);
-
-        return (
-            <TouchableOpacity key={`product-${product._id}`} style={[styles.productCard, { width: productCardWidth }]} onPress={() => navigateToProductDetails(product._id)} activeOpacity={0.8}>
-                <Card3D style={styles.productCardContainer}>
-                    <View style={styles.productImageContainer}>
-                        <Image source={{ uri: imageUrl }} style={styles.productImage} resizeMode="cover" />
-                        {discountPercent > 0 && (
-                            <View style={styles.discountBadge}>
-                                <Text style={styles.discountText}>{Math.round(discountPercent)}%</Text>
-                            </View>
-                        )}
-                    </View>
-
-                    <View style={styles.productInfo}>
-                        <Text style={styles.productName} numberOfLines={2}>
-                            {product.name}
-                        </Text>
-
-                        {product.shop && (
-                            <Text style={styles.shopName} numberOfLines={1}>
-                                {product.shop.name}
-                            </Text>
-                        )}
-
-                        <View style={styles.productPriceContainer}>
-                            <Text style={styles.productPrice}>₹{discountedPrice.toFixed(0)}</Text>
-                            {discountPercent > 0 && <Text style={styles.originalPrice}>₹{originalPrice.toFixed(0)}</Text>}
-                        </View>
-
-                        {product.rating > 0 && (
-                            <View style={styles.ratingContainer}>
-                                <Ionicons name="star" size={12} color="#FFD700" />
-                                <Text style={styles.ratingText}>{product.rating.toFixed(1)}</Text>
-                            </View>
-                        )}
-                    </View>
-                </Card3D>
-            </TouchableOpacity>
-        );
-    };
-
-    const renderShopCard = (shop: Shop) => {
-        return (
-            <TouchableOpacity key={`shop-${shop._id}`} style={[styles.shopCardWrapper, { width: shopCardWidth }]} onPress={() => navigateToShopDetails(shop._id)} activeOpacity={0.8}>
-                <Card3D style={styles.shopCard}>
-                    <LinearGradient colors={["#478DA8", "#7373D1"]} style={styles.shopCardGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
-                        <View style={styles.shopCardContent}>
-                            <View style={styles.shopImageContainer}>
-                                <View style={styles.shopImageWrapper}>
-                                    <Image
-                                        source={{
-                                            uri: shop.image || "https://i.ibb.co/rskZwbK/shop-placeholder.jpg",
-                                        }}
-                                        style={styles.shopImage}
-                                        resizeMode="cover"
-                                    />
-                                    <View style={[styles.statusIndicator, { backgroundColor: shop.isOpen ? "#4ade80" : "#f87171" }]} />
-                                </View>
-                            </View>
-
-                            <View style={styles.shopContent}>
-                                <Text style={styles.shopCardName} numberOfLines={1}>
-                                    {shop.name}
-                                </Text>
-
-                                <View style={styles.shopRatingContainer}>
-                                    <Ionicons name="star" size={14} color="#FFD700" />
-                                    <Text style={styles.shopRating}>{shop.rating ? shop.rating.toFixed(1) : "0.0"}</Text>
-                                    <Text style={styles.shopRatingCount}>({shop.reviews ? shop.reviews.length : 0})</Text>
-                                </View>
-
-                                <View style={styles.shopDetailRow}>
-                                    <Ionicons name="location-outline" size={14} color="rgba(255,255,255,0.8)" />
-                                    <Text style={styles.shopAddress} numberOfLines={2}>
-                                        {shop.address ? `${shop.address.village || shop.address.city || ""}, ${shop.address.district || shop.address.street || ""}` : "Location not available"}
-                                    </Text>
-                                </View>
-
-                                {shop.categories && shop.categories.length > 0 && (
-                                    <View style={styles.shopCategoriesContainer}>
-                                        {shop.categories.slice(0, 2).map((category: string, index: number) => (
-                                            <View key={`${shop._id}-category-${index}-${category}`} style={styles.categoryTag}>
-                                                <Text style={styles.categoryTagText}>{category}</Text>
-                                            </View>
-                                        ))}
-                                        {shop.categories.length > 2 && <Text style={styles.moreCategoriesText}>+{shop.categories.length - 2}</Text>}
-                                    </View>
-                                )}
-
-                                {shop.distance && (
-                                    <View style={styles.distanceContainer}>
-                                        <Ionicons name="navigate-outline" size={12} color="rgba(255,255,255,0.9)" />
-                                        <Text style={styles.distanceText}>{typeof shop.distance === "number" ? `${shop.distance.toFixed(1)} km` : shop.distance}</Text>
-                                    </View>
-                                )}
-                            </View>
-                        </View>
-                    </LinearGradient>
-                </Card3D>
-            </TouchableOpacity>
         );
     };
 
@@ -512,121 +641,154 @@ const HomeScreen: React.FC = () => {
         );
     };
 
-    // Render category item with modern design
-    const renderCategoryItem = (category: string, index: number) => {
-        // Define a set of colors to cycle through for visual variety
-        const colorSets = [
-            { bg: "#FFE1D1", text: "#FF6B35", icon: "cube-outline" },
-            { bg: "#E6F7FF", text: "#0CB0D3", icon: "construct-outline" },
-            { bg: "#EEFBEF", text: "#53B175", icon: "layers-outline" },
-            { bg: "#FFF6E6", text: "#FFA726", icon: "hammer-outline" },
-            { bg: "#F4E8FF", text: "#9C27B0", icon: "grid-outline" },
-            { bg: "#E8F5E9", text: "#4CAF50", icon: "analytics-outline" },
-        ];
-
-        // Cycle through colors based on index
-        const colorSet = colorSets[index % colorSets.length];
-
-        return (
-            <TouchableOpacity
-                key={`category-${index}-${category}`}
-                style={[styles.categoryCard, { backgroundColor: colorSet.bg, width: categoryCardWidth }]}
-                onPress={() => navigateToProductsByCategory(category)}
-            >
-                <View style={styles.categoryIconContainer}>
-                    <Ionicons name={colorSet.icon as any} size={24} color={colorSet.text} />
-                </View>
-                <Text style={[styles.categoryName, { color: colorSet.text }]} numberOfLines={2}>
-                    {category}
-                </Text>
-            </TouchableOpacity>
-        );
-    };
-
     return (
         <View style={styles.container}>
-            <Header location={location.split(",")[0]} onProfilePress={handleProfilePress} onNotificationPress={handleNotificationPress} showLocation={true} />
+            <Header 
+                location={location.split(",")[0]} 
+                onProfilePress={handleProfilePress} 
+                onNotificationPress={handleNotificationPress} 
+                showLocation={true} 
+            />
 
-            {/* Search Bar */}
             <View style={styles.searchContainer}>
-                <TouchableOpacity style={styles.searchBar} onPress={() => navigation.navigate("ProductsTab")}>
-                    <Ionicons name="search-outline" size={20} color={theme.colors.gray} />
+                <TouchableOpacity 
+                    style={styles.searchBar} 
+                    onPress={() => navigation.navigate("ProductsTab")}
+                >
+                    <Ionicons 
+                        name="search-outline" 
+                        size={20} 
+                        color={theme.colors.gray} 
+                    />
                     <Text>Search for products</Text>
                 </TouchableOpacity>
             </View>
 
-            <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollViewContent} showsVerticalScrollIndicator={false}>
-                <>
-                    {/* Welcome section */}
-                    <View style={styles.welcomeSection}>
-                        <Text style={styles.welcomeText}>Welcome, {user?.name?.split(" ")[0] || "Guest"}!</Text>
-                        <Text style={styles.locationText}>
-                            <Ionicons name="location" size={16} color={theme.colors.primary} />
-                            {location}
+            <ScrollView 
+                style={styles.scrollView} 
+                contentContainerStyle={styles.scrollViewContent}
+                showsVerticalScrollIndicator={false}
+            >
+                <View style={styles.welcomeSection}>
+                    <Text style={styles.welcomeText}>
+                        Welcome, {user?.name?.split(" ")[0] || "Guest"}!
+                    </Text>
+                    <Text style={styles.locationText}>
+                        <Ionicons 
+                            name="location" 
+                            size={16} 
+                            color={theme.colors.primary} 
+                        />
+                        {location}
+                    </Text>
+                </View>
+
+                {renderAdBanner()}
+
+                <View style={styles.section}>
+                    <View style={styles.sectionHeader}>
+                        <Text style={styles.sectionTitle}>Categories</Text>
+                    </View>
+
+                    {loading.categories ? (
+                        <ActivityIndicator 
+                            size="small" 
+                            color={theme.colors.primary} 
+                        />
+                    ) : (
+                        <ScrollView 
+                            horizontal 
+                            showsHorizontalScrollIndicator={false}
+                            contentContainerStyle={styles.categoriesContainer}
+                        >
+                            {categories.map((category, index) => (
+                                <CategoryItem
+                                    key={`category-${index}-${category}`}
+                                    category={category}
+                                    index={index}
+                                    onPress={() => handleCategoryPress(category)}
+                                    width={categoryCardWidth}
+                                />
+                            ))}
+                        </ScrollView>
+                    )}
+                </View>
+
+                <View style={styles.section}>
+                    <View style={styles.sectionHeader}>
+                        <Text style={styles.sectionTitle}>Nearby Shops</Text>
+                        <TouchableOpacity 
+                            onPress={() => navigation.navigate("ShopsTab")}
+                        >
+                            <Text style={styles.viewAllText}>View All</Text>
+                        </TouchableOpacity>
+                    </View>
+
+                    {loading.shops ? (
+                        <ActivityIndicator 
+                            size="small" 
+                            color={theme.colors.primary} 
+                        />
+                    ) : nearbyShops.length > 0 ? (
+                        <ScrollView 
+                            horizontal 
+                            showsHorizontalScrollIndicator={false}
+                            contentContainerStyle={styles.productsContainer}
+                        >
+                            {nearbyShops.map((shop) => (
+                                <ShopCard
+                                    key={`shop-${shop._id}`}
+                                    shop={shop}
+                                    onPress={() => handleShopPress(shop._id)}
+                                    width={shopCardWidth}
+                                />
+                            ))}
+                        </ScrollView>
+                    ) : (
+                        <Text style={styles.noDataText}>
+                            No nearby shops available
                         </Text>
+                    )}
+                </View>
+
+                <View style={styles.section}>
+                    <View style={styles.sectionHeader}>
+                        <Text style={styles.sectionTitle}>Products</Text>
+                        <TouchableOpacity 
+                            onPress={() => navigation.navigate("ProductsTab")}
+                        >
+                            <Text style={styles.viewAllText}>View All</Text>
+                        </TouchableOpacity>
                     </View>
 
-                    {/* Rest of the content */}
-                    {renderAdBanner()}
+                    {loading.products ? (
+                        <ActivityIndicator 
+                            size="small" 
+                            color={theme.colors.primary} 
+                        />
+                    ) : Products.length > 0 ? (
+                        <ScrollView 
+                            horizontal 
+                            showsHorizontalScrollIndicator={false}
+                            contentContainerStyle={styles.productsHorizontalContainer}
+                        >
+                            {Products.slice(0, FEATURED_PRODUCTS_LIMIT).map((product) => (
+                                <ProductCard
+                                    key={`product-${product._id}`}
+                                    product={product}
+                                    onPress={() => handleProductPress(product._id)}
+                                    width={productCardWidth}
+                                />
+                            ))}
+                        </ScrollView>
+                    ) : (
+                        <Text style={styles.noDataText}>
+                            No products available
+                        </Text>
+                    )}
+                </View>
 
-                    {/* Categories section */}
-                    <View style={styles.section}>
-                        <View style={styles.sectionHeader}>
-                            <Text style={styles.sectionTitle}>Categories</Text>
-                        </View>
-
-                        {loading.categories ? (
-                            <ActivityIndicator size="small" color={theme.colors.primary} />
-                        ) : (
-                            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoriesContainer}>
-                                {categories.map((category, index) => renderCategoryItem(category, index))}
-                            </ScrollView>
-                        )}
-                    </View>
-
-                    {/* Nearby Shops section */}
-                    <View style={styles.section}>
-                        <View style={styles.sectionHeader}>
-                            <Text style={styles.sectionTitle}>Nearby Shops</Text>
-                            <TouchableOpacity onPress={() => navigation.navigate("ShopsTab")}>
-                                <Text style={styles.viewAllText}>View All</Text>
-                            </TouchableOpacity>
-                        </View>
-
-                        {loading.shops ? (
-                            <ActivityIndicator size="small" color={theme.colors.primary} />
-                        ) : nearbyShops.length > 0 ? (
-                            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.productsContainer}>
-                                {nearbyShops.map((shop) => renderShopCard(shop))}
-                            </ScrollView>
-                        ) : (
-                            <Text style={styles.noDataText}>No nearby shops available</Text>
-                        )}
-                    </View>
-
-                    {/* Products section */}
-                    <View style={styles.section}>
-                        <View style={styles.sectionHeader}>
-                            <Text style={styles.sectionTitle}>Products</Text>
-                            <TouchableOpacity onPress={() => navigation.navigate("ProductsTab")}>
-                                <Text style={styles.viewAllText}>View All</Text>
-                            </TouchableOpacity>
-                        </View>
-
-                        {loading.products ? (
-                            <ActivityIndicator size="small" color={theme.colors.primary} />
-                        ) : Products.length > 0 ? (
-                            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.productsHorizontalContainer}>
-                                {Products.slice(0, 6).map((product) => renderProductCard(product))}
-                            </ScrollView>
-                        ) : (
-                            <Text style={styles.noDataText}>No products available</Text>
-                        )}
-                    </View>
-
-                    {/* App info section */}
-                    {renderAppInfoSection()}
-                </>
+                {renderAppInfoSection()}
             </ScrollView>
         </View>
     );
@@ -1113,4 +1275,4 @@ const styles = StyleSheet.create({
     },
 });
 
-export default HomeScreen;
+export default memo(HomeScreen);
