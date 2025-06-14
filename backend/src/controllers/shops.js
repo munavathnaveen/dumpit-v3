@@ -115,13 +115,13 @@ exports.getShops = async (req, res, next) => {
 exports.getShop = async (req, res, next) => {
     try {
         let shop;
-        
+
         // If user is authenticated and has a shop_id, they might be requesting their own shop
         if (req.user && req.user.shop_id && !req.params.id) {
-            shop = await Shop.findById(req.user.shop_id);
+            shop = await Shop.findById(req.user.shop_id).populate("reviews.user", "name email");
         } else {
             // For public access, use the shop ID from params
-            shop = await Shop.findById(req.params.id);
+            shop = await Shop.findById(req.params.id).populate("reviews.user", "name email");
         }
 
         if (!shop) {

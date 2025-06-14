@@ -110,6 +110,15 @@ const ShopDetailsScreen: React.FC = () => {
         }
     };
 
+    const handleAddToCart = async (productId: string) => {
+        try {
+            // Navigate to product details for now, can be enhanced later
+            navigation.navigate("ProductDetails", { productId });
+        } catch (error) {
+            Alert.alert("Error", "Failed to add to cart.");
+        }
+    };
+
     const renderStars = (rating: number, size: number = 16) => {
         const stars = [];
         const fullStars = Math.floor(rating);
@@ -128,37 +137,66 @@ const ShopDetailsScreen: React.FC = () => {
     };
 
     const renderProduct = ({ item }: { item: Product }) => (
-        <TouchableOpacity style={styles.productCard} onPress={() => navigation.navigate("ProductDetails", { productId: item._id })} activeOpacity={0.9}>
-            <Card3D style={styles.productCardInner}>
-                <Image source={{ uri: item.image }} style={styles.productImage} resizeMode="cover" />
-                <View style={styles.productInfo}>
-                    <Text style={styles.productName} numberOfLines={2}>
-                        {item.name}
-                    </Text>
-                    <View style={styles.productMeta}>
-                        <View style={styles.ratingContainer}>
-                            {renderStars(item.rating || 0, 12)}
-                            <Text style={styles.productRating}>{item.rating?.toFixed(1) || "0.0"}</Text>
+        <View style={styles.productCardWrapper}>
+            <Card3D style={styles.productCard}>
+                <TouchableOpacity onPress={() => navigation.navigate("ProductDetails", { productId: item._id })} activeOpacity={0.9} style={styles.cardTouchable}>
+                    <View style={styles.productHeader}>
+                        <View style={styles.imageContainer}>
+                            <Image source={{ uri: item.image || "https://via.placeholder.com/150" }} style={styles.productImage} resizeMode="cover" />
+                            {item.discount > 0 && (
+                                <View style={styles.discountBadge}>
+                                    <Text style={styles.discountText}>{Math.round(item.discount)}%</Text>
+                                </View>
+                            )}
+                            {item.stock <= 0 && (
+                                <View style={styles.outOfStockOverlay}>
+                                    <Text style={styles.outOfStockText}>Out of Stock</Text>
+                                </View>
+                            )}
                         </View>
+
+                        <TouchableOpacity
+                            style={[styles.addButton, item.stock <= 0 && styles.addButtonDisabled]}
+                            onPress={() => item.stock > 0 && handleAddToCart(item._id)}
+                            disabled={item.stock <= 0}
+                            activeOpacity={0.8}
+                        >
+                            <Ionicons name={item.stock > 0 ? "cart" : "close"} size={14} color={theme.colors.white} />
+                        </TouchableOpacity>
+                    </View>
+
+                    <View style={styles.productContent}>
+                        <Text style={styles.productName} numberOfLines={1}>
+                            {item.name}
+                        </Text>
+
+                        {item.category && (
+                            <View style={styles.categoryChip}>
+                                <Text style={styles.categoryChipText}>{item.category}</Text>
+                            </View>
+                        )}
+
+                        {item.rating > 0 && (
+                            <View style={styles.ratingContainer}>
+                                {renderStars(item.rating || 0, 10)}
+                                <Text style={styles.ratingText}>{item.rating?.toFixed(1) || "0.0"}</Text>
+                            </View>
+                        )}
+
                         <View style={styles.priceContainer}>
                             {item.discount > 0 ? (
-                                <>
-                                    <Text style={styles.originalPrice}>₹{item.price}</Text>
-                                    <Text style={styles.discountedPrice}>₹{Math.round(item.price * (1 - item.discount / 100))}</Text>
-                                </>
+                                <View style={styles.priceWrapper}>
+                                    <Text style={styles.discountedPrice}>₹{(item.price * (1 - item.discount / 100)).toFixed(0)}</Text>
+                                    <Text style={styles.originalPrice}>₹{item.price.toFixed(0)}</Text>
+                                </View>
                             ) : (
-                                <Text style={styles.productPrice}>₹{item.price}</Text>
+                                <Text style={styles.productPrice}>₹{item.price.toFixed(0)}</Text>
                             )}
                         </View>
                     </View>
-                    {item.discount > 0 && (
-                        <View style={styles.discountBadge}>
-                            <Text style={styles.discountText}>{item.discount}% OFF</Text>
-                        </View>
-                    )}
-                </View>
+                </TouchableOpacity>
             </Card3D>
-        </TouchableOpacity>
+        </View>
     );
 
     const renderShopInfo = () => (
@@ -503,15 +541,7 @@ const styles = StyleSheet.create({
         flexDirection: "row",
         alignItems: "center",
     },
-    ratingText: {
-        marginLeft: 6,
-        fontSize: 16,
-        fontWeight: "bold",
-        color: theme.colors.white,
-        textShadowColor: "rgba(0, 0, 0, 0.5)",
-        textShadowOffset: { width: 0, height: 1 },
-        textShadowRadius: 2,
-    },
+
     reviewCount: {
         marginLeft: 4,
         fontSize: 14,
@@ -613,17 +643,7 @@ const styles = StyleSheet.create({
         flexWrap: "wrap",
         gap: 8,
     },
-    categoryChip: {
-        backgroundColor: theme.colors.primaryLight,
-        paddingHorizontal: 12,
-        paddingVertical: 6,
-        borderRadius: 16,
-    },
-    categoryChipText: {
-        color: theme.colors.primary,
-        fontSize: 12,
-        fontWeight: "600",
-    },
+
     map: {
         width: "100%",
         height: 200,
@@ -773,77 +793,144 @@ const styles = StyleSheet.create({
     },
     productRow: {
         justifyContent: "space-between",
-        marginBottom: 16,
+        marginBottom: 12,
+    },
+    productCardWrapper: {
+        width: (screenWidth - 48) / 2,
+        marginBottom: 12,
     },
     productCard: {
-        width: (screenWidth - 48) / 2,
-    },
-    productCardInner: {
-        borderRadius: 16,
+        borderRadius: 12,
         overflow: "hidden",
         backgroundColor: theme.colors.white,
         ...theme.shadow.small,
+        height: 180,
+    },
+    cardTouchable: {
+        flex: 1,
+    },
+    productHeader: {
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
+        padding: 8,
+        paddingBottom: 4,
+    },
+    imageContainer: {
+        position: "relative",
+        width: 60,
+        height: 60,
+        borderRadius: 30,
+        overflow: "hidden",
+        backgroundColor: theme.colors.lightGray,
     },
     productImage: {
         width: "100%",
-        height: 140,
+        height: "100%",
+        borderRadius: 30,
     },
-    productInfo: {
-        padding: 12,
+    productContent: {
+        padding: 8,
+        paddingTop: 0,
+        flex: 1,
     },
     productName: {
-        fontSize: 14,
+        fontSize: 12,
         fontWeight: "600",
         color: theme.colors.text,
-        marginBottom: 8,
-        lineHeight: 18,
+        marginBottom: 4,
+        lineHeight: 14,
     },
-    productMeta: {
-        flexDirection: "row",
-        justifyContent: "space-between",
-        alignItems: "center",
-        marginBottom: 8,
+    categoryChip: {
+        backgroundColor: theme.colors.primaryLight,
+        paddingHorizontal: 6,
+        paddingVertical: 2,
+        borderRadius: 8,
+        alignSelf: "flex-start",
+        marginBottom: 4,
+    },
+    categoryChipText: {
+        color: "black",
+        fontSize: 8,
+        fontWeight: "600",
     },
     ratingContainer: {
         flexDirection: "row",
         alignItems: "center",
+        marginBottom: 6,
     },
-    productRating: {
-        marginLeft: 4,
-        fontSize: 12,
+    ratingText: {
+        marginLeft: 2,
+        fontSize: 10,
         color: theme.colors.gray,
     },
     priceContainer: {
-        alignItems: "flex-end",
+        alignItems: "flex-start",
+    },
+    priceWrapper: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 4,
     },
     productPrice: {
-        fontSize: 16,
+        fontSize: 14,
         fontWeight: "bold",
         color: theme.colors.primary,
     },
     originalPrice: {
-        fontSize: 12,
+        fontSize: 10,
         color: theme.colors.gray,
         textDecorationLine: "line-through",
     },
     discountedPrice: {
-        fontSize: 16,
+        fontSize: 14,
         fontWeight: "bold",
         color: theme.colors.primary,
     },
     discountBadge: {
         position: "absolute",
-        top: 8,
-        right: 8,
+        top: 2,
+        right: 2,
         backgroundColor: theme.colors.success,
-        paddingHorizontal: 6,
-        paddingVertical: 2,
-        borderRadius: 8,
+        paddingHorizontal: 4,
+        paddingVertical: 1,
+        borderRadius: 6,
+        minWidth: 20,
+        alignItems: "center",
     },
     discountText: {
         color: theme.colors.white,
-        fontSize: 10,
+        fontSize: 8,
         fontWeight: "bold",
+    },
+    addButton: {
+        backgroundColor: theme.colors.primary,
+        padding: 6,
+        borderRadius: 16,
+        width: 28,
+        height: 28,
+        justifyContent: "center",
+        alignItems: "center",
+    },
+    addButtonDisabled: {
+        backgroundColor: theme.colors.lightGray,
+    },
+    outOfStockOverlay: {
+        position: "absolute",
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        justifyContent: "center",
+        alignItems: "center",
+        backgroundColor: "rgba(255, 255, 255, 0.9)",
+        borderRadius: 30,
+    },
+    outOfStockText: {
+        fontSize: 8,
+        fontWeight: "bold",
+        color: theme.colors.error,
+        textAlign: "center",
     },
 });
 
