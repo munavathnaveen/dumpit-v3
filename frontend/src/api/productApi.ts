@@ -38,6 +38,7 @@ type SingleProductResponse = {
 
 export const getProducts = async (query: string = ""): Promise<ProductsResponse> => {
     const response = await apiClient.get(`/products${query ? `?${query}` : ""}`);
+    console.log("GET Products", response.data);
     return response.data;
 };
 
@@ -68,7 +69,7 @@ export const searchProducts = async (searchTerm: string): Promise<ProductsRespon
 };
 
 // Enhanced client-side search that allows for fuzzy matching when backend search is too strict
-export const enhancedSearchProducts = async (searchTerm: string, page = 1, limit = 10): Promise<ProductsResponse> => {
+export const enhancedSearchProducts = async (searchTerm: string, page = 0, limit = 10): Promise<ProductsResponse> => {
     try {
         // Check if we can use the backend search with pagination directly
         // This is more efficient than fetching all products for client-side filtering
