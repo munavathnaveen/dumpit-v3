@@ -225,7 +225,6 @@ const ShopDetailsScreen: React.FC = () => {
                     </View>
                 </LinearGradient>
             </View>
-
             {/* Quick Info Cards */}
             <View style={styles.quickInfoContainer}>
                 <Card3D style={styles.quickInfoCard}>
@@ -246,7 +245,6 @@ const ShopDetailsScreen: React.FC = () => {
                     <Text style={styles.quickInfoValue}>{calculatingDistance ? "..." : distance || "N/A"}</Text>
                 </Card3D>
             </View>
-
             {/* Shop Description */}
             <Card3D style={styles.infoCard}>
                 <View style={styles.sectionHeader}>
@@ -255,7 +253,6 @@ const ShopDetailsScreen: React.FC = () => {
                 </View>
                 <Text style={styles.shopDescription}>{shop?.description}</Text>
             </Card3D>
-
             {/* Contact & Location */}
             <Card3D style={styles.infoCard}>
                 <View style={styles.sectionHeader}>
@@ -290,7 +287,6 @@ const ShopDetailsScreen: React.FC = () => {
                     </View>
                 ) : null}
             </Card3D>
-
             {/* Categories */}
             {shop?.categories && shop.categories.length > 0 && (
                 <Card3D style={styles.infoCard}>
@@ -307,6 +303,32 @@ const ShopDetailsScreen: React.FC = () => {
                     </View>
                 </Card3D>
             )}
+            {/* Location Map */}
+            <Card3D style={styles.infoCard}>
+                <View style={styles.sectionHeader}>
+                    <MaterialIcons name="map" size={20} color={theme.colors.primary} />
+                    <Text style={styles.sectionTitle}>Location</Text>
+                </View>
+                <MapView
+                    markers={
+                        shop?.location?.coordinates && shop.location.coordinates.length === 2
+                            ? [
+                                  {
+                                      id: shop._id,
+                                      coordinate: {
+                                          latitude: shop.location.coordinates[1],
+                                          longitude: shop.location.coordinates[0],
+                                      },
+                                      title: shop.name,
+                                  },
+                              ]
+                            : []
+                    }
+                    style={styles.map}
+                    zoomEnabled={false}
+                    showsUserLocation={false}
+                />
+            </Card3D>
         </ScrollView>
     );
 
