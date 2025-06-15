@@ -13,6 +13,7 @@ import NotificationsScreen from '../screens/NotificationsScreen';
 import { MainStackParamList } from './types';
 import { RootState } from '../store';
 import { USER_ROLES } from '../utils/constants';
+import ErrorBoundary from '../components/ErrorBoundary';
 
 // Vendor screens
 import VendorAddProductScreen from '../screens/vendor/VendorAddProductScreen';
@@ -33,42 +34,58 @@ const MainNavigator: React.FC = () => {
   const isVendor = user?.role === USER_ROLES.VENDOR;
 
   return (
-    <Stack.Navigator
-      screenOptions={{
-        headerShown: false,
-      }}
-    >
-      <Stack.Screen name="TabNavigator" component={TabNavigator} />
-      <Stack.Screen name="Profile" component={ProfileScreen} />
-      <Stack.Screen name="Notifications" component={NotificationsScreen} />
-      
-      {/* Customer-specific screens */}
-      {!isVendor && (
-        <>
-          <Stack.Screen name="ProductDetails" component={ProductDetailsScreen} />
-          <Stack.Screen name="ShopDetails" component={ShopDetailsScreen} />
-          <Stack.Screen name="OrderDetails" component={OrderDetailsScreen} />
-          <Stack.Screen name="OrderTracking" component={OrderTrackingScreen} />
-          <Stack.Screen name="Checkout" component={CheckoutScreen} />
-        </>
-      )}
+    <ErrorBoundary>
+      <Stack.Navigator
+        screenOptions={{
+          headerShown: false,
+        }}
+      >
+        <Stack.Screen name="TabNavigator" component={TabNavigator} />
+        <Stack.Screen name="Profile" component={ProfileScreen} />
+        <Stack.Screen name="Notifications" component={NotificationsScreen} />
+        
+        {/* Customer-specific screens */}
+        {!isVendor && (
+          <>
+            <Stack.Screen 
+              name="ProductDetails" 
+              component={ProductDetailsScreen}
+              options={{
+                title: 'Product Details',
+                headerShown: false,
+              }}
+            />
+            <Stack.Screen 
+              name="ShopDetails" 
+              component={ShopDetailsScreen}
+              options={{
+                title: 'Shop Details',
+                headerShown: false,
+              }}
+            />
+            <Stack.Screen name="OrderDetails" component={OrderDetailsScreen} />
+            <Stack.Screen name="OrderTracking" component={OrderTrackingScreen} />
+            <Stack.Screen name="Checkout" component={CheckoutScreen} />
+          </>
+        )}
 
-      {/* Vendor-specific screens */}
-      {isVendor && (
-        <>
-          <Stack.Screen name="VendorDashboard" component={VendorDashboardScreen} />
-          <Stack.Screen name="VendorProducts" component={VendorProductsScreen} />
-          <Stack.Screen name="VendorAddProduct" component={VendorAddProductScreen} />
-          <Stack.Screen name="VendorEditProduct" component={VendorEditProductScreen} />
-          <Stack.Screen name="VendorOrders" component={VendorOrdersScreen} />
-          <Stack.Screen name="VendorOrderDetails" component={VendorOrderDetailsScreen} />
-          <Stack.Screen name="VendorPayments" component={VendorPaymentsScreen} />
-          <Stack.Screen name="VendorShopSetup" component={VendorShopSetupScreen} />
-          <Stack.Screen name="VendorImportExport" component={VendorImportExportScreen} />
-          <Stack.Screen name="VendorAnalytics" component={VendorAnalyticsScreen} />
-        </>
-      )}
-    </Stack.Navigator>
+        {/* Vendor-specific screens */}
+        {isVendor && (
+          <>
+            <Stack.Screen name="VendorDashboard" component={VendorDashboardScreen} />
+            <Stack.Screen name="VendorProducts" component={VendorProductsScreen} />
+            <Stack.Screen name="VendorAddProduct" component={VendorAddProductScreen} />
+            <Stack.Screen name="VendorEditProduct" component={VendorEditProductScreen} />
+            <Stack.Screen name="VendorOrders" component={VendorOrdersScreen} />
+            <Stack.Screen name="VendorOrderDetails" component={VendorOrderDetailsScreen} />
+            <Stack.Screen name="VendorPayments" component={VendorPaymentsScreen} />
+            <Stack.Screen name="VendorShopSetup" component={VendorShopSetupScreen} />
+            <Stack.Screen name="VendorImportExport" component={VendorImportExportScreen} />
+            <Stack.Screen name="VendorAnalytics" component={VendorAnalyticsScreen} />
+          </>
+        )}
+      </Stack.Navigator>
+    </ErrorBoundary>
   );
 };
 

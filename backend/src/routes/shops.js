@@ -47,8 +47,8 @@ router.get("/", getShops);
 // Create a shop
 router.post("/", protect, authorize(config.constants.userRoles.VENDOR), createShop);
 
-// Get single shop
-router.get("/:id", protect, getShop);
+// Get single shop - MAKE THIS PUBLIC (no auth required)
+router.get("/:id", getShop);
 
 // Update shop
 router.put("/:id", protect, updateShop);

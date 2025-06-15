@@ -51,7 +51,7 @@ const OrdersScreen: React.FC = () => {
             setFilteredOrders(orders);
         } else {
             const query = searchQuery.toLowerCase();
-            const filtered = orders.filter((order) => order.orderNumber.toLowerCase().includes(query) || order.items.some((item) => item.product.name.toLowerCase().includes(query)));
+            const filtered = orders.filter((order) => order.orderNumber.toLowerCase().includes(query) || order.items.some((item) => item.product?.name.toLowerCase().includes(query)));
             setFilteredOrders(filtered);
         }
     }, [orders, searchQuery]);
@@ -68,6 +68,9 @@ const OrdersScreen: React.FC = () => {
                 }));
                 setOrders(mappedOrders);
                 setFilteredOrders(mappedOrders);
+                mappedOrders.forEach((order) => {
+                    console.log("Order:", order.items);
+                });
             }
         } catch (error) {
             console.error("Failed to load orders:", error);
@@ -154,7 +157,7 @@ const OrdersScreen: React.FC = () => {
                     <Text style={styles.itemsTitle}>Items:</Text>
                     {item.items.map((orderItem, index) => (
                         <Text key={index} style={styles.itemText}>
-                            {orderItem.quantity}x {orderItem.product.name}
+                            {orderItem.quantity}x {orderItem.product?.name}
                         </Text>
                     ))}
                 </View>

@@ -17,6 +17,8 @@ export interface Product {
     shop: {
         _id: string;
         name: string;
+        image?: string;
+        rating?: number;
         distance?: number | string;
         location?: {
             type: string;

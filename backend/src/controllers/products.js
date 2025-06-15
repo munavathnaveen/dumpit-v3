@@ -165,7 +165,6 @@ exports.createProduct = async (req, res, next) => {
         // Add vendor and shop to req.body
         req.body.vendor = req.user.id;
         req.body.shop = req.user.shop_id;
-        console.log(req.user);
         // Check if shop exists
         const shop = await Shop.findById(req.user.shop_id);
 

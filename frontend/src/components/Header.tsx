@@ -9,7 +9,7 @@ import { logout } from "../store/authSlice";
 import { AppDispatch, RootState } from "../store";
 
 // Get status bar height for proper spacing
-const STATUSBAR_HEIGHT = Platform.OS === "ios" ? 44 : StatusBar.currentHeight || 0;
+const STATUSBAR_HEIGHT = Platform.OS === "ios" ? 40 : StatusBar.currentHeight || 0;
 
 export interface HeaderProps {
     location?: string;
@@ -142,7 +142,7 @@ const styles = StyleSheet.create({
         justifyContent: "space-between",
         paddingHorizontal: theme.spacing.sm,
         paddingVertical: theme.spacing.sm,
-        paddingTop: Platform.OS === "ios" ? theme.spacing.lg : theme.spacing.lg + STATUSBAR_HEIGHT,
+        paddingTop: theme.spacing.sm + STATUSBAR_HEIGHT,
         backgroundColor: theme.colors.white,
         borderBottomWidth: 1,
         borderBottomColor: theme.colors.lightGray,

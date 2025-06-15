@@ -1,49 +1,89 @@
-import React, { useRef, useEffect, useState } from "react";
-import { View, StyleSheet, ActivityIndicator, Platform } from "react-native";
-import MapView, { Marker, PROVIDER_GOOGLE, Region, Polyline } from "react-native-maps";
+import React, { useRef, useEffect, useState, useCallback, memo } from "react";
+import {
+    View,
+    StyleSheet,
+    ActivityIndicator,
+    Platform,
+    StyleProp,
+    ViewStyle,
+    Alert,
+} from "react-native";
+import MapView, {
+    Marker,
+    PROVIDER_GOOGLE,
+    Region,
+    Polyline,
+    MapPressEvent,
+    MapViewProps,
+    MarkerPressEvent,
+    UserLocationChangeEvent,
+} from "react-native-maps";
 import * as Location from "expo-location";
 import { theme } from "../theme";
 
-interface Location {
+interface LocationType {
     latitude: number;
     longitude: number;
 }
 
 interface Route {
-    coords: Location[];
-    distance: number;
-    duration: number;
+    coords: LocationType[];
 }
 
-interface MapViewComponentProps {
-    style?: any;
+interface MarkerData {
+    id: string;
+    coordinate: LocationType;
+    title?: string;
+    description?: string;
+    pinColor?: string;
+}
+
+interface Props extends Omit<Partial<MapViewProps>, 'onMarkerPress' | 'onUserLocationChange'> {
+    style?: StyleProp<ViewStyle>;
     initialRegion?: Region;
-    markers?: {
-        id: string;
-        coordinate: Location;
-        title?: string;
-        description?: string;
-        pinColor?: string;
-    }[];
+    markers?: MarkerData[];
     showsUserLocation?: boolean;
     followsUserLocation?: boolean;
     zoomEnabled?: boolean;
     onRegionChange?: (region: Region) => void;
-    onUserLocationChange?: (location: Location) => void;
+    onUserLocationChange?: (location: LocationType) => void;
     onMarkerPress?: (markerId: string) => void;
     route?: Route;
     editable?: boolean;
-    onMapPress?: (coordinate: Location) => void;
+    onMapPress?: (coordinate: LocationType) => void;
 }
 
-const initialMapRegion = {
+const DEFAULT_REGION: Region = {
     latitude: 12.9716,
     longitude: 77.5946,
     latitudeDelta: 0.0922,
     longitudeDelta: 0.0421,
 };
 
-const MapViewComponent: React.FC<MapViewComponentProps> = ({
+const LOCATION_OPTIONS = {
+    accuracy: Location.Accuracy.High,
+    distanceInterval: 10,
+    timeInterval: 5000,
+};
+
+const isValidCoordinate = ({ latitude, longitude }: LocationType): boolean =>
+    !isNaN(latitude) &&
+    !isNaN(longitude) &&
+    latitude >= -90 &&
+    latitude <= 90 &&
+    longitude >= -180 &&
+    longitude <= 180;
+
+const handleLocationError = (error: any) => {
+    console.error("Location Error:", error);
+    Alert.alert(
+        "Location Error",
+        "Unable to access location. Please check your location settings and try again.",
+        [{ text: "OK" }]
+    );
+};
+
+const MapViewComponent: React.FC<Props> = memo(({
     style,
     initialRegion,
     markers = [],
@@ -56,122 +96,131 @@ const MapViewComponent: React.FC<MapViewComponentProps> = ({
     route,
     editable = false,
     onMapPress,
+    ...mapProps
 }) => {
     const mapRef = useRef<MapView>(null);
     const [loading, setLoading] = useState(true);
-    const [userLocation, setUserLocation] = useState<Location | null>(null);
-    const [mapRegion, setMapRegion] = useState(initialRegion || initialMapRegion);
+    const [userLocation, setUserLocation] = useState<LocationType | null>(null);
+    const [mapRegion, setMapRegion] = useState(initialRegion || DEFAULT_REGION);
+    const [locationPermission, setLocationPermission] = useState<boolean>(false);
 
-    // Get user's current location
-    useEffect(() => {
-        (async () => {
-            try {
-                const { status } = await Location.requestForegroundPermissionsAsync();
-                if (status !== "granted") {
-                    console.log("Permission to access location was denied");
-                    setLoading(false);
-                    return;
-                }
-
-                const location = await Location.getCurrentPositionAsync({});
-                const currentLocation = {
-                    latitude: location.coords.latitude,
-                    longitude: location.coords.longitude,
-                };
-
-                setUserLocation(currentLocation);
-
-                if (!initialRegion) {
-                    setMapRegion({
-                        ...mapRegion,
-                        latitude: currentLocation.latitude,
-                        longitude: currentLocation.longitude,
-                    });
-                }
-
-                if (onUserLocationChange) {
-                    onUserLocationChange(currentLocation);
-                }
-            } catch (error) {
-                console.error("Error getting location:", error);
-            } finally {
-                setLoading(false);
-            }
-        })();
+    // Request location permission
+    const requestLocationPermission = useCallback(async () => {
+        try {
+            const { status } = await Location.requestForegroundPermissionsAsync();
+            setLocationPermission(status === "granted");
+            return status === "granted";
+        } catch (error) {
+            handleLocationError(error);
+            return false;
+        }
     }, []);
 
-    // Watch user's location if needed
-    useEffect(() => {
-        if (!followsUserLocation) return;
+    // Get current location
+    const getCurrentLocation = useCallback(async () => {
+        try {
+            const hasPermission = await requestLocationPermission();
+            if (!hasPermission) return;
 
-        let locationSubscription: Location.LocationSubscription;
+            const { coords } = await Location.getCurrentPositionAsync({
+                accuracy: Location.Accuracy.High,
+            });
 
-        (async () => {
-            const { status } = await Location.requestForegroundPermissionsAsync();
-            if (status !== "granted") return;
+            const current: LocationType = {
+                latitude: coords.latitude,
+                longitude: coords.longitude,
+            };
 
-            locationSubscription = await Location.watchPositionAsync(
-                {
-                    accuracy: Location.Accuracy.High,
-                    distanceInterval: 10, // Update every 10 meters
-                },
-                (location) => {
-                    const newLocation = {
-                        latitude: location.coords.latitude,
-                        longitude: location.coords.longitude,
+            if (!isValidCoordinate(current)) {
+                throw new Error("Invalid coordinates");
+            }
+
+            setUserLocation(current);
+            if (!initialRegion) {
+                setMapRegion((prev) => ({ ...prev, ...current }));
+            }
+            onUserLocationChange?.(current);
+        } catch (error) {
+            handleLocationError(error);
+        } finally {
+            setLoading(false);
+        }
+    }, [initialRegion, onUserLocationChange, requestLocationPermission]);
+
+    // Watch user location
+    const watchUserLocation = useCallback(async () => {
+        if (!followsUserLocation || !locationPermission) return;
+
+        try {
+            const subscription = await Location.watchPositionAsync(
+                LOCATION_OPTIONS,
+                ({ coords }) => {
+                    const newLoc = {
+                        latitude: coords.latitude,
+                        longitude: coords.longitude,
                     };
 
-                    setUserLocation(newLocation);
-
-                    if (onUserLocationChange) {
-                        onUserLocationChange(newLocation);
+                    if (isValidCoordinate(newLoc)) {
+                        setUserLocation(newLoc);
+                        onUserLocationChange?.(newLoc);
                     }
                 }
             );
-        })();
 
+            return () => subscription.remove();
+        } catch (error) {
+            handleLocationError(error);
+        }
+    }, [followsUserLocation, locationPermission, onUserLocationChange]);
+
+    // Initial setup
+    useEffect(() => {
+        getCurrentLocation();
+    }, [getCurrentLocation]);
+
+    // Watch location if needed
+    useEffect(() => {
+        const cleanup = watchUserLocation();
         return () => {
-            if (locationSubscription) {
-                locationSubscription.remove();
-            }
+            cleanup?.then((remove) => remove?.());
         };
-    }, [followsUserLocation]);
+    }, [watchUserLocation]);
 
-    // Fit all markers on the map
-    const fitAllMarkers = () => {
-        if (mapRef.current && markers.length > 0) {
-            mapRef.current.fitToSuppliedMarkers(
-                markers.map((marker) => marker.id),
-                {
+    // Fit markers into view
+    useEffect(() => {
+        if (mapRef.current && markers.length) {
+            const validIds = markers
+                .filter(({ coordinate }) => isValidCoordinate(coordinate))
+                .map(({ id }) => id);
+
+            if (validIds.length) {
+                mapRef.current.fitToSuppliedMarkers(validIds, {
                     edgePadding: { top: 50, right: 50, bottom: 50, left: 50 },
                     animated: true,
-                }
-            );
-        }
-    };
-
-    // Fit markers when they change
-    useEffect(() => {
-        if (markers.length > 0) {
-            fitAllMarkers();
+                });
+            }
         }
     }, [markers]);
 
-    // Handle map presses for editable maps
-    const handleMapPress = (event: any) => {
-        if (editable && onMapPress) {
-            onMapPress(event.nativeEvent.coordinate);
-        }
-    };
+    // Event handlers
+    const handleMapPress = useCallback(
+        (event: MapPressEvent) => {
+            const { coordinate } = event.nativeEvent;
+            if (editable && isValidCoordinate(coordinate)) {
+                onMapPress?.(coordinate);
+            }
+        },
+        [editable, onMapPress]
+    );
 
-    // Handle region changes
-    const handleRegionChange = (newRegion: Region) => {
-        setMapRegion(newRegion);
-        if (onRegionChange) {
-            onRegionChange(newRegion);
+    const handleRegionChange = useCallback((region: Region) => {
+        if (isValidCoordinate(region)) {
+            setMapRegion(region);
+            onRegionChange?.(region);
         }
-    };
+    }, [onRegionChange]);
 
+    // Loading state
     if (loading) {
         return (
             <View style={[styles.container, style]}>
@@ -179,6 +228,13 @@ const MapViewComponent: React.FC<MapViewComponentProps> = ({
             </View>
         );
     }
+
+    // Filter valid markers and route coordinates
+    const validMarkers = markers.filter(
+        ({ coordinate, id }) => isValidCoordinate(coordinate) && id
+    );
+
+    const validRouteCoords = route?.coords?.filter(isValidCoordinate) || [];
 
     return (
         <View style={[styles.container, style]}>
@@ -191,28 +247,35 @@ const MapViewComponent: React.FC<MapViewComponentProps> = ({
                 showsUserLocation={showsUserLocation}
                 followsUserLocation={followsUserLocation}
                 zoomEnabled={zoomEnabled}
-                showsMyLocationButton={true}
-                showsCompass={true}
-                loadingEnabled={true}
+                showsMyLocationButton
+                showsCompass
+                loadingEnabled
                 onPress={handleMapPress}
+                {...mapProps}
             >
-                {markers.map((marker) => (
+                {validMarkers.map(({ id, coordinate, title, description, pinColor }) => (
                     <Marker
-                        key={marker.id}
-                        identifier={marker.id}
-                        coordinate={marker.coordinate}
-                        title={marker.title}
-                        description={marker.description}
-                        pinColor={marker.pinColor}
-                        onPress={() => onMarkerPress && onMarkerPress(marker.id)}
+                        key={id}
+                        identifier={id}
+                        coordinate={coordinate}
+                        title={title}
+                        description={description}
+                        pinColor={pinColor}
+                        onPress={() => onMarkerPress?.(id)}
                     />
                 ))}
 
-                {route && route.coords.length > 0 && <Polyline coordinates={route.coords} strokeWidth={4} strokeColor={theme.colors.primary} />}
+                {validRouteCoords.length > 0 && (
+                    <Polyline
+                        coordinates={validRouteCoords}
+                        strokeWidth={4}
+                        strokeColor={theme.colors.primary}
+                    />
+                )}
             </MapView>
         </View>
     );
-};
+});
 
 const styles = StyleSheet.create({
     container: {

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback, useMemo, memo } from "react";
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Image, ActivityIndicator, Dimensions, ImageBackground, useWindowDimensions } from "react-native";
 import { useSelector, useDispatch } from "react-redux";
 import { useNavigation } from "@react-navigation/native";
@@ -19,10 +19,17 @@ import * as productApi from "../api/productApi";
 import * as shopApi from "../api/shopApi";
 import { GOOGLE_MAPS_API_KEY } from "../utils/config";
 import { LocationService } from "../services/LocationService";
+import { Shop as ApiShop } from "../api/shopApi";
 
 const { width } = Dimensions.get("window");
 const CARD_WIDTH = width * 0.7;
 const SHOP_CARD_WIDTH = width * 0.8;
+
+// Constants
+const AD_ROTATION_INTERVAL = 5000;
+const NEARBY_SHOPS_LIMIT = 5;
+const FEATURED_PRODUCTS_LIMIT = 6;
+const CATEGORIES_PER_ROW = 5;
 
 type HomeScreenNavigationProp = NativeStackNavigationProp<MainStackParamList, "Home">;
 
@@ -53,16 +60,12 @@ interface Shop {
         city: string;
         pincode: string;
         phone: string;
-        // Add these fields to match usage in code
         village?: string;
         district?: string;
     };
     distance?: string | number;
     categories?: string[];
-    // Add reviews field to match usage in code
     reviews?: { length: number }[];
-    // Add images property to handle it in code
-    images?: string[];
 }
 
 // Ad data structure
@@ -92,6 +95,226 @@ const adBanners: AdBanner[] = [
     },
 ];
 
+// Memoized components
+const ProductCard = memo(({ product, onPress, width }: { product: Product; onPress: () => void; width: number }) => {
+    const imageUrl = product.images?.[0] || "https://via.placeholder.com/150";
+    const originalPrice = product.rate || 0;
+    const discountPercent = product.discount || 0;
+    const discountedPrice = originalPrice - originalPrice * (discountPercent / 100);
+
+    return (
+        <TouchableOpacity 
+            style={[styles.productCard, { width }]} 
+            onPress={onPress} 
+            activeOpacity={0.8}
+        >
+            <Card3D style={styles.productCardContainer}>
+                <View style={styles.productImageContainer}>
+                    <Image 
+                        source={{ uri: imageUrl }} 
+                        style={styles.productImage} 
+                        resizeMode="cover"
+                    />
+                    {discountPercent > 0 && (
+                        <View style={styles.discountBadge}>
+                            <Text style={styles.discountText}>
+                                {Math.round(discountPercent)}%
+                            </Text>
+                        </View>
+                    )}
+                </View>
+
+                <View style={styles.productInfo}>
+                    <Text style={styles.productName} numberOfLines={2}>
+                        {product.name}
+                    </Text>
+
+                    {product.shop && (
+                        <Text style={styles.shopName} numberOfLines={1}>
+                            {product.shop.name}
+                        </Text>
+                    )}
+
+                    <View style={styles.productPriceContainer}>
+                        <Text style={styles.productPrice}>
+                            ₹{discountedPrice.toFixed(0)}
+                        </Text>
+                        {discountPercent > 0 && (
+                            <Text style={styles.originalPrice}>
+                                ₹{originalPrice.toFixed(0)}
+                            </Text>
+                        )}
+                    </View>
+
+                    {product.rating > 0 && (
+                        <View style={styles.ratingContainer}>
+                            <Ionicons name="star" size={12} color="#FFD700" />
+                            <Text style={styles.ratingText}>
+                                {product.rating.toFixed(1)}
+                            </Text>
+                        </View>
+                    )}
+                </View>
+            </Card3D>
+        </TouchableOpacity>
+    );
+});
+
+const ShopCard = memo(({ shop, onPress, width }: { shop: Shop; onPress: () => void; width: number }) => (
+    <TouchableOpacity 
+        style={[styles.shopCardWrapper, { width }]} 
+        onPress={onPress} 
+        activeOpacity={0.8}
+    >
+        <Card3D style={styles.shopCard}>
+            <LinearGradient 
+                colors={["#478DA8", "#7373D1"]} 
+                style={styles.shopCardGradient} 
+                start={{ x: 0, y: 0 }} 
+                end={{ x: 1, y: 1 }}
+            >
+                <View style={styles.shopCardContent}>
+                    <View style={styles.shopImageContainer}>
+                        <View style={styles.shopImageWrapper}>
+                            <Image
+                                source={{
+                                    uri: shop.image || "https://i.ibb.co/rskZwbK/shop-placeholder.jpg",
+                                }}
+                                style={styles.shopImage}
+                                resizeMode="cover"
+                            />
+                            <View 
+                                style={[
+                                    styles.statusIndicator, 
+                                    { backgroundColor: shop.isOpen ? "#4ade80" : "#f87171" }
+                                ]} 
+                            />
+                        </View>
+                    </View>
+
+                    <View style={styles.shopContent}>
+                        <Text style={styles.shopCardName} numberOfLines={1}>
+                            {shop.name}
+                        </Text>
+
+                        <View style={styles.shopRatingContainer}>
+                            <Ionicons name="star" size={14} color="#FFD700" />
+                            <Text style={styles.shopRating}>
+                                {shop.rating ? shop.rating.toFixed(1) : "0.0"}
+                            </Text>
+                            <Text style={styles.shopRatingCount}>
+                                ({shop.reviews ? shop.reviews.length : 0})
+                            </Text>
+                        </View>
+
+                        <View style={styles.shopDetailRow}>
+                            <Ionicons 
+                                name="location-outline" 
+                                size={14} 
+                                color="rgba(255,255,255,0.8)" 
+                            />
+                            <Text style={styles.shopAddress} numberOfLines={2}>
+                                {shop.address 
+                                    ? `${shop.address.village || shop.address.city || ""}, ${
+                                        shop.address.district || shop.address.street || ""
+                                    }` 
+                                    : "Location not available"
+                                }
+                            </Text>
+                        </View>
+
+                        {shop.categories && shop.categories.length > 0 && (
+                            <View style={styles.shopCategoriesContainer}>
+                                {shop.categories.slice(0, 2).map((category, index) => (
+                                    <View 
+                                        key={`${shop._id}-category-${index}-${category}`} 
+                                        style={styles.categoryTag}
+                                    >
+                                        <Text style={styles.categoryTagText}>
+                                            {category}
+                                        </Text>
+                                    </View>
+                                ))}
+                                {shop.categories.length > 2 && (
+                                    <Text style={styles.moreCategoriesText}>
+                                        +{shop.categories.length - 2}
+                                    </Text>
+                                )}
+                            </View>
+                        )}
+
+                        {shop.distance && (
+                            <View style={styles.distanceContainer}>
+                                <Ionicons 
+                                    name="navigate-outline" 
+                                    size={12} 
+                                    color="rgba(255,255,255,0.9)" 
+                                />
+                                <Text style={styles.distanceText}>
+                                    {typeof shop.distance === "number" 
+                                        ? `${shop.distance.toFixed(1)} km` 
+                                        : shop.distance
+                                    }
+                                </Text>
+                            </View>
+                        )}
+                    </View>
+                </View>
+            </LinearGradient>
+        </Card3D>
+    </TouchableOpacity>
+));
+
+const CategoryItem = memo(({ 
+    category, 
+    index, 
+    onPress, 
+    width 
+}: { 
+    category: string; 
+    index: number; 
+    onPress: () => void; 
+    width: number;
+}) => {
+    const colorSets = [
+        { bg: "#FFE1D1", text: "#FF6B35", icon: "cube-outline" },
+        { bg: "#E6F7FF", text: "#0CB0D3", icon: "construct-outline" },
+        { bg: "#EEFBEF", text: "#53B175", icon: "layers-outline" },
+        { bg: "#FFF6E6", text: "#FFA726", icon: "hammer-outline" },
+        { bg: "#F4E8FF", text: "#9C27B0", icon: "grid-outline" },
+        { bg: "#E8F5E9", text: "#4CAF50", icon: "analytics-outline" },
+    ];
+
+    const colorSet = colorSets[index % colorSets.length];
+
+    return (
+        <TouchableOpacity
+            style={[
+                styles.categoryCard, 
+                { 
+                    backgroundColor: colorSet.bg, 
+                    width 
+                }
+            ]}
+            onPress={onPress}
+        >
+            <View style={styles.categoryIconContainer}>
+                <Ionicons 
+                    name={colorSet.icon as any} 
+                    size={24} 
+                    color={colorSet.text} 
+                />
+            </View>
+            <Text 
+                style={[styles.categoryName, { color: colorSet.text }]} 
+                numberOfLines={2}
+            >
+                {category}
+            </Text>
+        </TouchableOpacity>
+    );
+});
+
 const HomeScreen: React.FC = () => {
     const navigation = useNavigation<HomeScreenNavigationProp>();
     const dispatch = useDispatch<AppDispatch>();
@@ -111,11 +334,26 @@ const HomeScreen: React.FC = () => {
     });
     const [currentAdIndex, setCurrentAdIndex] = useState(0);
 
-    // Responsive width calculations
-    const cardWidth = dimensions.width < 380 ? dimensions.width * 0.85 : dimensions.width * 0.7;
-    const shopCardWidth = dimensions.width < 380 ? dimensions.width * 0.9 : dimensions.width * 0.8;
-    const productCardWidth = dimensions.width * 0.4; // For 2 columns of products
-    const categoryCardWidth = dimensions.width < 380 ? dimensions.width * 0.2 : dimensions.width * 0.18; // Made categories smaller
+    // Memoized values
+    const cardWidth = useMemo(() => 
+        dimensions.width < 380 ? dimensions.width * 0.85 : dimensions.width * 0.7,
+        [dimensions.width]
+    );
+
+    const shopCardWidth = useMemo(() => 
+        dimensions.width < 380 ? dimensions.width * 0.9 : dimensions.width * 0.8,
+        [dimensions.width]
+    );
+
+    const productCardWidth = useMemo(() => 
+        dimensions.width * 0.45,
+        [dimensions.width]
+    );
+
+    const categoryCardWidth = useMemo(() => 
+        dimensions.width < 380 ? dimensions.width * 0.2 : dimensions.width * 0.18,
+        [dimensions.width]
+    );
 
     useEffect(() => {
         getLocation();
@@ -126,16 +364,16 @@ const HomeScreen: React.FC = () => {
         // Auto rotate ads
         const adInterval = setInterval(() => {
             setCurrentAdIndex((prev) => (prev + 1) % adBanners.length);
-        }, 5000);
+        }, AD_ROTATION_INTERVAL);
 
         return () => clearInterval(adInterval);
     }, []);
 
-    const fetchProducts = async () => {
+    const fetchProducts = useCallback(async () => {
         try {
             setLoading((prev) => ({ ...prev, products: true }));
             // Use a more specific query to get featured products with limit
-            const response = await productApi.getProducts("sort=-createdAt");
+            const response = await productApi.getProducts("sort=-createdAt&limit=6");
 
             // Ensure we have valid data and handle potential API response structure issues
             if (response && response.data && Array.isArray(response.data)) {
@@ -161,31 +399,74 @@ const HomeScreen: React.FC = () => {
         } finally {
             setLoading((prev) => ({ ...prev, products: false }));
         }
-    };
+    }, []);
 
-    const fetchNearbyShops = async () => {
+    const fetchNearbyShops = useCallback(async () => {
         try {
+            setLoading((prev) => ({ ...prev, shops: true }));
             const location = await LocationService.getCurrentLocation();
             const { latitude, longitude } = location;
+            setLocationData(location);
 
             try {
-                const response = await LocationService.geocodeStringAddress(`${latitude},${longitude}`);
                 const locationString = `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
                 setLocation(locationString);
             } catch (error) {
-                console.error("Error getting location name:", error);
+                console.error("Error setting location:", error);
                 setLocation("Location Not found");
             }
 
             const response = await LocationService.getNearbyShops(location);
-            setNearbyShops(response.data);
-        } catch (error) {
-            console.error("Error getting location:", error);
-            setLocation("Error getting location");
-        }
-    };
+            console.log("nearby shops", response);
 
-    const fetchCategories = async () => {
+            if (response.success && response.data) {
+                // Limit the number of shops to reduce API calls and improve performance
+                const limitedShops = response.data.slice(0, 5); // Only show first 5 shops
+
+                // Calculate distances for limited shops only to avoid rate limiting
+                const shopsWithDistances = await Promise.all(
+                    limitedShops.map(async (shop: ApiShop, index: number) => {
+                        // Add delay between requests to avoid rate limiting
+                        if (index > 0) {
+                            await new Promise((resolve) => setTimeout(resolve, 200)); // 200ms delay
+                        }
+
+                        if (shop.location?.coordinates?.length === 2) {
+                            try {
+                                const distanceMatrix = await LocationService.getDistanceMatrix(location, {
+                                    latitude: shop.location.coordinates[1],
+                                    longitude: shop.location.coordinates[0],
+                                });
+                                return {
+                                    ...shop,
+                                    distance: distanceMatrix.distance,
+                                    duration: distanceMatrix.duration,
+                                };
+                            } catch (error) {
+                                console.warn(`Error calculating distance for shop ${shop._id}:`, error);
+                                // Return shop without distance instead of failing
+                                return shop;
+                            }
+                        }
+                        return shop;
+                    })
+                );
+                console.log("shopsWithDistances", shopsWithDistances);
+                setNearbyShops(shopsWithDistances);
+            } else {
+                console.error("Invalid response from getNearbyShops:", response);
+                setNearbyShops([]);
+            }
+        } catch (error) {
+            console.error("Error getting location or nearby shops:", error);
+            setLocation("Error getting location");
+            setNearbyShops([]);
+        } finally {
+            setLoading((prev) => ({ ...prev, shops: false }));
+        }
+    }, []);
+
+    const fetchCategories = useCallback(async () => {
         try {
             setLoading((prev) => ({ ...prev, categories: true }));
             // Using productApi instead of categoryApi
@@ -196,9 +477,9 @@ const HomeScreen: React.FC = () => {
         } finally {
             setLoading((prev) => ({ ...prev, categories: false }));
         }
-    };
+    }, []);
 
-    const getLocation = async () => {
+    const getLocation = useCallback(async () => {
         try {
             const { status } = await Location.requestForegroundPermissionsAsync();
             if (status !== "granted") {
@@ -255,7 +536,7 @@ const HomeScreen: React.FC = () => {
             console.error("Error getting location:", error);
             setLocation("Error getting location");
         }
-    };
+    }, [user?._id]);
 
     const handleLogout = async () => {
         try {
@@ -274,17 +555,18 @@ const HomeScreen: React.FC = () => {
         navigation.navigate("Notifications");
     };
 
-    const navigateToProductDetails = (productId: string) => {
+    // Memoized handlers
+    const handleProductPress = useCallback((productId: string) => {
         navigation.navigate("ProductDetails", { productId });
-    };
+    }, [navigation]);
 
-    const navigateToShopDetails = (shopId: string) => {
+    const handleShopPress = useCallback((shopId: string) => {
         navigation.navigate("ShopDetails", { shopId });
-    };
+    }, [navigation]);
 
-    const navigateToProductsByCategory = (category: string) => {
+    const handleCategoryPress = useCallback((category: string) => {
         navigation.navigate("ProductsTab", { category });
-    };
+    }, [navigation]);
 
     const renderAdBanner = () => {
         const ad = adBanners[currentAdIndex];
@@ -304,152 +586,54 @@ const HomeScreen: React.FC = () => {
                 </ImageBackground>
                 <View style={styles.adIndicators}>
                     {adBanners.map((_, index) => (
-                        <View key={index} style={[styles.adIndicator, index === currentAdIndex && styles.adIndicatorActive]} />
+                        <View key={`ad-indicator-${index}`} style={[styles.adIndicator, index === currentAdIndex && styles.adIndicatorActive]} />
                     ))}
                 </View>
             </Card3D>
         );
     };
 
-    const renderProductCard = (product: Product) => {
-        if (!product) return null;
-
-        // Get image URL with fallback
-        const imageUrl = product.images && product.images.length > 0 ? product.images[0] : "https://via.placeholder.com/150";
-
-        // Calculate discounted price if applicable
-        const originalPrice = product.rate || 0;
-        const discountPercent = product.discount || 0;
-        const discountedPrice = originalPrice - originalPrice * (discountPercent / 100);
-
-        return (
-            <TouchableOpacity key={product._id} style={{ margin: 8, width: productCardWidth }} onPress={() => navigateToProductDetails(product._id)}>
-                <Card3D style={styles.productCard}>
-                    <LinearGradient
-                        colors={["#d4e2ff", "#e3d1ff"]} // bluish to violet gradient
-                        start={{ x: 0, y: 0 }}
-                        end={{ x: 1, y: 1 }}
-                        style={styles.gradientBackground}
-                    >
-                        <View style={styles.productImageContainer}>
-                            <Image source={{ uri: imageUrl }} style={styles.productImage} resizeMode="cover" />
-                            {discountPercent > 0 && (
-                                <View style={styles.discountBadge}>
-                                    <Text style={styles.discountText}>{discountPercent}% OFF</Text>
-                                </View>
-                            )}
-                        </View>
-
-                        <View style={styles.productInfo}>
-                            <Text style={styles.productName} numberOfLines={1}>
-                                {product.name}
-                            </Text>
-
-                            {product.shop && (
-                                <View style={styles.shopInfo}>
-                                    <Ionicons name="storefront-outline" size={12} color={theme.colors.gray} />
-                                    <Text style={styles.shopName} numberOfLines={1}>
-                                        {product.shop.name}
-                                    </Text>
-                                </View>
-                            )}
-
-                            <View style={styles.productPriceContainer}>
-                                <Text style={styles.productPrice}>₹{discountedPrice.toFixed(2)}</Text>
-                                {discountPercent > 0 && <Text style={styles.originalPrice}>₹{originalPrice.toFixed(2)}</Text>}
-                            </View>
-                        </View>
-                    </LinearGradient>
-                </Card3D>
-            </TouchableOpacity>
-        );
-    };
-
-    const renderShopCard = (shop: Shop) => {
-        return (
-            <TouchableOpacity key={shop._id} style={[styles.shopCardWrapper, { width: shopCardWidth }]} onPress={() => navigateToShopDetails(shop._id)} activeOpacity={0.8}>
-                <Card3D style={styles.shopCard}>
-                    <LinearGradient colors={["rgba(255,107,53,0.8)", "rgba(14,47,88,0.9)"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.shopCardGradient}>
-                        <View style={styles.shopImageContainer}>
-                            <Image
-                                source={{
-                                    uri: shop.image || (shop.images && shop.images.length > 0 ? shop.images[0] : undefined) || "https://i.ibb.co/rskZwbK/shop-placeholder.jpg",
-                                }}
-                                style={styles.shopImage}
-                                resizeMode="cover"
-                            />
-                        </View>
-                        <View style={styles.shopContent}>
-                            <Text style={styles.shopName}>{shop.name}</Text>
-                            <View style={styles.shopRatingContainer}>
-                                <Ionicons name="star" size={16} color="#FFD700" />
-                                <Text style={styles.shopRating}>{shop.rating ? shop.rating.toFixed(1) : "0.0"}</Text>
-                                <Text style={styles.shopRatingCount}>({shop.reviews ? shop.reviews.length : 0} reviews)</Text>
-                            </View>
-                            <View style={styles.shopDetailRow}>
-                                <Ionicons name="location-outline" size={16} color="#FFFFFF" />
-                                <Text style={styles.shopAddress} numberOfLines={1}>
-                                    {shop.address ? `${shop.address.village || shop.address.city || ""}, ${shop.address.district || shop.address.street || ""}` : "Location not available"}
-                                </Text>
-                            </View>
-                            <View style={styles.shopCategoriesContainer}>
-                                {shop.categories?.map((category: string, index: number) => (
-                                    <View key={index} style={styles.categoryTag}>
-                                        <Text style={styles.categoryTagText}>{category}</Text>
-                                    </View>
-                                ))}
-                            </View>
-                            <View style={styles.shopStatus}>
-                                <View style={[styles.statusIndicator, { backgroundColor: shop.isOpen ? theme.colors.success : theme.colors.error }]} />
-                                <Text style={styles.statusText}>{shop.isOpen ? "Open Now" : "Closed"}</Text>
-                            </View>
-                        </View>
-                    </LinearGradient>
-                </Card3D>
-            </TouchableOpacity>
-        );
-    };
-
     const renderAppInfoSection = () => {
         return (
-            <Card3D style={styles.appInfoCard} elevation="medium">
-                <LinearGradient colors={["#1e3c72", "#2a5298"]} style={styles.appInfoGradient}>
-                    <Text style={styles.appInfoTitle}>About Dumpit</Text>
+            <Card3D style={styles.appInfoCard} elevation="large">
+                <LinearGradient colors={["#667eea", "#764ba2"]} style={styles.appInfoGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
+                    <View style={styles.appInfoHeader}>
+                        <Ionicons name="information-circle-outline" size={32} color="#FFFFFF" />
+                        <Text style={styles.appInfoTitle}>About Dumpit</Text>
+                    </View>
                     <Text style={styles.appInfoText}>Your one-stop marketplace for construction materials. Connect with trusted vendors, discover quality products, and build with confidence.</Text>
 
-                    <View style={styles.featureRow}>
+                    <View style={styles.featureGrid}>
                         <View style={styles.featureItem}>
                             <View style={styles.featureIconContainer}>
-                                <Ionicons name="shield-checkmark" size={24} color="#FFFFFF" />
+                                <Ionicons name="shield-checkmark" size={20} color="#667eea" />
                             </View>
-                            <Text style={styles.featureTitle}>Verified Vendors</Text>
-                            <Text style={styles.featureDescription}>All vendors are verified for quality and reliability</Text>
+                            <Text style={styles.featureTitle}>Verified</Text>
+                            <Text style={styles.featureDescription}>Trusted vendors</Text>
                         </View>
 
                         <View style={styles.featureItem}>
                             <View style={styles.featureIconContainer}>
-                                <Ionicons name="cash" size={24} color="#FFFFFF" />
+                                <Ionicons name="flash" size={20} color="#667eea" />
                             </View>
-                            <Text style={styles.featureTitle}>Secure Payments</Text>
-                            <Text style={styles.featureDescription}>Multiple payment options with secure transactions</Text>
-                        </View>
-                    </View>
-
-                    <View style={styles.featureRow}>
-                        <View style={styles.featureItem}>
-                            <View style={styles.featureIconContainer}>
-                                <Ionicons name="time" size={24} color="#FFFFFF" />
-                            </View>
-                            <Text style={styles.featureTitle}>Fast Delivery</Text>
-                            <Text style={styles.featureDescription}>Quick delivery to your construction site</Text>
+                            <Text style={styles.featureTitle}>Fast</Text>
+                            <Text style={styles.featureDescription}>Quick delivery</Text>
                         </View>
 
                         <View style={styles.featureItem}>
                             <View style={styles.featureIconContainer}>
-                                <Ionicons name="star" size={24} color="#FFFFFF" />
+                                <Ionicons name="wallet" size={20} color="#667eea" />
                             </View>
-                            <Text style={styles.featureTitle}>Quality Materials</Text>
-                            <Text style={styles.featureDescription}>Top quality construction materials for your projects</Text>
+                            <Text style={styles.featureTitle}>Secure</Text>
+                            <Text style={styles.featureDescription}>Safe payments</Text>
+                        </View>
+
+                        <View style={styles.featureItem}>
+                            <View style={styles.featureIconContainer}>
+                                <Ionicons name="star" size={20} color="#667eea" />
+                            </View>
+                            <Text style={styles.featureTitle}>Quality</Text>
+                            <Text style={styles.featureDescription}>Premium materials</Text>
                         </View>
                     </View>
                 </LinearGradient>
@@ -457,146 +641,154 @@ const HomeScreen: React.FC = () => {
         );
     };
 
-    // Render category item with modern design
-    const renderCategoryItem = (category: string, index: number) => {
-        // Define a set of colors to cycle through for visual variety
-        const colorSets = [
-            { bg: "#FFE1D1", text: "#FF6B35", icon: "cube-outline" },
-            { bg: "#E6F7FF", text: "#0CB0D3", icon: "construct-outline" },
-            { bg: "#EEFBEF", text: "#53B175", icon: "layers-outline" },
-            { bg: "#FFF6E6", text: "#FFA726", icon: "hammer-outline" },
-            { bg: "#F4E8FF", text: "#9C27B0", icon: "grid-outline" },
-            { bg: "#E8F5E9", text: "#4CAF50", icon: "analytics-outline" },
-        ];
-
-        // Cycle through colors based on index
-        const colorSet = colorSets[index % colorSets.length];
-
-        return (
-            <TouchableOpacity key={index} style={[styles.categoryCard, { backgroundColor: colorSet.bg, width: categoryCardWidth }]} onPress={() => navigateToProductsByCategory(category)}>
-                <View style={styles.categoryIconContainer}>
-                    <Ionicons name={colorSet.icon as any} size={24} color={colorSet.text} />
-                </View>
-                <Text style={[styles.categoryName, { color: colorSet.text }]} numberOfLines={2}>
-                    {category}
-                </Text>
-            </TouchableOpacity>
-        );
-    };
-
     return (
         <View style={styles.container}>
-            <Header location={location.split(",")[0]} onProfilePress={handleProfilePress} onNotificationPress={handleNotificationPress} showLocation={true} />
+            <Header 
+                location={location.split(",")[0]} 
+                onProfilePress={handleProfilePress} 
+                onNotificationPress={handleNotificationPress} 
+                showLocation={true} 
+            />
 
-            {/* Search Bar */}
             <View style={styles.searchContainer}>
-                <TouchableOpacity style={styles.searchBar} onPress={() => navigation.navigate("ProductsTab")}>
-                    <Ionicons name="search-outline" size={20} color={theme.colors.gray} />
+                <TouchableOpacity 
+                    style={styles.searchBar} 
+                    onPress={() => navigation.navigate("ProductsTab")}
+                >
+                    <Ionicons 
+                        name="search-outline" 
+                        size={20} 
+                        color={theme.colors.gray} 
+                    />
                     <Text>Search for products</Text>
                 </TouchableOpacity>
             </View>
 
-            <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollViewContent} showsVerticalScrollIndicator={false}>
-                <>
-                    {/* Welcome section */}
-                    <View style={styles.welcomeSection}>
-                        <Text style={styles.welcomeText}>Welcome, {user?.name?.split(" ")[0] || "Guest"}!</Text>
-                        <Text style={styles.locationText}>
-                            <Ionicons name="location" size={16} color={theme.colors.primary} />
-                            {location}
+            <ScrollView 
+                style={styles.scrollView} 
+                contentContainerStyle={styles.scrollViewContent}
+                showsVerticalScrollIndicator={false}
+            >
+                <View style={styles.welcomeSection}>
+                    <Text style={styles.welcomeText}>
+                        Welcome, {user?.name?.split(" ")[0] || "Guest"}!
+                    </Text>
+                    <Text style={styles.locationText}>
+                        <Ionicons 
+                            name="location" 
+                            size={16} 
+                            color={theme.colors.primary} 
+                        />
+                        {location}
+                    </Text>
+                </View>
+
+                {renderAdBanner()}
+
+                <View style={styles.section}>
+                    <View style={styles.sectionHeader}>
+                        <Text style={styles.sectionTitle}>Categories</Text>
+                    </View>
+
+                    {loading.categories ? (
+                        <ActivityIndicator 
+                            size="small" 
+                            color={theme.colors.primary} 
+                        />
+                    ) : (
+                        <ScrollView 
+                            horizontal 
+                            showsHorizontalScrollIndicator={false}
+                            contentContainerStyle={styles.categoriesContainer}
+                        >
+                            {categories.map((category, index) => (
+                                <CategoryItem
+                                    key={`category-${index}-${category}`}
+                                    category={category}
+                                    index={index}
+                                    onPress={() => handleCategoryPress(category)}
+                                    width={categoryCardWidth}
+                                />
+                            ))}
+                        </ScrollView>
+                    )}
+                </View>
+
+                <View style={styles.section}>
+                    <View style={styles.sectionHeader}>
+                        <Text style={styles.sectionTitle}>Nearby Shops</Text>
+                        <TouchableOpacity 
+                            onPress={() => navigation.navigate("ShopsTab")}
+                        >
+                            <Text style={styles.viewAllText}>View All</Text>
+                        </TouchableOpacity>
+                    </View>
+
+                    {loading.shops ? (
+                        <ActivityIndicator 
+                            size="small" 
+                            color={theme.colors.primary} 
+                        />
+                    ) : nearbyShops.length > 0 ? (
+                        <ScrollView 
+                            horizontal 
+                            showsHorizontalScrollIndicator={false}
+                            contentContainerStyle={styles.productsContainer}
+                        >
+                            {nearbyShops.map((shop) => (
+                                <ShopCard
+                                    key={`shop-${shop._id}`}
+                                    shop={shop}
+                                    onPress={() => handleShopPress(shop._id)}
+                                    width={shopCardWidth}
+                                />
+                            ))}
+                        </ScrollView>
+                    ) : (
+                        <Text style={styles.noDataText}>
+                            No nearby shops available
                         </Text>
+                    )}
+                </View>
+
+                <View style={styles.section}>
+                    <View style={styles.sectionHeader}>
+                        <Text style={styles.sectionTitle}>Products</Text>
+                        <TouchableOpacity 
+                            onPress={() => navigation.navigate("ProductsTab")}
+                        >
+                            <Text style={styles.viewAllText}>View All</Text>
+                        </TouchableOpacity>
                     </View>
 
-                    {/* Rest of the content */}
-                    {renderAdBanner()}
+                    {loading.products ? (
+                        <ActivityIndicator 
+                            size="small" 
+                            color={theme.colors.primary} 
+                        />
+                    ) : Products.length > 0 ? (
+                        <ScrollView 
+                            horizontal 
+                            showsHorizontalScrollIndicator={false}
+                            contentContainerStyle={styles.productsHorizontalContainer}
+                        >
+                            {Products.slice(0, FEATURED_PRODUCTS_LIMIT).map((product) => (
+                                <ProductCard
+                                    key={`product-${product._id}`}
+                                    product={product}
+                                    onPress={() => handleProductPress(product._id)}
+                                    width={productCardWidth}
+                                />
+                            ))}
+                        </ScrollView>
+                    ) : (
+                        <Text style={styles.noDataText}>
+                            No products available
+                        </Text>
+                    )}
+                </View>
 
-                    {/* Categories section */}
-                    <View style={styles.section}>
-                        <View style={styles.sectionHeader}>
-                            <Text style={styles.sectionTitle}>Categories</Text>
-                        </View>
-
-                        {loading.categories ? (
-                            <ActivityIndicator size="small" color={theme.colors.primary} />
-                        ) : (
-                            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoriesContainer}>
-                                {categories.map((category, index) => renderCategoryItem(category, index))}
-                            </ScrollView>
-                        )}
-                    </View>
-
-                    {/* Featured Products section
-                    <View style={styles.section}>
-                        <View style={styles.sectionHeader}>
-                            <Text style={styles.sectionTitle}>Featured Products</Text>
-                            <TouchableOpacity onPress={() => navigation.navigate("ProductsTab")}>
-                                <Text style={styles.viewAllText}>View All</Text>
-                            </TouchableOpacity>
-                        </View>
-
-                        {loading.products ? (
-                            <ActivityIndicator size="small" color={theme.colors.primary} />
-                        ) : featuredProducts.length > 0 ? (
-                            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.productsContainer}>
-                                {featuredProducts.map((product) => renderProductCard(product))}
-                            </ScrollView>
-                        ) : (
-                            <Text style={styles.noDataText}>No featured products available</Text>
-                        )}
-                    </View> */}
-
-                    {/* Nearby Shops section */}
-                    <View style={styles.section}>
-                        <View style={styles.sectionHeader}>
-                            <Text style={styles.sectionTitle}>Nearby Shops</Text>
-                            <TouchableOpacity onPress={() => navigation.navigate("ShopsTab")}>
-                                <Text style={styles.viewAllText}>View All</Text>
-                            </TouchableOpacity>
-                        </View>
-
-                        {loading.shops ? (
-                            <ActivityIndicator size="small" color={theme.colors.primary} />
-                        ) : nearbyShops.length > 0 ? (
-                            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.productsContainer}>
-                                {nearbyShops.map((shop) => renderShopCard(shop))}
-                            </ScrollView>
-                        ) : (
-                            <Text style={styles.noDataText}>No nearby shops available</Text>
-                        )}
-                    </View>
-
-                    {/* Products section */}
-                    <View style={styles.section}>
-                        <View style={styles.sectionHeader}>
-                            <Text style={styles.sectionTitle}>Products</Text>
-                            <TouchableOpacity onPress={() => navigation.navigate("ProductsTab")}>
-                                <Text style={styles.viewAllText}>View All</Text>
-                            </TouchableOpacity>
-                        </View>
-
-                        {loading.products ? (
-                            <ActivityIndicator size="small" color={theme.colors.primary} />
-                        ) : Products.length > 0 ? (
-                            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.productsContainer}>
-                                {Products.map((product) => (
-                                    <View key={product._id} style={styles.productCardWrapper}>
-                                        <Image
-                                            source={{ uri: product.images && product.images.length > 0 ? product.images[0] : "https://via.placeholder.com/150" }}
-                                            style={styles.productImage}
-                                            resizeMode="cover"
-                                        />
-                                        <Text style={styles.productName}>{product.name}</Text>
-                                    </View>
-                                ))}
-                            </ScrollView>
-                        ) : (
-                            <Text style={styles.noDataText}>No products available</Text>
-                        )}
-                    </View>
-
-                    {/* App info section */}
-                    {renderAppInfoSection()}
-                </>
+                {renderAppInfoSection()}
             </ScrollView>
         </View>
     );
@@ -722,163 +914,220 @@ const styles = StyleSheet.create({
     productsContainer: {
         paddingLeft: theme.spacing.lg,
         paddingRight: theme.spacing.sm,
-        paddingVertical: theme.spacing.md,
-    },
-    productCardWrapper: {
-        marginRight: theme.spacing.md,
-        width: 120,
-        height: 120,
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "center",
-        gap: 4,
     },
     productCard: {
-        backgroundColor: "#3498db",
+        marginRight: theme.spacing.sm,
+        aspectRatio: 0.8,
+        borderRadius: theme.borderRadius.medium,
+        padding: theme.spacing.xs,
+        maxWidth: 120,
     },
-    productImageContainer: {},
+    productCardContainer: {
+        flex: 1,
+        backgroundColor: theme.colors.white,
+        borderRadius: theme.borderRadius.large,
+        padding: theme.spacing.sm,
+        overflow: "hidden",
+        ...theme.shadow.small,
+    },
+    productImageContainer: {
+        height: 60,
+        position: "relative",
+        backgroundColor: theme.colors.lightGray,
+        justifyContent: "center",
+        alignItems: "center",
+    },
     productImage: {
         width: 60,
         height: 60,
-        borderRadius: 30,
+        borderRadius: 50,
     },
     discountBadge: {
         position: "absolute",
-        top: 10,
-        right: 10,
+        top: 4,
+        right: 4,
         backgroundColor: theme.colors.error,
-        paddingHorizontal: 8,
-        paddingVertical: 4,
-        borderRadius: 12,
+        paddingHorizontal: 4,
+        paddingVertical: 1,
+        borderRadius: theme.borderRadius.small,
     },
     discountText: {
         color: "#FFFFFF",
         fontWeight: "bold",
-        fontSize: 12,
+        fontSize: 7,
     },
     productInfo: {
-        padding: theme.spacing.md,
+        padding: theme.spacing.xs,
+        flex: 1,
+        gap: theme.spacing.xs / 3,
     },
     productName: {
-        fontSize: 16,
-        fontWeight: "bold",
+        fontSize: 12,
+        fontWeight: "600",
         color: theme.colors.text,
-        marginBottom: 6,
-        alignSelf: "center",
-    },
-    shopInfo: {
-        flexDirection: "row",
-        alignItems: "center",
-        marginBottom: 8,
+        lineHeight: 14,
+        textAlign: "center",
     },
     shopName: {
-        fontSize: 12,
-        color: theme.colors.accent,
-        fontWeight: "500",
+        fontSize: 10,
+        color: theme.colors.textLight,
+        textAlign: "center",
     },
     productPriceContainer: {
-        flexDirection: "row",
+        flexDirection: "column",
         alignItems: "center",
     },
     productPrice: {
-        fontSize: 18,
+        fontSize: 13,
         fontWeight: "bold",
         color: theme.colors.primary,
     },
     originalPrice: {
-        fontSize: 14,
+        fontSize: 9,
         color: theme.colors.gray,
         textDecorationLine: "line-through",
-        marginLeft: 8,
+    },
+    ratingContainer: {
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 1,
+    },
+    ratingText: {
+        fontSize: 10,
+        color: theme.colors.text,
+        fontWeight: "600",
     },
     shopCardWrapper: {
-        marginRight: theme.spacing.md,
+        marginRight: theme.spacing.sm,
     },
     shopCard: {
         padding: 0,
         overflow: "hidden",
-        height: 120,
+        height: 140,
+        borderRadius: theme.borderRadius.large,
+        ...theme.shadow.medium,
     },
     shopCardGradient: {
+        position: "absolute",
+        left: 0,
+        right: 0,
+        top: 0,
+        bottom: 0,
+        borderRadius: theme.borderRadius.large,
+    },
+    shopCardContent: {
         flexDirection: "row",
         padding: theme.spacing.md,
         height: "100%",
         borderRadius: theme.borderRadius.large,
     },
     shopImageContainer: {
-        width: 100,
-        height: "100%",
+        width: 80,
+        height: 80,
         borderRadius: theme.borderRadius.medium,
         overflow: "hidden",
         marginRight: theme.spacing.md,
+        alignSelf: "center",
+    },
+    shopImageWrapper: {
+        position: "relative",
+        width: "100%",
+        height: "100%",
+        borderRadius: theme.borderRadius.medium,
+        overflow: "hidden",
     },
     shopImage: {
-        width: 70,
-        height: 70,
-        borderRadius: 30,
+        width: "100%",
+        height: "100%",
+        borderRadius: theme.borderRadius.medium,
     },
     shopContent: {
         flex: 1,
-        justifyContent: "center",
+        justifyContent: "space-between",
+        paddingVertical: 4,
+    },
+    shopCardName: {
+        fontSize: 16,
+        fontWeight: "bold",
+        color: "#FFFFFF",
+        marginBottom: 4,
+        textShadowColor: "rgba(0, 0, 0, 0.3)",
+        textShadowOffset: { width: 0, height: 1 },
+        textShadowRadius: 2,
     },
     shopRatingContainer: {
         flexDirection: "row",
         alignItems: "center",
-        marginBottom: 8,
+        marginBottom: 4,
     },
     shopRating: {
-        fontSize: 14,
+        fontSize: 13,
         color: "#FFFFFF",
-        marginLeft: 4,
         fontWeight: "600",
+        marginLeft: 4,
     },
     shopRatingCount: {
-        fontSize: 12,
-        color: "rgba(255, 255, 255, 0.7)",
+        fontSize: 11,
+        color: "rgba(255,255,255,0.8)",
         marginLeft: 4,
     },
     shopDetailRow: {
         flexDirection: "row",
-        alignItems: "center",
-        marginBottom: 8,
+        alignItems: "flex-start",
+        marginBottom: 6,
+        flex: 1,
     },
     shopAddress: {
-        fontSize: 13,
-        color: "#FFFFFF",
+        fontSize: 11,
+        color: "rgba(255,255,255,0.9)",
         marginLeft: 6,
         flex: 1,
+        lineHeight: 14,
     },
     shopCategoriesContainer: {
         flexDirection: "row",
         flexWrap: "wrap",
-        marginBottom: 8,
+        marginBottom: 4,
     },
     categoryTag: {
-        backgroundColor: "rgba(255, 255, 255, 0.2)",
+        backgroundColor: "rgba(255, 255, 255, 0.25)",
         paddingHorizontal: 8,
-        paddingVertical: 4,
+        paddingVertical: 3,
         borderRadius: 12,
         marginRight: 6,
-        marginBottom: 6,
+        marginBottom: 4,
     },
     categoryTagText: {
-        fontSize: 11,
+        fontSize: 9,
         color: "#FFFFFF",
+        fontWeight: "600",
     },
-    shopStatus: {
-        flexDirection: "row",
-        alignItems: "center",
+    moreCategoriesText: {
+        fontSize: 9,
+        color: "rgba(255,255,255,0.8)",
+        fontWeight: "500",
     },
     statusIndicator: {
-        width: 8,
-        height: 8,
-        borderRadius: 4,
-        marginRight: 6,
+        position: "absolute",
+        top: 4,
+        right: 4,
+        width: 12,
+        height: 12,
+        borderRadius: 6,
+        borderWidth: 2,
+        borderColor: "#FFFFFF",
     },
-    statusText: {
-        fontSize: 12,
-        color: "#FFFFFF",
+    distanceContainer: {
+        flexDirection: "row",
+        alignItems: "center",
+        marginTop: 4,
+    },
+    distanceText: {
+        fontSize: 10,
+        color: "rgba(255,255,255,0.9)",
+        marginLeft: 4,
+        fontWeight: "600",
     },
     loadingContainer: {
         height: 200,
@@ -902,57 +1151,70 @@ const styles = StyleSheet.create({
         marginBottom: theme.spacing.lg,
         padding: 0,
         overflow: "hidden",
+        borderRadius: theme.borderRadius.large,
+        ...theme.shadow.medium,
     },
     appInfoGradient: {
         padding: theme.spacing.lg,
         borderRadius: theme.borderRadius.large,
     },
+    appInfoHeader: {
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "center",
+        marginBottom: 12,
+    },
     appInfoTitle: {
         fontSize: 22,
         fontWeight: "bold",
         color: "#FFFFFF",
-        marginBottom: 8,
+        marginLeft: 8,
         textAlign: "center",
     },
     appInfoText: {
         fontSize: 14,
-        color: "#FFFFFF",
+        color: "rgba(255,255,255,0.9)",
         marginBottom: 20,
         textAlign: "center",
         lineHeight: 20,
     },
-    featureRow: {
+    featureGrid: {
         flexDirection: "row",
+        flexWrap: "wrap",
         justifyContent: "space-between",
-        marginBottom: 16,
     },
     featureItem: {
         width: "48%",
-        backgroundColor: "rgba(255, 255, 255, 0.1)",
+        backgroundColor: "rgba(255, 255, 255, 0.15)",
         borderRadius: theme.borderRadius.medium,
         padding: 12,
         alignItems: "center",
+        marginBottom: 12,
+        borderWidth: 1,
+        borderColor: "rgba(255, 255, 255, 0.2)",
     },
     featureIconContainer: {
-        width: 50,
-        height: 50,
-        borderRadius: 25,
-        backgroundColor: "rgba(255, 255, 255, 0.2)",
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        backgroundColor: "#FFFFFF",
         justifyContent: "center",
         alignItems: "center",
         marginBottom: 8,
+        ...theme.shadow.small,
     },
     featureTitle: {
-        fontSize: 14,
+        fontSize: 13,
         fontWeight: "bold",
         color: "#FFFFFF",
         marginBottom: 4,
         textAlign: "center",
     },
     featureDescription: {
-        fontSize: 12,
+        fontSize: 11,
         color: "rgba(255, 255, 255, 0.8)",
         textAlign: "center",
+        lineHeight: 14,
     },
     categoriesContainer: {
         paddingLeft: theme.spacing.lg,
@@ -1006,6 +1268,11 @@ const styles = StyleSheet.create({
         alignItems: "center",
         paddingHorizontal: theme.spacing.md,
     },
+    productsHorizontalContainer: {
+        paddingLeft: theme.spacing.lg,
+        paddingRight: theme.spacing.sm,
+        paddingVertical: theme.spacing.md,
+    },
 });
 
-export default HomeScreen;
+export default memo(HomeScreen);

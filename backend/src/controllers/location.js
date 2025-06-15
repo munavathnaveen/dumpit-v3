@@ -24,7 +24,7 @@ exports.geocodeAddress = async (req, res, next) => {
         const geocodeUrl = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(formattedAddress)}&key=${process.env.GOOGLE_MAPS_API_KEY}`;
 
         const response = await axios.get(geocodeUrl);
-
+        console.log(response);
         if (response.data.status !== "OK") {
             return next(new ErrorResponse(`Geocoding failed: ${response.data.status}`, 400));
         }
@@ -53,46 +53,41 @@ exports.geocodeAddress = async (req, res, next) => {
  * @access  Private
  */
 exports.calculateDistance = async (req, res, next) => {
-  const { origins, destinations } = req.body;
+    const { origins, destinations } = req.body;
 
-  if (!origins || !destinations) {
-    return next(new ErrorResponse("Please provide origin and destination coordinates", 400));
-  }
-
-  try {
-    // Format origins
-    const originsStr = Array.isArray(origins)
-      ? origins.map((o) => `${o.latitude},${o.longitude}`).join("|")
-      : `${origins.latitude},${origins.longitude}`;
-
-    // Format destinations
-    const destinationsStr = Array.isArray(destinations)
-      ? destinations.map((d) => `${d.latitude},${d.longitude}`).join("|")
-      : `${destinations.latitude},${destinations.longitude}`;
-
-    // Validate coordinates
-    if (originsStr.includes("undefined") || destinationsStr.includes("undefined")) {
-      return next(new ErrorResponse("Invalid coordinates provided", 400));
+    if (!origins || !destinations) {
+        return next(new ErrorResponse("Please provide origin and destination coordinates", 400));
     }
 
-    // Use Distance Matrix API URL and GET request
-    const distanceUrl = `https://maps.googleapis.com/maps/api/distancematrix/json?origins=${encodeURIComponent(
-      originsStr
-    )}&destinations=${encodeURIComponent(destinationsStr)}&key=${process.env.GOOGLE_MAPS_API_KEY}`;
+    try {
+        // Format origins
+        const originsStr = Array.isArray(origins) ? origins.map((o) => `${o.latitude},${o.longitude}`).join("|") : `${origins.latitude},${origins.longitude}`;
 
-    const response = await axios.get(distanceUrl);
+        // Format destinations
+        const destinationsStr = Array.isArray(destinations) ? destinations.map((d) => `${d.latitude},${d.longitude}`).join("|") : `${destinations.latitude},${destinations.longitude}`;
 
-    if (response.data.status !== "OK") {
-      return next(new ErrorResponse(`Distance calculation failed: ${response.data.status}`, 400));
+        // Validate coordinates
+        if (originsStr.includes("undefined") || destinationsStr.includes("undefined")) {
+            return next(new ErrorResponse("Invalid coordinates provided", 400));
+        }
+
+        // Use Distance Matrix API URL and GET request
+        const distanceUrl = `https://maps.googleapis.com/maps/api/distancematrix/json?origins=${encodeURIComponent(originsStr)}&destinations=${encodeURIComponent(destinationsStr)}&key=${
+            process.env.GOOGLE_MAPS_API_KEY
+        }`;
+
+        const response = await axios.get(distanceUrl);
+
+        if (response.data.status !== "OK") {
+            return next(new ErrorResponse(`Distance calculation failed: ${response.data.status}`, 400));
+        }
+
+        res.status(200).json({ success: true, data: response.data });
+    } catch (error) {
+        console.error("Distance calculation error:", error);
+        return next(new ErrorResponse("Failed to calculate distance", 500));
     }
-
-    res.status(200).json({ success: true, data: response.data });
-  } catch (error) {
-    console.error("Distance calculation error:", error);
-    return next(new ErrorResponse("Failed to calculate distance", 500));
-  }
 };
-
 
 /**
  * @desc    Find shops near a specific location

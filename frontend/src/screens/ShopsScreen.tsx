@@ -1,5 +1,5 @@
-import React, { useEffect, useState, useCallback } from "react";
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Image, RefreshControl, Modal, ScrollView, Platform, Alert, SafeAreaView } from "react-native";
+import React, { useEffect, useState, useCallback, useRef } from "react";
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Image, RefreshControl, Modal, ScrollView, Platform, Alert, SafeAreaView, Animated } from "react-native";
 import { useSelector, useDispatch } from "react-redux";
 import { FontAwesome, Ionicons, MaterialIcons } from "@expo/vector-icons";
 import * as Location from "expo-location";
@@ -70,6 +70,12 @@ const ShopsScreen: React.FC = () => {
     const [userLocation, setUserLocation] = useState<Coordinates | null>(null);
     const [locationPermissionDenied, setLocationPermissionDenied] = useState(false);
     const [shopDistances, setShopDistances] = useState<Record<string, string>>({});
+
+    // Scroll detection for hiding/showing header and navbar
+    const scrollY = useRef(new Animated.Value(0)).current;
+    const [isScrolling, setIsScrolling] = useState(false);
+    const [showNavigation, setShowNavigation] = useState(true);
+    const scrollTimeout = useRef<NodeJS.Timeout | null>(null);
 
     // Create a properly implemented debounced search function with 1-second delay
     const debouncedSearch = useCallback(
@@ -145,7 +151,9 @@ const ShopsScreen: React.FC = () => {
             console.log("Calculating distances for", filteredShops.length, "shops");
 
             // Extract shops with valid location data
-            const shopsWithLocation = filteredShops.filter((shop) => shop.location && shop.location.coordinates && shop.location.coordinates.length === 2);
+            const shopsWithLocation = filteredShops.filter(
+                (shop) => shop.location && shop.location.coordinates && shop.location.coordinates.length === 2 && shop.location.coordinates[0] !== 0 && shop.location.coordinates[1] !== 0
+            );
 
             if (!shopsWithLocation.length) {
                 console.log("No shops with valid coordinates found");
@@ -162,30 +170,24 @@ const ShopsScreen: React.FC = () => {
                 for (let i = 0; i < shopsWithLocation.length; i += batchSize) {
                     const batch = shopsWithLocation.slice(i, i + batchSize);
 
-                    const destinations = batch.map((shop) => ({
-                        latitude: shop.location.coordinates[1],
-                        longitude: shop.location.coordinates[0],
-                    }));
-
                     console.log(`Calculating distances for batch ${i / batchSize + 1} (${batch.length} shops)`);
 
-                    try {
-                        const distanceMatrix = await LocationService.getDistanceMatrix(userLocation, destinations);
-
-                        if (distanceMatrix?.rows?.[0]?.elements) {
-                            batch.forEach((shop, index) => {
-                                const element = distanceMatrix.rows[0].elements[index];
-                                if (element?.status === "OK" && element?.distance?.text) {
-                                    distances[shop._id] = element.distance.text;
-                                } else {
-                                    console.log(`Distance calculation failed for shop ${shop.name} (${shop._id}): ${element?.status || "Unknown error"}`);
-                                }
+                    // Handle single destination at a time since getDistanceMatrix returns simplified format
+                    for (const shop of batch) {
+                        try {
+                            const distanceMatrix = await LocationService.getDistanceMatrix(userLocation, {
+                                latitude: shop.location.coordinates[1],
+                                longitude: shop.location.coordinates[0],
                             });
-                        } else {
-                            console.log("Invalid distance matrix response structure:", distanceMatrix?.rows ? "Missing elements" : "Missing rows");
+
+                            if (distanceMatrix && distanceMatrix.distance) {
+                                distances[shop._id] = LocationService.formatDistance(distanceMatrix.distance);
+                            } else {
+                                console.log(`Distance calculation failed for shop ${shop.name} (${shop._id})`);
+                            }
+                        } catch (error) {
+                            console.error(`Error calculating distance for shop ${shop.name}:`, error);
                         }
-                    } catch (error) {
-                        console.error("Error calculating distances for batch:", error);
                     }
                 }
 
@@ -200,7 +202,7 @@ const ShopsScreen: React.FC = () => {
 
                 setShopDistances(distances);
             } catch (error) {
-                console.error("Error in distance calculation process:", error);
+                console.error("Error in distance calculation:", error);
             }
         };
 
@@ -375,14 +377,25 @@ const ShopsScreen: React.FC = () => {
             shopsData = applyFiltersToShops(shopsData);
 
             // If loading the first page, replace the list
-            // Otherwise append to the existing list
+            // Otherwise append to the existing list, but check for duplicates
             if (currentPage === 1) {
                 setFilteredShops(shopsData);
                 // Keep a complete list for client-side filtering
                 setShops(response.data);
             } else {
-                setFilteredShops((prevShops) => [...prevShops, ...shopsData]);
-                setShops((prevShops) => [...prevShops, ...response.data]);
+                setFilteredShops((prevShops) => {
+                    // Create a Set of existing shop IDs to check for duplicates
+                    const existingIds = new Set(prevShops.map((s) => s._id));
+                    // Filter out any shops that already exist
+                    const uniqueNewShops = shopsData.filter((s) => !existingIds.has(s._id));
+                    return [...prevShops, ...uniqueNewShops];
+                });
+                setShops((prevShops) => {
+                    // Also check for duplicates in the complete list
+                    const existingIds = new Set(prevShops.map((s) => s._id));
+                    const uniqueNewShops = response.data.filter((s) => !existingIds.has(s._id));
+                    return [...prevShops, ...uniqueNewShops];
+                });
             }
 
             console.log(`Loaded ${shopsData.length} shops. Total: ${response.count}`);
@@ -482,62 +495,50 @@ const ShopsScreen: React.FC = () => {
 
     // Shop item renderer
     const renderShopItem = ({ item }: { item: Shop }) => (
-        <Card3D style={styles.shopCard}>
-            <TouchableOpacity onPress={() => navigation.navigate("ShopDetails", { shopId: item._id })} activeOpacity={0.9}>
-                <Image source={{ uri: item.logo || item.image || "https://via.placeholder.com/150" }} style={styles.shopImage} />
+        <View style={styles.shopCardWrapper}>
+            <Card3D style={styles.shopCard}>
+                <TouchableOpacity onPress={() => navigation.navigate("ShopDetails", { shopId: item._id })} activeOpacity={0.9} style={styles.cardTouchable}>
+                    <View style={styles.shopImageContainer}>
+                        <Image source={{ uri: item.logo || item.image || "https://via.placeholder.com/150" }} style={styles.shopImage} resizeMode="cover" />
+                        <View style={[styles.statusBadge, { backgroundColor: item.isOpen ? theme.colors.success : theme.colors.error }]}>
+                            <Text style={styles.statusText}>{item.isOpen ? "Open" : "Closed"}</Text>
+                        </View>
+                    </View>
 
-                <View style={styles.shopInfo}>
-                    <View style={styles.shopNameContainer}>
+                    <View style={styles.shopInfo}>
                         <Text style={styles.shopName} numberOfLines={2}>
                             {item.name}
                         </Text>
-                        {item.isOpen ? (
-                            <View style={styles.openBadge}>
-                                <Text style={styles.openBadgeText}>Open</Text>
+
+                        <View style={styles.ratingRow}>
+                            <Ionicons name="star" size={12} color="#FFD700" />
+                            <Text style={styles.ratingText}>{item.rating.toFixed(1)}</Text>
+                            <Text style={styles.reviewCount}>({item.reviews?.length || 0})</Text>
+                        </View>
+
+                        {(item.distance || shopDistances[item._id]) && (
+                            <View style={styles.distanceRow}>
+                                <FontAwesome name="map-marker" size={10} color={theme.colors.primary} />
+                                <Text style={styles.distanceText}>
+                                    {typeof item.distance === "number" ? LocationService.formatDistance(item.distance) : item.distance || shopDistances[item._id]} away
+                                </Text>
                             </View>
-                        ) : (
-                            <View style={[styles.openBadge, styles.closedBadge]}>
-                                <Text style={styles.closedBadgeText}>Closed</Text>
+                        )}
+
+                        {item.categories && item.categories.length > 0 && (
+                            <View style={styles.categoriesRow}>
+                                {item.categories.slice(0, 2).map((category, index) => (
+                                    <View key={`${item._id}-category-${index}-${category}`} style={styles.categoryTag}>
+                                        <Text style={styles.categoryTagText}>{category}</Text>
+                                    </View>
+                                ))}
+                                {item.categories.length > 2 && <Text style={styles.moreCategories}>+{item.categories.length - 2}</Text>}
                             </View>
                         )}
                     </View>
-
-                    <View style={styles.ratingContainer}>
-                        <Ionicons name="star" size={16} color="#FFD700" />
-                        <Text style={styles.ratingText}>{item.rating.toFixed(1)}</Text>
-                    </View>
-
-                    <Text style={styles.shopDescription} numberOfLines={2}>
-                        {item.description}
-                    </Text>
-
-                    {item.distance || shopDistances[item._id] ? (
-                        <View style={styles.distanceContainer}>
-                            <FontAwesome name="map-marker" size={14} color={theme.colors.primary} />
-                            <Text style={styles.distanceText}>{typeof item.distance === "number" ? LocationService.formatDistance(item.distance) : item.distance || shopDistances[item._id]} away</Text>
-                        </View>
-                    ) : null}
-
-                    {item.categories && item.categories.length > 0 && (
-                        <View style={styles.categoriesContainer}>
-                            {item.categories.slice(0, 3).map((category, index) => (
-                                <TouchableOpacity
-                                    key={index}
-                                    style={styles.categoryTag}
-                                    onPress={() => {
-                                        setSelectedCategory(category);
-                                        loadShops(); // Use loadShops instead of filterShops
-                                    }}
-                                >
-                                    <Text style={styles.categoryTagText}>{category}</Text>
-                                </TouchableOpacity>
-                            ))}
-                            {item.categories.length > 3 && <Text style={styles.categoryTag}>+{item.categories.length - 3}</Text>}
-                        </View>
-                    )}
-                </View>
-            </TouchableOpacity>
-        </Card3D>
+                </TouchableOpacity>
+            </Card3D>
+        </View>
     );
 
     // Render the filters modal
@@ -566,7 +567,7 @@ const ShopsScreen: React.FC = () => {
 
                                     {shopCategories.map((category, index) => (
                                         <TouchableOpacity
-                                            key={index}
+                                            key={`category-${index}-${category}`}
                                             style={[styles.categoryButton, selectedCategory === category && styles.categoryButtonActive]}
                                             onPress={() => setSelectedCategory(category)}
                                         >
@@ -661,10 +662,55 @@ const ShopsScreen: React.FC = () => {
         );
     };
 
+    // Scroll detection handler
+    const handleScroll = Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], {
+        useNativeDriver: false,
+        listener: (event: any) => {
+            const currentOffset = event.nativeEvent.contentOffset.y;
+            const direction = currentOffset > 0 && currentOffset > (scrollY as any)._value;
+
+            setIsScrolling(true);
+            setShowNavigation(!direction);
+
+            // Clear existing timeout
+            if (scrollTimeout.current) {
+                clearTimeout(scrollTimeout.current);
+            }
+
+            // Set new timeout to show navigation when scrolling stops
+            scrollTimeout.current = setTimeout(() => {
+                setIsScrolling(false);
+                setShowNavigation(true);
+            }, 1500);
+        },
+    });
+
+    // Cleanup timeout on unmount
+    useEffect(() => {
+        return () => {
+            if (scrollTimeout.current) {
+                clearTimeout(scrollTimeout.current);
+            }
+        };
+    }, []);
+
     return (
         <SafeAreaView style={styles.safeArea}>
             <View style={styles.container}>
-                <ScreenHeader title="Shops" showBackButton={true} onNotificationPress={() => navigation.navigate("Notifications")} />
+                <Animated.View
+                    style={[
+                        styles.headerContainer,
+                        {
+                            transform: [
+                                {
+                                    translateY: showNavigation ? 0 : -100,
+                                },
+                            ],
+                        },
+                    ]}
+                >
+                    <ScreenHeader title="Shops" showBackButton={true} onNotificationPress={() => navigation.navigate("Notifications")} />
+                </Animated.View>
 
                 <View style={styles.contentContainer}>
                     <View style={styles.searchContainer}>
@@ -706,7 +752,7 @@ const ShopsScreen: React.FC = () => {
                             ) : (
                                 <FlatList
                                     data={filteredShops}
-                                    keyExtractor={(item) => item._id}
+                                    keyExtractor={(item, index) => `${item._id}-${currentPage}-${index}`}
                                     renderItem={renderShopItem}
                                     numColumns={2}
                                     refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
@@ -714,6 +760,17 @@ const ShopsScreen: React.FC = () => {
                                     onEndReached={handleLoadMore}
                                     onEndReachedThreshold={0.5}
                                     contentContainerStyle={styles.shopList}
+                                    showsVerticalScrollIndicator={false}
+                                    onScroll={handleScroll}
+                                    scrollEventThrottle={16}
+                                    removeClippedSubviews={true}
+                                    maxToRenderPerBatch={10}
+                                    windowSize={10}
+                                    getItemLayout={(data, index) => ({
+                                        length: 280,
+                                        offset: 140 * Math.floor(index / 2),
+                                        index,
+                                    })}
                                 />
                             )}
                         </>
@@ -735,13 +792,15 @@ const styles = StyleSheet.create({
         flex: 1,
         backgroundColor: theme.colors.background,
     },
+    headerContainer: {
+        zIndex: 1000,
+        backgroundColor: theme.colors.background,
+    },
     contentContainer: {
         flex: 1,
         padding: theme.spacing.md,
     },
-    searchContainer: {
-        padding: theme.spacing.md,
-    },
+    searchContainer: {},
     searchBar: {
         marginBottom: theme.spacing.sm,
     },
@@ -786,7 +845,7 @@ const styles = StyleSheet.create({
         alignItems: "center",
     },
     shopList: {
-        paddingBottom: 100,
+        paddingBottom: 120,
     },
     emptyContainer: {
         flex: 1,
@@ -802,84 +861,109 @@ const styles = StyleSheet.create({
         marginTop: 16,
         marginBottom: 8,
     },
+    shopCardWrapper: {
+        width: "50%",
+        paddingHorizontal: theme.spacing.xs / 2,
+    },
     shopCard: {
-        marginBottom: 16,
-        borderRadius: 12,
+        marginVertical: theme.spacing.xs / 2,
+        borderRadius: theme.borderRadius.large,
         overflow: "hidden",
         backgroundColor: theme.colors.white,
+        ...theme.shadow.small,
+        aspectRatio: 0.9,
+    },
+    cardTouchable: {
+        flex: 1,
+        padding: theme.spacing.sm,
+    },
+    shopImageContainer: {
+        position: "relative",
+        width: "100%",
+        height: 60,
+        justifyContent: "center",
+        alignItems: "center",
+        marginBottom: theme.spacing.xs,
     },
     shopImage: {
-        width: "100%",
-        height: 150,
-        resizeMode: "cover",
+        width: 80,
+        height: 80,
+        borderRadius: 50,
+        borderWidth: 1,
+        borderColor: theme.colors.lightGray,
+    },
+    statusBadge: {
+        position: "absolute",
+        top: -theme.spacing.xs / 2,
+        right: -theme.spacing.xs / 2,
+        paddingHorizontal: theme.spacing.xs / 2,
+        paddingVertical: 2,
+        borderRadius: theme.borderRadius.small,
+    },
+    statusText: {
+        color: "#fff",
+        fontSize: 8,
+        fontWeight: "bold",
     },
     shopInfo: {
-        padding: 12,
-    },
-    shopNameContainer: {
-        flexDirection: "row",
-        justifyContent: "space-between",
-        alignItems: "flex-start",
-        marginBottom: 4,
+        flex: 1,
+        gap: theme.spacing.xs,
+        marginTop: theme.spacing.md,
     },
     shopName: {
-        flex: 1,
-        fontSize: 18,
-        fontWeight: "bold",
+        fontSize: 13,
+        fontWeight: "600",
         color: theme.colors.text,
-        marginRight: 8,
+        textAlign: "center",
+        lineHeight: 16,
     },
-    openBadge: {
-        backgroundColor: theme.colors.success,
-        paddingHorizontal: 8,
-        paddingVertical: 2,
-        borderRadius: 12,
-    },
-    openBadgeText: {
-        color: "#fff",
-        fontSize: 10,
-        fontWeight: "bold",
-    },
-    closedBadge: {
-        backgroundColor: theme.colors.error,
-    },
-    closedBadgeText: {
-        color: "#fff",
-        fontSize: 10,
-        fontWeight: "bold",
-    },
-    ratingContainer: {
+    ratingRow: {
         flexDirection: "row",
         alignItems: "center",
-        marginBottom: 6,
+        justifyContent: "center",
+        gap: 2,
     },
     ratingText: {
-        marginLeft: 4,
         color: theme.colors.text,
         fontWeight: "600",
+        fontSize: 11,
     },
-    shopDescription: {
-        fontSize: 14,
+    reviewCount: {
         color: theme.colors.textLight,
-        marginBottom: 8,
+        fontSize: 9,
     },
-    categoriesContainer: {
+    distanceRow: {
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 3,
+    },
+    distanceText: {
+        fontSize: 9,
+        color: theme.colors.primary,
+        fontWeight: "500",
+    },
+    categoriesRow: {
         flexDirection: "row",
         flexWrap: "wrap",
+        justifyContent: "center",
+        gap: 3,
     },
     categoryTag: {
-        backgroundColor: theme.colors.bgLight,
-        paddingHorizontal: 8,
-        paddingVertical: 4,
-        borderRadius: 16,
-        marginRight: 6,
-        marginBottom: 6,
-        fontSize: 12,
-        color: theme.colors.primary,
+        backgroundColor: theme.colors.accent,
+        paddingHorizontal: theme.spacing.xs / 2,
+        paddingVertical: 2,
+        borderRadius: theme.borderRadius.small,
     },
     categoryTagText: {
-        fontSize: 14,
-        color: theme.colors.text,
+        fontSize: 8,
+        color: theme.colors.white,
+        fontWeight: "500",
+    },
+    moreCategories: {
+        fontSize: 8,
+        color: theme.colors.gray,
+        fontWeight: "500",
     },
     modalContainer: {
         flex: 1,
@@ -1027,18 +1111,6 @@ const styles = StyleSheet.create({
         color: theme.colors.white,
         fontSize: 16,
         fontWeight: "bold",
-    },
-    distanceContainer: {
-        flexDirection: "row",
-        alignItems: "center",
-        marginTop: 4,
-        marginBottom: 4,
-    },
-    distanceText: {
-        fontSize: 12,
-        color: theme.colors.primary,
-        fontWeight: "500",
-        marginLeft: 4,
     },
     footerLoader: {
         alignItems: "center",

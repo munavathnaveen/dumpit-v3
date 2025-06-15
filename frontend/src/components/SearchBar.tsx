@@ -51,18 +51,18 @@ const styles = StyleSheet.create({
         backgroundColor: theme.colors.white,
         borderRadius: theme.borderRadius.medium,
         paddingHorizontal: theme.spacing.md,
-        paddingVertical: theme.spacing.sm,
+        paddingVertical: theme.spacing.xs,
         marginVertical: theme.spacing.sm,
         ...theme.shadow.small,
     },
     icon: {
-        marginRight: theme.spacing.sm,
+        marginRight: theme.spacing.xs,
     },
     input: {
         flex: 1,
         fontSize: 16,
         color: theme.colors.text,
-        height: 40,
+        height: 38,
     },
     clearButton: {
         padding: theme.spacing.xs,

@@ -58,6 +58,7 @@ const TabNavigator: React.FC = () => {
     return (
         <Tab.Navigator
             key={key}
+            initialRouteName={isVendor ? "VendorDashboardTab" : "HomeTab"}
             screenOptions={({ route }: { route: RouteProp<BottomTabParamList, keyof BottomTabParamList> }) => ({
                 tabBarIcon: ({ focused, color }: { focused: boolean; color: string }) => (
                     <Ionicons
