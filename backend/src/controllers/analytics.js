@@ -8,6 +8,7 @@ const Shop = require("../models/Shop");
 const path = require("path");
 const fs = require("fs");
 const multer = require("multer");
+const getImageFromGoogle = require("../utils/getImageFromGoogle");
 
 // Configure storage for CSV uploads
 const storage = multer.diskStorage({
@@ -415,11 +416,11 @@ exports.importProducts = asyncHandler(async (req, res, next) => {
     // If request is for sample format, provide it
     if (req.query.format === "sample") {
         const sampleFormat = {
-            fields: ["name", "description", "price", "stock", "category", "isActive", "images", "specifications"],
+            fields: ["name", "description", "price", "stock", "category", "type", "units", "image", "isActive"],
             sample:
-                "name,description,price,stock,category,isActive,images,specifications\n" +
-                '"Product Name","Product description goes here",299.99,100,"Electronics",true,"https://example.com/image1.jpg,https://example.com/image2.jpg","{"color":"black","weight":"200g"}"\n' +
-                '"Another Product","Another description",99.99,50,"Clothing",true,"https://example.com/image3.jpg","{"size":"M","material":"cotton"}"',
+                "name,description,price,stock,category,type,units,image,isActive\n" +
+                '"Product Name","Product description goes here",299.99,100,"Electronics","product","kg","https://example.com/image1.jpg",true\n' +
+                '"Another Product","Another description",99.99,50,"Clothing","product","pcs","",true',
         };
 
         return res.status(200).json({
@@ -454,9 +455,21 @@ exports.importProducts = asyncHandler(async (req, res, next) => {
         // Process the CSV file
         const result = await importFromCSV(req.file.path, async (row) => {
             // Basic validation
-            console.log("ROW ", row);
+            console.log("Processing row:", row);
             if (!row.name || !row.price) {
                 throw new Error("Product name and price are required");
+            }
+
+            // Handle image (take from CSV or fetch from Google API)
+            let imageUrl = row.image || "";
+            if (imageUrl === "" && row.name) {
+                try {
+                    imageUrl = await getImageFromGoogle(row.name);
+                    console.log(`Fetched image for "${row.name}": ${imageUrl}`);
+                } catch (fetchError) {
+                    console.error(`Failed to fetch image for "${row.name}":`, fetchError.message);
+                    imageUrl = ""; // Proceed without image
+                }
             }
 
             // Create new product
@@ -468,17 +481,18 @@ exports.importProducts = asyncHandler(async (req, res, next) => {
                 stock: parseInt(row.stock || 0),
                 units: row.units || "kg",
                 category: row.category || "Uncategorized",
-                isActive: true,
                 shop: req.user.shop_id,
-                image: row.images,
+                image: imageUrl,
                 vendor: req.user.id,
             });
 
             // Save the new product
             try {
                 await product.save();
+                console.log(`Successfully created product: ${product.name}`);
             } catch (error) {
-                console.log("ERROR ", error);
+                console.error(`Error saving product ${row.name}:`, error);
+                throw new Error(`Failed to save product ${row.name}: ${error.message}`);
             }
             return { action: "created", product };
         });
@@ -494,11 +508,11 @@ exports.importProducts = asyncHandler(async (req, res, next) => {
         // If it's a format error, provide the correct format
         if (error.message.includes("format") || error.message.includes("required")) {
             const sampleFormat = {
-                fields: ["name", "description", "price", "stock", "category", "isActive", "images", "specifications"],
+                fields: ["name", "description", "price", "stock", "category", "type", "units", "image", "isActive"],
                 sample:
-                    "name,description,price,stock,category,isActive,images,specifications\n" +
-                    '"Product Name","Product description goes here",299.99,100,"Electronics",true,"https://example.com/image1.jpg,https://example.com/image2.jpg","{"color":"black","weight":"200g"}"\n' +
-                    '"Another Product","Another description",99.99,50,"Clothing",true,"https://example.com/image3.jpg","{"size":"M","material":"cotton"}"',
+                    "name,description,price,stock,category,type,units,image,isActive\n" +
+                    '"Product Name","Product description goes here",299.99,100,"Electronics","product","kg","https://example.com/image1.jpg",true\n' +
+                    '"Another Product","Another description",99.99,50,"Clothing","product","pcs","",true',
             };
 
             return res.status(400).json({
