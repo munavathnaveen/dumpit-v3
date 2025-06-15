@@ -4,6 +4,7 @@ const ErrorResponse = require("../utils/errorResponse");
 const { upload, uploadToCloudinary, deleteFromCloudinary } = require("../utils/upload");
 const config = require("../config");
 const cloudinary = require("cloudinary");
+const getImageFromGoogle = require("../utils/getImageFromGoogle");
 
 // @desc    Get all products
 // @route   GET /api/v1/products
@@ -101,7 +102,10 @@ exports.getProducts = async (req, res, next) => {
         // Populate with related data
         query = query.populate([
             { path: "vendor", select: "name email" },
-            { path: "shop", select: "name description image location rating categories" },
+            {
+                path: "shop",
+                select: "name description image location rating categories",
+            },
         ]);
 
         // Executing query
@@ -129,7 +133,12 @@ exports.getProducts = async (req, res, next) => {
             };
         }
 
-        res.status(200).json({ success: true, count: products.length, pagination, data: products });
+        res.status(200).json({
+            success: true,
+            count: products.length,
+            pagination,
+            data: products,
+        });
     } catch (err) {
         next(err);
     }
@@ -165,6 +174,7 @@ exports.createProduct = async (req, res, next) => {
         // Add vendor and shop to req.body
         req.body.vendor = req.user.id;
         req.body.shop = req.user.shop_id;
+        console.log(req.user);
         // Check if shop exists
         const shop = await Shop.findById(req.user.shop_id);
 
@@ -172,14 +182,35 @@ exports.createProduct = async (req, res, next) => {
             return next(new ErrorResponse(`Shop not found with id of ${req.params.shop_id}`, 404));
         }
 
+        //check shop ownership.
         if (shop.owner.toString() !== req.user.id) {
             return next(new ErrorResponse(`User ${req.user.id} is not authorized to add a product to this shop`, 401));
         }
-        if (!req.body.image) {
-            return next(new ErrorResponse("Image Not Found"));
-        }
-        const product = await Product.create(req.body);
 
+        // Validate required fields
+        const { name, description, type, category, price, units, stock, discount, image, isActive } = req.body;
+        if (!name || !description || !type || !category || !price || !units) {
+            return next(new ErrorResponse("Missing required fields: name, description, type, category, price, or units", 400));
+        }
+
+        // Handle image (optional)
+        let imageUrl = image || "";
+        if (imageUrl === "" && name) {
+            try {
+                imageUrl = await getImageFromGoogle(name);
+                console.log(`Fetched image for "${name}": ${imageUrl}`); // Debug log
+            } catch (fetchError) {
+                console.error(`Failed to fetch image for "${name}":`, fetchError.message);
+                imageUrl = ""; // Proceed without image
+            }
+
+            //   if (!req.body.image) {
+            //       return next(new ErrorResponse("Image Not Found"));
+            //   }
+        }
+
+        req.body.image = imageUrl;
+        const product = await Product.create(req.body);
         res.status(201).json({ success: true, data: product });
     } catch (err) {
         next(err);
@@ -240,6 +271,38 @@ exports.deleteProduct = async (req, res, next) => {
 // @desc    Upload product images
 // @route   PUT /api/v1/products/:id/images
 // @access  Private (Vendor only)
+
+// exports.uploadProductImage = async (req, res, next) => {
+//     try {
+//         // Find product by ID
+//         const product = await Product.findById(req.params.id);
+
+//         // Check if product exists
+//         if (!product) {
+//             return next(new ErrorResponse(`Product not found with id of ${req.params.id}`, 404));
+//         }
+
+//         // Check if user is product owner
+//         if (product.vendor.toString() !== req.user.id) {
+//             return next(new ErrorResponse(`User ${req.user.id} is not authorized to update this product`, 401));
+//         }
+
+//         // Check if req.body contains an image URL or base64 data
+//         if (!req.body.image) {
+//             return next(new ErrorResponse("Please provide an image URL or base64 data", 400));
+//         }
+
+//         // Update product image
+//         product.image = req.body.image;
+//         await product.save();
+
+//         res.status(200).json({ success: true, data: { image: product.image } });
+//     } catch (err) {
+//         console.error(err);
+//         return next(new ErrorResponse("Error updating product image", 500));
+//     }
+// };
+
 exports.uploadProductImage = async (req, res, next) => {
     try {
         // Find product by ID
@@ -255,19 +318,45 @@ exports.uploadProductImage = async (req, res, next) => {
             return next(new ErrorResponse(`User ${req.user.id} is not authorized to update this product`, 401));
         }
 
-        // Check if req.body contains an image URL or base64 data
-        if (!req.body.image) {
-            return next(new ErrorResponse("Please provide an image URL or base64 data", 400));
+        let imageUrl = req.body.image;
+
+        // If image is not manually provided, fetch from Google using product name
+        if (!imageUrl) {
+            imageUrl = await getImageFromGoogle(product.name);
+            if (!imageUrl) {
+                return next(new ErrorResponse("Could not fetch image from Google. Please try again.", 500));
+            }
         }
 
         // Update product image
-        product.image = req.body.image;
+        product.image = imageUrl;
         await product.save();
 
         res.status(200).json({ success: true, data: { image: product.image } });
     } catch (err) {
         console.error(err);
         return next(new ErrorResponse("Error updating product image", 500));
+    }
+};
+
+exports.getProductImageByName = async (req, res, next) => {
+    try {
+        const query = req.query.query;
+
+        if (!query) {
+            return res.status(400).json({ success: false, message: "Query parameter is required" });
+        }
+
+        const imageUrl = await getImageFromGoogle(query);
+
+        if (!imageUrl) {
+            return res.status(500).json({ success: false, message: "Image not found" });
+        }
+
+        res.status(200).json({ success: true, imageUrl });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ success: false, message: "Server error fetching image" });
     }
 };
 
@@ -316,12 +405,13 @@ exports.searchProducts = async (req, res, next) => {
     try {
         const { query } = req.params;
 
+        // Use regex for pattern matching instead of exact text search
         const products = await Product.find({
             $or: [
-                { name: { $regex: `.*${query}.*`, $options: "i" } },
-                { description: { $regex: `.*${query}.*`, $options: "i" } },
-                { category: { $regex: `.*${query}.*`, $options: "i" } },
-                { type: { $regex: `.*${query}.*`, $options: "i" } },
+                { name: { $regex: query, $options: "i" } },
+                { description: { $regex: query, $options: "i" } },
+                { category: { $regex: query, $options: "i" } },
+                { type: { $regex: query, $options: "i" } },
             ],
         }).populate([
             { path: "vendor", select: "name" },
@@ -340,9 +430,12 @@ exports.searchProducts = async (req, res, next) => {
 exports.getVendorProducts = async (req, res, next) => {
     try {
         // Get products for the logged in vendor
+        //console.log('getVendorProducts - User ID:', req.user.id);
         const products = await Product.find({ vendor: req.user.id })
             .populate([{ path: "shop", select: "name location address" }])
             .sort("-createdAt");
+
+        //console.log('getVendorProducts - Fetched products:', products);
 
         res.status(200).json({ success: true, count: products.length, data: products });
     } catch (err) {
@@ -358,7 +451,11 @@ exports.getProductCategories = async (req, res, next) => {
         // Find all distinct category values in Product collection
         const categories = await Product.distinct("category");
 
-        res.status(200).json({ success: true, count: categories.length, data: categories.sort() });
+        res.status(200).json({
+            success: true,
+            count: categories.length,
+            data: categories.sort(),
+        });
     } catch (err) {
         next(err);
     }

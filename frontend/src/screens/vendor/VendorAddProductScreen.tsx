@@ -1,13 +1,13 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, Image, Alert, ActivityIndicator, Platform, FlatList, Modal } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
-import * as ImagePicker from "expo-image-picker";
 import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
+import debounce from "lodash.debounce";
 
 import { theme } from "../../theme";
 import { MainStackNavigationProp } from "../../navigation/types";
-import { createProduct, uploadProductImage, ProductFormData } from "../../api/productApi";
+import { createProduct, getProductImageByName, uploadProductImage, ProductFormData } from "../../api/productApi";
 import ScreenHeader from "../../components/ScreenHeader";
 import alert from "../../utils/alert";
 import Card3D from "../../components/Card3D";
@@ -51,10 +51,10 @@ const VendorAddProductScreen: React.FC = () => {
 
     const [loading, setLoading] = useState(false);
     const [errors, setErrors] = useState<Record<string, string>>({});
-    const [uploading, setUploading] = useState(false);
     const [productTypes, setProductTypes] = useState<string[]>([]);
+    const [loadingImage, setLoadingImage] = useState(false);
 
-    // Effect to update product types when category changes
+    //Effect to update product types when category changes
     useEffect(() => {
         if (formData.category && PRODUCT_CATEGORIES[formData.category]) {
             setProductTypes(PRODUCT_CATEGORIES[formData.category]);
@@ -102,17 +102,59 @@ const VendorAddProductScreen: React.FC = () => {
         return Object.keys(newErrors).length === 0;
     };
 
-    const handleInputChange = (field: keyof ProductFormData, value: any) => {
-        setFormData({
-            ...formData,
-            [field]: value,
-        });
+    const fetchImageForProduct = useCallback(
+        debounce(async (name: string) => {
+            if (!name.trim()) {
+                handleImageChange("");
+                setLoadingImage(false);
+                return;
+            }
 
-        // Clear error for this field if it exists
+            try {
+                setLoadingImage(true);
+                const response = await getProductImageByName(name);
+                //console.log('Image fetch response:', response); // Debug log
+                if (response && response.success && typeof response.imageUrl === "string") {
+                    handleImageChange(response.imageUrl);
+                } else {
+                    handleImageChange("");
+                    alert("Error", "Invalid image response from server");
+                }
+            } catch (error: any) {
+                console.error("Failed to fetch image:", {
+                    message: error.message,
+                    status: error.response?.status,
+                    data: error.response?.data,
+                });
+                let errorMessage = "Could not fetch image for this product name";
+                if (error.response?.status === 401 || error.response?.status === 403) {
+                    errorMessage = "Please log in as a vendor to fetch images";
+                } else if (error.response?.status === 500) {
+                    errorMessage = "Server error while fetching image. Please try again later.";
+                }
+                handleImageChange("");
+                alert("Error", errorMessage);
+            } finally {
+                setLoadingImage(false);
+            }
+        }, 800),
+        []
+    );
+
+    const handleInputChange = (field: keyof ProductFormData, value: any) => {
+        setFormData((prevFormData) => ({
+            ...prevFormData,
+            [field]: value,
+        }));
+
         if (errors[field]) {
             const newErrors = { ...errors };
             delete newErrors[field];
             setErrors(newErrors);
+        }
+
+        if (field === "name") {
+            fetchImageForProduct(value);
         }
     };
 
@@ -127,10 +169,10 @@ const VendorAddProductScreen: React.FC = () => {
     };
 
     const handleImageChange = (url: string) => {
-        setFormData({
-            ...formData,
+        setFormData((prevFormData) => ({
+            ...prevFormData,
             image: url,
-        });
+        }));
 
         // Clear any image error
         if (errors.image) {
@@ -141,10 +183,10 @@ const VendorAddProductScreen: React.FC = () => {
     };
 
     const handleRemoveImage = () => {
-        setFormData({
-            ...formData,
+        setFormData((prevFormData) => ({
+            ...prevFormData,
             image: "",
-        });
+        }));
     };
 
     const handleAddProduct = async () => {
@@ -157,8 +199,8 @@ const VendorAddProductScreen: React.FC = () => {
         try {
             // Create product with basic data first
             const response = await createProduct({
-                name: formData.name,
-                description: formData.description,
+                name: formData.name.trim(),
+                description: formData.description.trim(),
                 type: formData.type,
                 category: formData.category,
                 price: formData.price,
@@ -166,19 +208,11 @@ const VendorAddProductScreen: React.FC = () => {
                 stock: formData.stock,
                 discount: formData.discount,
                 isActive: formData.isActive,
+                image: formData.image,
             });
 
             if (response.success) {
                 // If the product has an image URL and was created successfully, update the image
-                if (formData.image && formData.image.trim() !== "") {
-                    try {
-                        await uploadProductImage(response.data._id, formData.image);
-                    } catch (imageError) {
-                        console.error("Error uploading product image:", imageError);
-                        // Continue with success even if image upload fails
-                    }
-                }
-
                 alert("Success", "Product added successfully!", [
                     {
                         text: "OK",
@@ -331,7 +365,7 @@ const VendorAddProductScreen: React.FC = () => {
                     {/* Product Image */}
                     <View style={styles.formGroup}>
                         <Text style={styles.label}>Product Image (Optional)</Text>
-                        <View style={styles.formGroup}>
+                        {/* <View style={styles.formGroup}>
                             <Text style={styles.label}>Image URL</Text>
                             <TextInput
                                 style={styles.input}
@@ -343,6 +377,38 @@ const VendorAddProductScreen: React.FC = () => {
                             {errors.image && <Text style={styles.errorText}>{errors.image}</Text>}
 
                             <Text style={styles.helperText}>If not provided, a similar product type image will be used if available.</Text>
+                        </View> */}
+
+                        {loadingImage ? (
+                            <ActivityIndicator size="small" color={theme.colors.primary} style={styles.imageSection} />
+                        ) : formData.image ? (
+                            <View style={styles.imageSection}>
+                                <Image
+                                    source={{ uri: formData.image }}
+                                    style={{
+                                        width: 150,
+                                        height: 150,
+                                        borderRadius: theme.borderRadius.medium,
+                                    }}
+                                />
+                                <TouchableOpacity onPress={handleRemoveImage} style={styles.removeImageButton}>
+                                    <Ionicons name="trash-outline" size={20} color={theme.colors.error} />
+                                    <Text style={styles.removeImageText}>Remove Image</Text>
+                                </TouchableOpacity>
+                            </View>
+                        ) : (
+                            <Text style={styles.helperText}>Type product name to auto-fetch an image or enter a URL above.</Text>
+                        )}
+                        <View style={styles.formGroup}>
+                            <TextInput
+                                style={styles.input}
+                                value={formData.image}
+                                onChangeText={(text) => handleImageChange(text)}
+                                placeholder="Enter image URL (optional)"
+                                placeholderTextColor={theme.colors.gray}
+                            />
+                            <Text style={styles.helperText}>Enter a manual URL above.</Text>
+                            {errors.image && <Text style={styles.errorText}>{errors.image}</Text>}
                         </View>
                     </View>
 
@@ -415,6 +481,18 @@ const styles = StyleSheet.create({
         fontSize: 16,
         fontWeight: "bold",
     },
+
+    removeImageButton: {
+        flexDirection: "row",
+        alignItems: "center",
+        marginTop: theme.spacing.sm,
+    },
+    removeImageText: {
+        color: theme.colors.error,
+        fontSize: 14,
+        marginLeft: theme.spacing.xs,
+    },
+
     loadingContainer: {
         flex: 1,
         justifyContent: "center",

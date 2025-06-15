@@ -1,9 +1,12 @@
+require('dotenv').config();
+
+
 const express = require("express");
 const cors = require("cors");
 const morgan = require("morgan");
 const cookieParser = require("cookie-parser");
 const helmet = require("helmet");
-const rateLimit = require("express-rate-limit");
+const { authLimiter, generalLimiter } = require("./middleware/rateLimiter");
 const colors = require("colors");
 const config = require("./config");
 const connectDB = require("./utils/database");
@@ -11,6 +14,7 @@ const errorHandler = require("./middleware/error");
 
 // Initialize Express app
 const app = express();
+app.set("trust proxy", 1); 
 connectDB();
 
 app.use(express.json());
@@ -26,12 +30,12 @@ app.use(
     })
 );
 
-const limiter = rateLimit({
-    windowMs: 1 * 60 * 1000, // 1 minutes
-    max: 60, // Limit each IP to 60 requests per windowMs
-    message: "Too many requests from this IP, please try again after 15 minutes",
-});
-app.use("/api", limiter);
+
+// Only rate limit sensitive routes
+app.use("/api/v1/auth", authLimiter);
+app.use("/api/v1/orders", generalLimiter); // Maybe limit orders/cart
+
+  
 
 // Routes
 app.use("/api/v1/auth", require("./routes/auth"));

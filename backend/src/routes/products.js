@@ -10,6 +10,7 @@ const {
     getProductCategories,
     getProductTypes,
     uploadProductImage,
+    getProductImageByName,
     addProductReview,
     getProductReviews,
     searchProducts,
@@ -20,6 +21,7 @@ const { protect, authorize } = require("../middleware/auth");
 const { upload } = require("../utils/upload");
 const validateRequest = require("../middleware/validator");
 const { productSchema, productReviewSchema } = require("../validations/product");
+const { imageSearchLimiter } = require("../middleware/rateLimiter");
 const config = require("../config");
 
 const router = express.Router({ mergeParams: true });
@@ -41,6 +43,9 @@ router.post("/:id/reviews", protect, validateRequest(productReviewSchema), addPr
 
 // Product image upload route
 router.put("/:id/image", protect, authorize(config.constants.userRoles.VENDOR), uploadProductImage);
+
+// GET image based on product name (for frontend auto-fill)
+router.get("/image", imageSearchLimiter, getProductImageByName);
 
 // Get all products
 router.get("/", getProducts);

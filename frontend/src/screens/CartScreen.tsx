@@ -403,8 +403,8 @@ const styles = StyleSheet.create({
     },
     contentContainer: {
         flex: 1,
-        padding: theme.spacing.md,
-        paddingBottom: 100,
+        padding: theme.spacing.sm,
+        paddingBottom: 80,
     },
     loadingContainer: {
         flex: 1,
@@ -517,8 +517,8 @@ const styles = StyleSheet.create({
         position: "relative",
     },
     productImage: {
-        width: 80,
-        height: 80,
+        width: 60,
+        height: 60,
         borderRadius: 8,
         marginRight: 16,
     },
@@ -540,9 +540,9 @@ const styles = StyleSheet.create({
         flex: 1,
     },
     productName: {
-        fontSize: 16,
+        fontSize: 14,
         fontWeight: "bold",
-        marginBottom: 4,
+        marginBottom: 2,
     },
     shopInfo: {
         flexDirection: "row",
@@ -583,9 +583,9 @@ const styles = StyleSheet.create({
         alignItems: "center",
     },
     quantityButton: {
-        width: 30,
-        height: 30,
-        borderRadius: 15,
+        width: 24,
+        height: 24,
+        borderRadius: 12,
         backgroundColor: "#f0f0f0",
         justifyContent: "center",
         alignItems: "center",
@@ -603,10 +603,9 @@ const styles = StyleSheet.create({
         fontSize: 16,
     },
     removeButton: {
-        padding: 8,
+        padding: 6,
     },
     summaryCard: {
-        padding: 16,
         borderRadius: 12,
         backgroundColor: theme.colors.white,
         marginTop: "auto",
@@ -625,7 +624,7 @@ const styles = StyleSheet.create({
     summaryRow: {
         flexDirection: "row",
         justifyContent: "space-between",
-        marginBottom: 8,
+        marginBottom: 4,
     },
     summaryLabel: {
         fontSize: 16,
@@ -652,9 +651,15 @@ const styles = StyleSheet.create({
         color: theme.colors.text,
     },
     totalValue: {
-        fontSize: 18,
+        fontSize: 16,
         fontWeight: "bold",
         color: theme.colors.primary,
+    },
+    buttonContainer: {
+        flexDirection: "row",
+        justifyContent: "space-between",
+        alignItems: "center",
+        gap: 12,
     },
     checkoutButton: {
         backgroundColor: theme.colors.primary,
@@ -667,7 +672,7 @@ const styles = StyleSheet.create({
     },
     checkoutButtonText: {
         color: theme.colors.white,
-        fontSize: 16,
+        fontSize: 14,
         fontWeight: "bold",
         marginHorizontal: 8,
     },

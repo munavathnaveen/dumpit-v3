@@ -307,33 +307,6 @@ const ShopDetailsScreen: React.FC = () => {
                     </View>
                 </Card3D>
             )}
-
-            {/* Location Map */}
-            <Card3D style={styles.infoCard}>
-                <View style={styles.sectionHeader}>
-                    <MaterialIcons name="map" size={20} color={theme.colors.primary} />
-                    <Text style={styles.sectionTitle}>Location</Text>
-                </View>
-                <MapView
-                    markers={
-                        shop?.location?.coordinates && shop.location.coordinates.length === 2
-                            ? [
-                                  {
-                                      id: shop._id,
-                                      coordinate: {
-                                          latitude: shop.location.coordinates[1],
-                                          longitude: shop.location.coordinates[0],
-                                      },
-                                      title: shop.name,
-                                  },
-                              ]
-                            : []
-                    }
-                    style={styles.map}
-                    zoomEnabled={false}
-                    showsUserLocation={false}
-                />
-            </Card3D>
         </ScrollView>
     );
 

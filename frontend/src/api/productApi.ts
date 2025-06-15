@@ -146,14 +146,33 @@ const paginateProducts = (products: any[], page: number, limit: number): Product
 
 // Vendor-specific API functions
 
+// export const getVendorProducts = async (): Promise<Product[]> => {
+//     const response = await apiClient.get("/products/vendor");
+//     return response.data.data;
+// };
+
+
+
 export const getVendorProducts = async (): Promise<Product[]> => {
-    const response = await apiClient.get("/products/vendor");
-    return response.data.data;
-};
+    try {
+      const response = await apiClient.get("/products/vendor", {
+        headers: {
+          'Cache-Control': 'no-cache',
+        },
+      });
+      //console.log('getVendorProducts response:', response.data);
+      return response.data.data || [];
+    } catch (error) {
+      console.error('getVendorProducts error:', error);
+      throw error;
+    }
+  };
+
+
 
 export const createProduct = async (productData: ProductFormData): Promise<SingleProductResponse> => {
     const response = await apiClient.post("/products", productData);
-    console.log("ADD Product ", response, productData);
+    console.log("ADD Product ", response.data, productData);
     return response.data;
 };
 
@@ -166,6 +185,28 @@ export const deleteProduct = async (productId: string): Promise<{ success: boole
     const response = await apiClient.delete(`/products/${productId}`);
     return response.data;
 };
+
+
+
+
+
+export const getProductImageByName = async (query: string): Promise<{ success: boolean; imageUrl: string | null }> => {
+    if (!query.trim()) {
+        throw new Error('Query parameter is required');
+    }
+    try {
+        const response = await apiClient.get(`/products/image?query=${encodeURIComponent(query)}`);
+        return response.data;
+    } catch (error) {
+        console.error('Failed to fetch product image:', error);
+        throw error; // Let the caller handle the error
+    }
+};
+
+
+ 
+
+
 
 export const uploadProductImage = async (
     productId: string,
@@ -216,3 +257,5 @@ export const getProductWithDistance = async (productId: string, location: { lati
     const response = await apiClient.get(`/products/${productId}?latitude=${location.latitude}&longitude=${location.longitude}`);
     return response.data;
 };
+
+  

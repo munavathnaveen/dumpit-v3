@@ -1,5 +1,6 @@
 const dotenv = require("dotenv");
 
+// Load environment variables
 dotenv.config();
 
 module.exports = {
@@ -29,6 +30,12 @@ module.exports = {
         username: process.env.EMAIL_USERNAME,
         password: process.env.EMAIL_PASSWORD,
         from: process.env.EMAIL_FROM || "noreply@dumpit.com",
+    },
+
+    // Image Settings
+    image:{
+        google_api_key: process.env.GOOGLE_API_KEY,
+        google_cse_id: process.env.GOOGLE_CSE_ID,
     },
 
     // Razorpay settings

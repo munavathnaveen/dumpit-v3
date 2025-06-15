@@ -103,23 +103,13 @@ const ProductCard = memo(({ product, onPress, width }: { product: Product; onPre
     const discountedPrice = originalPrice - originalPrice * (discountPercent / 100);
 
     return (
-        <TouchableOpacity 
-            style={[styles.productCard, { width }]} 
-            onPress={onPress} 
-            activeOpacity={0.8}
-        >
+        <TouchableOpacity style={[styles.productCard, { width }]} onPress={onPress} activeOpacity={0.8}>
             <Card3D style={styles.productCardContainer}>
                 <View style={styles.productImageContainer}>
-                    <Image 
-                        source={{ uri: imageUrl }} 
-                        style={styles.productImage} 
-                        resizeMode="cover"
-                    />
+                    <Image source={{ uri: imageUrl }} style={styles.productImage} resizeMode="cover" />
                     {discountPercent > 0 && (
                         <View style={styles.discountBadge}>
-                            <Text style={styles.discountText}>
-                                {Math.round(discountPercent)}%
-                            </Text>
+                            <Text style={styles.discountText}>{Math.round(discountPercent)}%</Text>
                         </View>
                     )}
                 </View>
@@ -136,22 +126,14 @@ const ProductCard = memo(({ product, onPress, width }: { product: Product; onPre
                     )}
 
                     <View style={styles.productPriceContainer}>
-                        <Text style={styles.productPrice}>
-                            ₹{discountedPrice.toFixed(0)}
-                        </Text>
-                        {discountPercent > 0 && (
-                            <Text style={styles.originalPrice}>
-                                ₹{originalPrice.toFixed(0)}
-                            </Text>
-                        )}
+                        <Text style={styles.productPrice}>₹{discountedPrice.toFixed(0)}</Text>
+                        {discountPercent > 0 && <Text style={styles.originalPrice}>₹{originalPrice.toFixed(0)}</Text>}
                     </View>
 
                     {product.rating > 0 && (
                         <View style={styles.ratingContainer}>
                             <Ionicons name="star" size={12} color="#FFD700" />
-                            <Text style={styles.ratingText}>
-                                {product.rating.toFixed(1)}
-                            </Text>
+                            <Text style={styles.ratingText}>{product.rating.toFixed(1)}</Text>
                         </View>
                     )}
                 </View>
@@ -161,18 +143,9 @@ const ProductCard = memo(({ product, onPress, width }: { product: Product; onPre
 });
 
 const ShopCard = memo(({ shop, onPress, width }: { shop: Shop; onPress: () => void; width: number }) => (
-    <TouchableOpacity 
-        style={[styles.shopCardWrapper, { width }]} 
-        onPress={onPress} 
-        activeOpacity={0.8}
-    >
+    <TouchableOpacity style={[styles.shopCardWrapper, { width }]} onPress={onPress} activeOpacity={0.8}>
         <Card3D style={styles.shopCard}>
-            <LinearGradient 
-                colors={["#478DA8", "#7373D1"]} 
-                style={styles.shopCardGradient} 
-                start={{ x: 0, y: 0 }} 
-                end={{ x: 1, y: 1 }}
-            >
+            <LinearGradient colors={["#478DA8", "#7373D1"]} style={styles.shopCardGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
                 <View style={styles.shopCardContent}>
                     <View style={styles.shopImageContainer}>
                         <View style={styles.shopImageWrapper}>
@@ -183,12 +156,7 @@ const ShopCard = memo(({ shop, onPress, width }: { shop: Shop; onPress: () => vo
                                 style={styles.shopImage}
                                 resizeMode="cover"
                             />
-                            <View 
-                                style={[
-                                    styles.statusIndicator, 
-                                    { backgroundColor: shop.isOpen ? "#4ade80" : "#f87171" }
-                                ]} 
-                            />
+                            <View style={[styles.statusIndicator, { backgroundColor: shop.isOpen ? "#4ade80" : "#f87171" }]} />
                         </View>
                     </View>
 
@@ -199,63 +167,32 @@ const ShopCard = memo(({ shop, onPress, width }: { shop: Shop; onPress: () => vo
 
                         <View style={styles.shopRatingContainer}>
                             <Ionicons name="star" size={14} color="#FFD700" />
-                            <Text style={styles.shopRating}>
-                                {shop.rating ? shop.rating.toFixed(1) : "0.0"}
-                            </Text>
-                            <Text style={styles.shopRatingCount}>
-                                ({shop.reviews ? shop.reviews.length : 0})
-                            </Text>
+                            <Text style={styles.shopRating}>{shop.rating ? shop.rating.toFixed(1) : "0.0"}</Text>
+                            <Text style={styles.shopRatingCount}>({shop.reviews ? shop.reviews.length : 0})</Text>
                         </View>
 
                         <View style={styles.shopDetailRow}>
-                            <Ionicons 
-                                name="location-outline" 
-                                size={14} 
-                                color="rgba(255,255,255,0.8)" 
-                            />
+                            <Ionicons name="location-outline" size={14} color="rgba(255,255,255,0.8)" />
                             <Text style={styles.shopAddress} numberOfLines={2}>
-                                {shop.address 
-                                    ? `${shop.address.village || shop.address.city || ""}, ${
-                                        shop.address.district || shop.address.street || ""
-                                    }` 
-                                    : "Location not available"
-                                }
+                                {shop.address ? `${shop.address.village || shop.address.city || ""}, ${shop.address.district || shop.address.street || ""}` : "Location not available"}
                             </Text>
                         </View>
 
                         {shop.categories && shop.categories.length > 0 && (
                             <View style={styles.shopCategoriesContainer}>
                                 {shop.categories.slice(0, 2).map((category, index) => (
-                                    <View 
-                                        key={`${shop._id}-category-${index}-${category}`} 
-                                        style={styles.categoryTag}
-                                    >
-                                        <Text style={styles.categoryTagText}>
-                                            {category}
-                                        </Text>
+                                    <View key={`${shop._id}-category-${index}-${category}`} style={styles.categoryTag}>
+                                        <Text style={styles.categoryTagText}>{category}</Text>
                                     </View>
                                 ))}
-                                {shop.categories.length > 2 && (
-                                    <Text style={styles.moreCategoriesText}>
-                                        +{shop.categories.length - 2}
-                                    </Text>
-                                )}
+                                {shop.categories.length > 2 && <Text style={styles.moreCategoriesText}>+{shop.categories.length - 2}</Text>}
                             </View>
                         )}
 
                         {shop.distance && (
                             <View style={styles.distanceContainer}>
-                                <Ionicons 
-                                    name="navigate-outline" 
-                                    size={12} 
-                                    color="rgba(255,255,255,0.9)" 
-                                />
-                                <Text style={styles.distanceText}>
-                                    {typeof shop.distance === "number" 
-                                        ? `${shop.distance.toFixed(1)} km` 
-                                        : shop.distance
-                                    }
-                                </Text>
+                                <Ionicons name="navigate-outline" size={12} color="rgba(255,255,255,0.9)" />
+                                <Text style={styles.distanceText}>{typeof shop.distance === "number" ? `${shop.distance.toFixed(1)} km` : shop.distance}</Text>
                             </View>
                         )}
                     </View>
@@ -265,17 +202,7 @@ const ShopCard = memo(({ shop, onPress, width }: { shop: Shop; onPress: () => vo
     </TouchableOpacity>
 ));
 
-const CategoryItem = memo(({ 
-    category, 
-    index, 
-    onPress, 
-    width 
-}: { 
-    category: string; 
-    index: number; 
-    onPress: () => void; 
-    width: number;
-}) => {
+const CategoryItem = memo(({ category, index, onPress, width }: { category: string; index: number; onPress: () => void; width: number }) => {
     const colorSets = [
         { bg: "#FFE1D1", text: "#FF6B35", icon: "cube-outline" },
         { bg: "#E6F7FF", text: "#0CB0D3", icon: "construct-outline" },
@@ -290,25 +217,18 @@ const CategoryItem = memo(({
     return (
         <TouchableOpacity
             style={[
-                styles.categoryCard, 
-                { 
-                    backgroundColor: colorSet.bg, 
-                    width 
-                }
+                styles.categoryCard,
+                {
+                    backgroundColor: colorSet.bg,
+                    width,
+                },
             ]}
             onPress={onPress}
         >
             <View style={styles.categoryIconContainer}>
-                <Ionicons 
-                    name={colorSet.icon as any} 
-                    size={24} 
-                    color={colorSet.text} 
-                />
+                <Ionicons name={colorSet.icon as any} size={24} color={colorSet.text} />
             </View>
-            <Text 
-                style={[styles.categoryName, { color: colorSet.text }]} 
-                numberOfLines={2}
-            >
+            <Text style={[styles.categoryName, { color: colorSet.text }]} numberOfLines={2}>
                 {category}
             </Text>
         </TouchableOpacity>
@@ -335,25 +255,13 @@ const HomeScreen: React.FC = () => {
     const [currentAdIndex, setCurrentAdIndex] = useState(0);
 
     // Memoized values
-    const cardWidth = useMemo(() => 
-        dimensions.width < 380 ? dimensions.width * 0.85 : dimensions.width * 0.7,
-        [dimensions.width]
-    );
+    const cardWidth = useMemo(() => (dimensions.width < 380 ? dimensions.width * 0.85 : dimensions.width * 0.7), [dimensions.width]);
 
-    const shopCardWidth = useMemo(() => 
-        dimensions.width < 380 ? dimensions.width * 0.9 : dimensions.width * 0.8,
-        [dimensions.width]
-    );
+    const shopCardWidth = useMemo(() => (dimensions.width < 380 ? dimensions.width * 0.9 : dimensions.width * 0.8), [dimensions.width]);
 
-    const productCardWidth = useMemo(() => 
-        dimensions.width * 0.45,
-        [dimensions.width]
-    );
+    const productCardWidth = useMemo(() => dimensions.width * 0.45, [dimensions.width]);
 
-    const categoryCardWidth = useMemo(() => 
-        dimensions.width < 380 ? dimensions.width * 0.2 : dimensions.width * 0.18,
-        [dimensions.width]
-    );
+    const categoryCardWidth = useMemo(() => (dimensions.width < 380 ? dimensions.width * 0.2 : dimensions.width * 0.18), [dimensions.width]);
 
     useEffect(() => {
         getLocation();
@@ -556,17 +464,26 @@ const HomeScreen: React.FC = () => {
     };
 
     // Memoized handlers
-    const handleProductPress = useCallback((productId: string) => {
-        navigation.navigate("ProductDetails", { productId });
-    }, [navigation]);
+    const handleProductPress = useCallback(
+        (productId: string) => {
+            navigation.navigate("ProductDetails", { productId });
+        },
+        [navigation]
+    );
 
-    const handleShopPress = useCallback((shopId: string) => {
-        navigation.navigate("ShopDetails", { shopId });
-    }, [navigation]);
+    const handleShopPress = useCallback(
+        (shopId: string) => {
+            navigation.navigate("ShopDetails", { shopId });
+        },
+        [navigation]
+    );
 
-    const handleCategoryPress = useCallback((category: string) => {
-        navigation.navigate("ProductsTab", { category });
-    }, [navigation]);
+    const handleCategoryPress = useCallback(
+        (category: string) => {
+            navigation.navigate("ProductsTab", { category });
+        },
+        [navigation]
+    );
 
     const renderAdBanner = () => {
         const ad = adBanners[currentAdIndex];
@@ -643,42 +560,20 @@ const HomeScreen: React.FC = () => {
 
     return (
         <View style={styles.container}>
-            <Header 
-                location={location.split(",")[0]} 
-                onProfilePress={handleProfilePress} 
-                onNotificationPress={handleNotificationPress} 
-                showLocation={true} 
-            />
+            <Header location={location.split(",")[0]} onProfilePress={handleProfilePress} onNotificationPress={handleNotificationPress} showLocation={true} />
 
             <View style={styles.searchContainer}>
-                <TouchableOpacity 
-                    style={styles.searchBar} 
-                    onPress={() => navigation.navigate("ProductsTab")}
-                >
-                    <Ionicons 
-                        name="search-outline" 
-                        size={20} 
-                        color={theme.colors.gray} 
-                    />
+                <TouchableOpacity style={styles.searchBar} onPress={() => navigation.navigate("ProductsTab")}>
+                    <Ionicons name="search-outline" size={20} color={theme.colors.gray} />
                     <Text>Search for products</Text>
                 </TouchableOpacity>
             </View>
 
-            <ScrollView 
-                style={styles.scrollView} 
-                contentContainerStyle={styles.scrollViewContent}
-                showsVerticalScrollIndicator={false}
-            >
+            <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollViewContent} showsVerticalScrollIndicator={false}>
                 <View style={styles.welcomeSection}>
-                    <Text style={styles.welcomeText}>
-                        Welcome, {user?.name?.split(" ")[0] || "Guest"}!
-                    </Text>
+                    <Text style={styles.welcomeText}>Welcome, {user?.name?.split(" ")[0] || "Guest"}!</Text>
                     <Text style={styles.locationText}>
-                        <Ionicons 
-                            name="location" 
-                            size={16} 
-                            color={theme.colors.primary} 
-                        />
+                        <Ionicons name="location" size={16} color={theme.colors.primary} />
                         {location}
                     </Text>
                 </View>
@@ -691,24 +586,11 @@ const HomeScreen: React.FC = () => {
                     </View>
 
                     {loading.categories ? (
-                        <ActivityIndicator 
-                            size="small" 
-                            color={theme.colors.primary} 
-                        />
+                        <ActivityIndicator size="small" color={theme.colors.primary} />
                     ) : (
-                        <ScrollView 
-                            horizontal 
-                            showsHorizontalScrollIndicator={false}
-                            contentContainerStyle={styles.categoriesContainer}
-                        >
+                        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoriesContainer}>
                             {categories.map((category, index) => (
-                                <CategoryItem
-                                    key={`category-${index}-${category}`}
-                                    category={category}
-                                    index={index}
-                                    onPress={() => handleCategoryPress(category)}
-                                    width={categoryCardWidth}
-                                />
+                                <CategoryItem key={`category-${index}-${category}`} category={category} index={index} onPress={() => handleCategoryPress(category)} width={categoryCardWidth} />
                             ))}
                         </ScrollView>
                     )}
@@ -717,74 +599,42 @@ const HomeScreen: React.FC = () => {
                 <View style={styles.section}>
                     <View style={styles.sectionHeader}>
                         <Text style={styles.sectionTitle}>Nearby Shops</Text>
-                        <TouchableOpacity 
-                            onPress={() => navigation.navigate("ShopsTab")}
-                        >
+                        <TouchableOpacity onPress={() => navigation.navigate("ShopsTab")}>
                             <Text style={styles.viewAllText}>View All</Text>
                         </TouchableOpacity>
                     </View>
 
                     {loading.shops ? (
-                        <ActivityIndicator 
-                            size="small" 
-                            color={theme.colors.primary} 
-                        />
+                        <ActivityIndicator size="small" color={theme.colors.primary} />
                     ) : nearbyShops.length > 0 ? (
-                        <ScrollView 
-                            horizontal 
-                            showsHorizontalScrollIndicator={false}
-                            contentContainerStyle={styles.productsContainer}
-                        >
+                        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.productsContainer}>
                             {nearbyShops.map((shop) => (
-                                <ShopCard
-                                    key={`shop-${shop._id}`}
-                                    shop={shop}
-                                    onPress={() => handleShopPress(shop._id)}
-                                    width={shopCardWidth}
-                                />
+                                <ShopCard key={`shop-${shop._id}`} shop={shop} onPress={() => handleShopPress(shop._id)} width={shopCardWidth} />
                             ))}
                         </ScrollView>
                     ) : (
-                        <Text style={styles.noDataText}>
-                            No nearby shops available
-                        </Text>
+                        <Text style={styles.noDataText}>No nearby shops available</Text>
                     )}
                 </View>
 
                 <View style={styles.section}>
                     <View style={styles.sectionHeader}>
                         <Text style={styles.sectionTitle}>Products</Text>
-                        <TouchableOpacity 
-                            onPress={() => navigation.navigate("ProductsTab")}
-                        >
+                        <TouchableOpacity onPress={() => navigation.navigate("ProductsTab")}>
                             <Text style={styles.viewAllText}>View All</Text>
                         </TouchableOpacity>
                     </View>
 
                     {loading.products ? (
-                        <ActivityIndicator 
-                            size="small" 
-                            color={theme.colors.primary} 
-                        />
+                        <ActivityIndicator size="small" color={theme.colors.primary} />
                     ) : Products.length > 0 ? (
-                        <ScrollView 
-                            horizontal 
-                            showsHorizontalScrollIndicator={false}
-                            contentContainerStyle={styles.productsHorizontalContainer}
-                        >
+                        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.productsHorizontalContainer}>
                             {Products.slice(0, FEATURED_PRODUCTS_LIMIT).map((product) => (
-                                <ProductCard
-                                    key={`product-${product._id}`}
-                                    product={product}
-                                    onPress={() => handleProductPress(product._id)}
-                                    width={productCardWidth}
-                                />
+                                <ProductCard key={`product-${product._id}`} product={product} onPress={() => handleProductPress(product._id)} width={productCardWidth} />
                             ))}
                         </ScrollView>
                     ) : (
-                        <Text style={styles.noDataText}>
-                            No products available
-                        </Text>
+                        <Text style={styles.noDataText}>No products available</Text>
                     )}
                 </View>
 
