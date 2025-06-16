@@ -188,11 +188,13 @@ exports.createProduct = async (req, res, next) => {
         }
 
         // Validate required fields
-        const { name, description, type, category, price, units, stock, discount, image, isActive } = req.body;
+        const { name, description, type, category, price, units, stock, discount, image, isActive,colors} = req.body;
         if (!name || !description || !type || !category || !price || !units) {
             return next(new ErrorResponse("Missing required fields: name, description, type, category, price, or units", 400));
         }
-
+        if(category === "Paints" && !colors){
+            return next(new ErrorResponse("Colors are required for paint products", 400));
+        }
         // Handle image (optional)
         let imageUrl = image || "";
         if (imageUrl === "" && name) {
@@ -210,6 +212,7 @@ exports.createProduct = async (req, res, next) => {
         }
 
         req.body.image = imageUrl;
+        console.log("req.body ",req.body);
         const product = await Product.create(req.body);
         res.status(201).json({ success: true, data: product });
     } catch (err) {
