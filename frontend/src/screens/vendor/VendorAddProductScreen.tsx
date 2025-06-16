@@ -47,6 +47,7 @@ const VendorAddProductScreen: React.FC = () => {
         discount: 0,
         image: "",
         isActive: true,
+        colors: [],
     });
 
     const [loading, setLoading] = useState(false);
@@ -96,6 +97,10 @@ const VendorAddProductScreen: React.FC = () => {
 
         if (formData.discount !== undefined && (formData.discount < 0 || formData.discount > 100)) {
             newErrors.discount = "Discount must be between 0 and 100%";
+        }
+
+        if (formData.type === "paint" && (!formData.colors || formData.colors.length === 0)) {
+            newErrors.colors = "At least one color is required for paint products";
         }
 
         setErrors(newErrors);
@@ -209,6 +214,7 @@ const VendorAddProductScreen: React.FC = () => {
                 discount: formData.discount,
                 isActive: formData.isActive,
                 image: formData.image,
+                colors: formData.type === "paint" ? formData.colors : undefined,
             });
 
             if (response.success) {
@@ -306,6 +312,25 @@ const VendorAddProductScreen: React.FC = () => {
                         required={true}
                         disabled={!formData.category}
                     />
+
+                    {/* Add this after the Product Type dropdown */}
+                    {formData.type === "paint" && (
+                        <View style={styles.formGroup}>
+                            <Text style={styles.label}>Colors*</Text>
+                            <TextInput
+                                style={styles.input}
+                                value={formData.colors?.join(", ") || ""}
+                                onChangeText={(text) => {
+                                    const colors = text.split(",").map(color => color.trim()).filter(color => color.length > 0);
+                                    handleInputChange("colors", colors);
+                                }}
+                                placeholder="Enter colors separated by commas (e.g., Red, Blue, Green)"
+                                placeholderTextColor={theme.colors.gray}
+                            />
+                            {errors.colors && <Text style={styles.errorText}>{errors.colors}</Text>}
+                            <Text style={styles.helperText}>Enter colors separated by commas</Text>
+                        </View>
+                    )}
 
                     {/* Price/Rate */}
                     <View style={styles.formGroup}>

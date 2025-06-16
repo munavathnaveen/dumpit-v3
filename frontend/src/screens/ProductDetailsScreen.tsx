@@ -299,7 +299,18 @@ const ProductDetailsScreen: React.FC = () => {
             </>
           )}
         </View>
-
+        {product.type === "paint" && product.colors && product.colors.length > 0 && (
+                    <View style={styles.detailRow}>
+                        <Text style={styles.detailLabel}>Colors:</Text>
+                        <View style={styles.colorsContainer}>
+                            {product.colors.map((color, index) => (
+                                <View key={index} style={styles.colorChip}>
+                                    <Text style={styles.colorText}>{color}</Text>
+                                </View>
+                            ))}
+                        </View>
+                    </View>
+                )}
         {/* Rating */}
         <View style={styles.ratingContainer}>
           {renderStars(product.rating || 0)}
@@ -605,6 +616,39 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: theme.colors.lightGray,
+  },
+  detailRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  detailLabel: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: theme.colors.dark,
+    marginRight: 8,
+  },
+  detailValue: {
+    fontSize: 14,
+    color: theme.colors.gray,
+  },
+  colorsContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginTop: 4,
+  },
+  colorChip: {
+    backgroundColor: theme.colors.secondary,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    marginRight: 8,
+    marginBottom: 8,
+  },
+  colorText: {
+    color: theme.colors.dark,
+    fontSize: 14,
+    fontWeight: '500',
   },
   placeholderText: {
     marginTop: 8,

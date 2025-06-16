@@ -251,6 +251,7 @@ const HomeScreen: React.FC = () => {
         products: true,
         shops: true,
         categories: true,
+        location: false,
     });
     const [currentAdIndex, setCurrentAdIndex] = useState(0);
 
@@ -485,6 +486,25 @@ const HomeScreen: React.FC = () => {
         [navigation]
     );
 
+    const handleRefreshLocation = useCallback(async () => {
+        try {
+            setLoading(prev => ({ ...prev, location: true }));
+            const location = await LocationService.getCurrentLocation();
+            if (location) {
+                const locationString = `${location.latitude},${location.longitude}`;
+                setLocation(locationString);
+                // Refresh nearby shops and products with new location
+                await fetchNearbyShops();
+                await fetchProducts();
+            }
+        } catch (error) {
+            console.error('Error refreshing location:', error);
+            alert('Error', 'Failed to refresh location. Please try again.');
+        } finally {
+            setLoading(prev => ({ ...prev, location: false }));
+        }
+    }, []);
+
     const renderAdBanner = () => {
         const ad = adBanners[currentAdIndex];
 
@@ -572,10 +592,24 @@ const HomeScreen: React.FC = () => {
             <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollViewContent} showsVerticalScrollIndicator={false}>
                 <View style={styles.welcomeSection}>
                     <Text style={styles.welcomeText}>Welcome, {user?.name?.split(" ")[0] || "Guest"}!</Text>
-                    <Text style={styles.locationText}>
-                        <Ionicons name="location" size={16} color={theme.colors.primary} />
-                        {location}
-                    </Text>
+                    <View style={styles.locationContainer}>
+                        <Text style={styles.locationText}>
+                            <Ionicons name="location" size={16} color={theme.colors.primary} />
+                            {location}
+                        </Text>
+                        <TouchableOpacity 
+                            style={styles.refreshButton} 
+                            onPress={handleRefreshLocation}
+                            disabled={loading.location}
+                        >
+                            <Ionicons 
+                                name="refresh" 
+                                size={16} 
+                                color={theme.colors.primary} 
+                                style={loading.location ? styles.refreshing : undefined} 
+                            />
+                        </TouchableOpacity>
+                    </View>
                 </View>
 
                 {renderAdBanner()}
@@ -665,9 +699,21 @@ const styles = StyleSheet.create({
         marginLeft: theme.spacing.lg,
         color: theme.colors.text,
     },
+    locationContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginTop: 4,
+    },
     locationText: {
         fontSize: 14,
-        color: theme.colors.primary,
+        color: theme.colors.gray,
+        marginRight: 8,
+    },
+    refreshButton: {
+        padding: 4,
+    },
+    refreshing: {
+        transform: [{ rotate: '45deg' }],
     },
     adBannerContainer: {
         margin: theme.spacing.sm,

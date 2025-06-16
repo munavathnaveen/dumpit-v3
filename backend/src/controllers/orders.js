@@ -571,36 +571,48 @@ exports.getVendorOrders = async (req, res, next) => {
 
         // Format the order data for the frontend
         const formattedOrders = orders.map((order) => {
-            const vendorItems = order.items.filter((item) => productIds.some((id) => id.toString() === item.product._id.toString()));
+            // Filter out items with null products and only include vendor's products
+            const vendorItems = order.items.filter((item) => 
+                item.product && 
+                productIds.some((id) => id.toString() === item.product._id.toString())
+            );
+
+            // Skip orders with no valid vendor items
+            if (vendorItems.length === 0) return null;
 
             return {
                 _id: order._id,
                 orderNumber: order._id.toString().slice(-6).toUpperCase(),
-                user: {
+                user: order.user ? {
                     _id: order.user._id,
-                    name: order.user.name,
-                    email: order.user.email,
-                    phone: order.user.phone,
+                    name: order.user.name || 'Unknown User',
+                    email: order.user.email || '',
+                    phone: order.user.phone || '',
+                } : {
+                    _id: 'unknown',
+                    name: 'Unknown User',
+                    email: '',
+                    phone: '',
                 },
                 items: vendorItems.map((item) => ({
                     product: {
                         _id: item.product._id,
-                        name: item.product.name,
-                        price: item.price,
+                        name: item.product.name || 'Unknown Product',
+                        price: item.price || 0,
                         image: item.product.images && item.product.images.length > 0 ? item.product.images[0] : "",
                     },
-                    quantity: item.quantity,
-                    price: item.price,
+                    quantity: item.quantity || 0,
+                    price: item.price || 0,
                 })),
-                status: order.status,
-                total: vendorItems.reduce((sum, item) => sum + item.price * item.quantity, 0),
-                shippingAddress: order.shippingAddress,
-                paymentMethod: order.payment.method,
-                paymentStatus: order.payment.status,
+                status: order.status || 'pending',
+                total: vendorItems.reduce((sum, item) => sum + (item.price || 0) * (item.quantity || 0), 0),
+                shippingAddress: order.shippingAddress || {},
+                paymentMethod: order.payment?.method || 'unknown',
+                paymentStatus: order.payment?.status || 'pending',
                 createdAt: order.createdAt,
                 updatedAt: order.updatedAt,
             };
-        });
+        }).filter(Boolean); // Remove null orders
 
         res.status(200).json({ success: true, count: formattedOrders.length, data: formattedOrders });
     } catch (err) {

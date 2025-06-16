@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from "react";
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, RefreshControl, Modal } from "react-native";
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, RefreshControl, Modal, ScrollView } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/core";
@@ -179,48 +179,55 @@ const VendorPaymentsScreen: React.FC = () => {
     };
 
     const renderPaymentItem = ({ item }: { item: VendorOrder }) => {
-        const paymentStatus = mapPaymentStatus(item.paymentStatus);
+        const statusColor = getStatusColor(item.paymentStatus);
+        const statusIcon = getStatusIcon(item.paymentStatus);
 
         return (
-            <TouchableOpacity onPress={() => handleActionPress(item)} activeOpacity={0.7}>
-                <Card3D style={styles.paymentCard} elevation="small">
-                    <View style={styles.paymentHeader}>
-                        <View>
-                            <Text style={styles.paymentAmount}>₹{item.total.toFixed(2)}</Text>
-                            <Text style={styles.paymentDate}>
-                                {new Date(item.createdAt).toLocaleDateString("en-IN", {
-                                    day: "numeric",
-                                    month: "short",
-                                    year: "numeric",
-                                })}
-                            </Text>
-                        </View>
-                        <View style={[styles.statusBadge, { backgroundColor: getStatusColor(paymentStatus) }]}>
-                            <Text style={styles.statusText}>{paymentStatus.charAt(0).toUpperCase() + paymentStatus.slice(1)}</Text>
-                        </View>
+            <Card3D>
+                <View style={styles.paymentHeader}>
+                    <View style={styles.paymentInfo}>
+                        <Text style={styles.orderNumber}>Order #{item.orderNumber}</Text>
+                        <Text style={styles.paymentDate}>{new Date(item.createdAt).toLocaleDateString()}</Text>
                     </View>
-
-                    <View style={styles.paymentDetails}>
-                        <View style={styles.detailRow}>
-                            <Ionicons name="receipt-outline" size={16} color={theme.colors.gray} />
-                            <Text style={styles.detailLabel}>Order:</Text>
-                            <Text style={styles.detailValue}>{item.orderNumber}</Text>
-                        </View>
-
-                        <View style={styles.detailRow}>
-                            <Ionicons name="person-outline" size={16} color={theme.colors.gray} />
-                            <Text style={styles.detailLabel}>Customer:</Text>
-                            <Text style={styles.detailValue}>{item.user.name}</Text>
-                        </View>
-
-                        <View style={styles.detailRow}>
-                            <Ionicons name="card-outline" size={16} color={theme.colors.gray} />
-                            <Text style={styles.detailLabel}>Method:</Text>
-                            <Text style={styles.detailValue}>{item.paymentMethod}</Text>
-                        </View>
+                    <View style={[styles.statusBadge, { backgroundColor: statusColor }]}>
+                        <Ionicons name={statusIcon as any} size={16} color={theme.colors.white} />
+                        <Text style={styles.statusText}>{item.paymentStatus?.toUpperCase() || 'PENDING'}</Text>
                     </View>
-                </Card3D>
-            </TouchableOpacity>
+                </View>
+
+                <View style={styles.customerInfo}>
+                    <Text style={styles.customerName}>{item.user?.name || 'Unknown Customer'}</Text>
+                    <Text style={styles.customerContact}>{item.user?.phone || 'No phone'}</Text>
+                </View>
+
+                <View style={styles.paymentDetails}>
+                    <View style={styles.amountContainer}>
+                        <Text style={styles.amountLabel}>Amount:</Text>
+                        <Text style={styles.amount}>₹{item.total || 0}</Text>
+                    </View>
+                    <View style={styles.methodContainer}>
+                        <Text style={styles.methodLabel}>Method:</Text>
+                        <Text style={styles.method}>{item.paymentMethod?.toUpperCase() || 'UNKNOWN'}</Text>
+                    </View>
+                </View>
+
+                <View style={styles.actionButtons}>
+                    <TouchableOpacity
+                        style={[styles.actionButton, styles.viewButton]}
+                        onPress={() => handlePaymentDetails(item)}
+                    >
+                        <Text style={styles.actionButtonText}>View Details</Text>
+                    </TouchableOpacity>
+                    {item.paymentStatus === 'pending' && (
+                        <TouchableOpacity
+                            style={[styles.actionButton, styles.reminderButton]}
+                            onPress={() => handleSendReminder(item._id)}
+                        >
+                            <Text style={styles.actionButtonText}>Send Reminder</Text>
+                        </TouchableOpacity>
+                    )}
+                </View>
+            </Card3D>
         );
     };
 
@@ -228,91 +235,71 @@ const VendorPaymentsScreen: React.FC = () => {
     const renderDetailsModal = () => {
         if (!selectedPayment) return null;
 
-        const paymentStatus = mapPaymentStatus(selectedPayment.paymentStatus);
-
         return (
-            <Modal animationType="slide" transparent={true} visible={showDetailsModal} onRequestClose={closeDetailsModal}>
-                <View style={styles.modalOverlay}>
+            <Modal
+                visible={!!selectedPayment}
+                transparent
+                animationType="slide"
+                onRequestClose={closeDetailsModal}
+            >
+                <View style={styles.modalContainer}>
                     <View style={styles.modalContent}>
                         <View style={styles.modalHeader}>
                             <Text style={styles.modalTitle}>Payment Details</Text>
                             <TouchableOpacity onPress={closeDetailsModal}>
-                                <Ionicons name="close" size={24} color={theme.colors.text} />
+                                <Ionicons name="close" size={24} color={theme.colors.dark} />
                             </TouchableOpacity>
                         </View>
 
-                        <View style={styles.detailsCard}>
-                            <View style={styles.detailsRow}>
-                                <Text style={styles.detailsLabel}>Order ID:</Text>
-                                <Text style={styles.detailsValue}>{selectedPayment.orderNumber}</Text>
+                        <ScrollView style={styles.modalBody}>
+                            <View style={styles.detailRow}>
+                                <Text style={styles.detailLabel}>Order Number:</Text>
+                                <Text style={styles.detailValue}>{selectedPayment.orderNumber}</Text>
                             </View>
 
-                            <View style={styles.detailsRow}>
-                                <Text style={styles.detailsLabel}>Amount:</Text>
-                                <Text style={styles.detailsValue}>₹{selectedPayment.total.toFixed(2)}</Text>
+                            <View style={styles.detailRow}>
+                                <Text style={styles.detailLabel}>Customer:</Text>
+                                <Text style={styles.detailValue}>{selectedPayment.user?.name || 'Unknown Customer'}</Text>
                             </View>
 
-                            <View style={styles.detailsRow}>
-                                <Text style={styles.detailsLabel}>Status:</Text>
-                                <View style={[styles.statusBadgeSmall, { backgroundColor: getStatusColor(paymentStatus) }]}>
-                                    <Text style={styles.statusTextSmall}>{paymentStatus.charAt(0).toUpperCase() + paymentStatus.slice(1)}</Text>
-                                </View>
+                            <View style={styles.detailRow}>
+                                <Text style={styles.detailLabel}>Amount:</Text>
+                                <Text style={styles.detailValue}>₹{selectedPayment.total || 0}</Text>
                             </View>
 
-                            <View style={styles.detailsRow}>
-                                <Text style={styles.detailsLabel}>Date:</Text>
-                                <Text style={styles.detailsValue}>
-                                    {new Date(selectedPayment.createdAt).toLocaleDateString("en-IN", {
-                                        day: "numeric",
-                                        month: "long",
-                                        year: "numeric",
-                                        hour: "2-digit",
-                                        minute: "2-digit",
-                                    })}
+                            <View style={styles.detailRow}>
+                                <Text style={styles.detailLabel}>Payment Method:</Text>
+                                <Text style={styles.detailValue}>{selectedPayment.paymentMethod?.toUpperCase() || 'UNKNOWN'}</Text>
+                            </View>
+
+                            <View style={styles.detailRow}>
+                                <Text style={styles.detailLabel}>Status:</Text>
+                                <Text style={[styles.detailValue, { color: getStatusColor(selectedPayment.paymentStatus) }]}>
+                                    {selectedPayment.paymentStatus?.toUpperCase() || 'PENDING'}
                                 </Text>
                             </View>
 
-                            <View style={styles.detailsRow}>
-                                <Text style={styles.detailsLabel}>Customer:</Text>
-                                <Text style={styles.detailsValue}>{selectedPayment.user.name}</Text>
+                            <View style={styles.detailRow}>
+                                <Text style={styles.detailLabel}>Date:</Text>
+                                <Text style={styles.detailValue}>
+                                    {new Date(selectedPayment.createdAt).toLocaleString()}
+                                </Text>
                             </View>
+                        </ScrollView>
 
-                            <View style={styles.detailsRow}>
-                                <Text style={styles.detailsLabel}>Email:</Text>
-                                <Text style={styles.detailsValue}>{selectedPayment.user.email}</Text>
-                            </View>
-
-                            <View style={styles.detailsRow}>
-                                <Text style={styles.detailsLabel}>Phone:</Text>
-                                <Text style={styles.detailsValue}>{selectedPayment.user.phone}</Text>
-                            </View>
-
-                            <View style={styles.detailsRow}>
-                                <Text style={styles.detailsLabel}>Payment Method:</Text>
-                                <Text style={styles.detailsValue}>{selectedPayment.paymentMethod}</Text>
-                            </View>
-                        </View>
-
-                        <View style={styles.modalActions}>
+                        <View style={styles.modalFooter}>
                             <TouchableOpacity
-                                style={[styles.actionButton, styles.viewOrderButton]}
-                                onPress={() => {
-                                    closeDetailsModal();
-                                    handleViewOrder(selectedPayment._id);
-                                }}
+                                style={[styles.modalButton, styles.closeButton]}
+                                onPress={closeDetailsModal}
                             >
-                                <Text style={styles.actionButtonText}>View Order</Text>
+                                <Text style={styles.modalButtonText}>Close</Text>
                             </TouchableOpacity>
-
-                            {selectedPayment.paymentStatus === "pending" && (
+                            {selectedPayment.paymentStatus === 'pending' && (
                                 <TouchableOpacity
-                                    style={[styles.actionButton, styles.reminderButton]}
-                                    onPress={() => {
-                                        closeDetailsModal();
-                                        handleSendReminder(selectedPayment._id);
-                                    }}
+                                    style={[styles.modalButton, styles.reminderButton]}
+                                    onPress={() => handleSendReminder(selectedPayment._id)}
                                 >
-                                    <Text style={styles.actionButtonText}>Send Reminder</Text>
+                                    <Text style={styles.modalButtonText}>Send Reminder</Text>
                                 </TouchableOpacity>
                             )}
                         </View>
@@ -402,6 +389,21 @@ const getStatusColor = (status: string): string => {
     }
 };
 
+const getStatusIcon = (status: string): string => {
+    switch (status) {
+        case "completed":
+            return "checkmark-circle";
+        case "pending":
+            return "hourglass";
+        case "processing":
+            return "refresh";
+        case "failed":
+            return "close-circle";
+        default:
+            return "help-circle";
+    }
+};
+
 const styles = StyleSheet.create({
     container: {
         flex: 1,
@@ -451,8 +453,11 @@ const styles = StyleSheet.create({
         alignItems: "center",
         marginBottom: 10,
     },
-    paymentAmount: {
-        fontSize: 18,
+    paymentInfo: {
+        flex: 1,
+    },
+    orderNumber: {
+        fontSize: 14,
         fontWeight: "bold",
         color: theme.colors.text,
     },
@@ -471,24 +476,71 @@ const styles = StyleSheet.create({
         fontSize: 12,
         fontWeight: "600",
     },
+    customerInfo: {
+        marginTop: 5,
+    },
+    customerName: {
+        fontSize: 14,
+        fontWeight: "bold",
+        color: theme.colors.text,
+    },
+    customerContact: {
+        fontSize: 12,
+        color: theme.colors.gray,
+        marginTop: 2,
+    },
     paymentDetails: {
         marginTop: 5,
     },
-    detailRow: {
-        flexDirection: "row",
-        alignItems: "center",
+    amountContainer: {
         marginBottom: 5,
     },
-    detailLabel: {
+    amountLabel: {
         fontSize: 14,
         color: theme.colors.gray,
-        marginLeft: 8,
         marginRight: 5,
     },
-    detailValue: {
+    amount: {
         fontSize: 14,
         color: theme.colors.text,
+        fontWeight: "bold",
+    },
+    methodContainer: {
+        marginBottom: 5,
+    },
+    methodLabel: {
+        fontSize: 14,
+        color: theme.colors.gray,
+        marginRight: 5,
+    },
+    method: {
+        fontSize: 14,
+        color: theme.colors.text,
+        fontWeight: "bold",
+    },
+    actionButtons: {
+        flexDirection: "row",
+        justifyContent: "space-between",
+        alignItems: "center",
+        marginTop: 10,
+    },
+    actionButton: {
+        paddingHorizontal: 15,
+        paddingVertical: 10,
+        borderRadius: 8,
         flex: 1,
+        alignItems: "center",
+        marginHorizontal: 5,
+    },
+    viewButton: {
+        backgroundColor: theme.colors.primary,
+    },
+    reminderButton: {
+        backgroundColor: theme.colors.warning,
+    },
+    actionButtonText: {
+        color: "#fff",
+        fontWeight: "600",
     },
     loaderContainer: {
         flex: 1,
@@ -544,7 +596,7 @@ const styles = StyleSheet.create({
         fontSize: 14,
         color: theme.colors.gray,
     },
-    modalOverlay: {
+    modalContainer: {
         flex: 1,
         backgroundColor: "rgba(0, 0, 0, 0.5)",
         justifyContent: "center",
@@ -568,42 +620,29 @@ const styles = StyleSheet.create({
         fontWeight: "bold",
         color: theme.colors.text,
     },
-    detailsCard: {
-        backgroundColor: theme.colors.background,
-        borderRadius: 8,
-        padding: 15,
-        marginBottom: 15,
+    modalBody: {
+        marginBottom: 20,
     },
-    detailsRow: {
+    detailRow: {
         flexDirection: "row",
         alignItems: "center",
         marginBottom: 10,
     },
-    detailsLabel: {
+    detailLabel: {
         fontSize: 14,
         color: theme.colors.gray,
         width: 100,
     },
-    detailsValue: {
+    detailValue: {
         fontSize: 14,
         color: theme.colors.text,
         flex: 1,
     },
-    statusBadgeSmall: {
-        paddingHorizontal: 8,
-        paddingVertical: 3,
-        borderRadius: 8,
-    },
-    statusTextSmall: {
-        color: "#fff",
-        fontSize: 11,
-        fontWeight: "600",
-    },
-    modalActions: {
+    modalFooter: {
         flexDirection: "row",
         justifyContent: "space-between",
     },
-    actionButton: {
+    modalButton: {
         paddingHorizontal: 15,
         paddingVertical: 10,
         borderRadius: 8,
@@ -611,13 +650,10 @@ const styles = StyleSheet.create({
         alignItems: "center",
         marginHorizontal: 5,
     },
-    viewOrderButton: {
+    closeButton: {
         backgroundColor: theme.colors.primary,
     },
-    reminderButton: {
-        backgroundColor: theme.colors.warning,
-    },
-    actionButtonText: {
+    modalButtonText: {
         color: "#fff",
         fontWeight: "600",
     },

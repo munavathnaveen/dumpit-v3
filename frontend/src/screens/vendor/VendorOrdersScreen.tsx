@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, RefreshControl } from "react-native";
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, RefreshControl, Image } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { useFocusEffect } from "@react-navigation/core";
 import { Ionicons } from "@expo/vector-icons";
@@ -40,11 +40,11 @@ interface Order {
     status: OrderStatus;
     total: number;
     shippingAddress: {
-        street: string;
-        city: string;
-        state: string;
-        pincode: string;
-        phone: string;
+        street?: string;
+        city?: string;
+        state?: string;
+        pincode?: string;
+        phone?: string;
     };
     paymentMethod: string;
     paymentStatus: "pending" | "paid" | "failed";
@@ -300,65 +300,78 @@ const VendorOrdersScreen: React.FC = () => {
     };
 
     const renderOrderItem = ({ item }: { item: Order }) => {
-        const orderDate = new Date(item.createdAt).toLocaleDateString();
         const statusColor = getStatusColor(item.status);
         const statusIcon = getStatusIcon(item.status);
 
         return (
-            <Card3D style={styles.orderCard} elevation="small">
-                <TouchableOpacity style={styles.orderCardContent} onPress={() => navigation.navigate("VendorOrderDetails", { orderId: item._id })}>
-                    <View style={styles.orderHeader}>
-                        <View>
-                            <Text style={styles.orderNumber}>Order #{item.orderNumber}</Text>
-                            <Text style={styles.orderDate}>{orderDate}</Text>
-                        </View>
-
-                        <View style={[styles.statusBadge, { backgroundColor: statusColor }]}>
-                            <Ionicons name={statusIcon} size={14} color={theme.colors.white} />
-                            <Text style={styles.statusText}>{item.status.charAt(0).toUpperCase() + item.status.slice(1)}</Text>
-                        </View>
-                    </View>
-
+            <Card3D>
+                <View style={styles.orderHeader}>
                     <View style={styles.orderInfo}>
-                        <View style={styles.infoRow}>
-                            <Ionicons name="person-outline" size={16} color={theme.colors.gray} />
-                            <Text style={styles.customerName}>{item.user.name}</Text>
-                        </View>
-
-                        <View style={styles.infoRow}>
-                            <Ionicons name="cube-outline" size={16} color={theme.colors.gray} />
-                            <Text style={styles.itemCount}>
-                                {item.items.length} {item.items.length === 1 ? "item" : "items"}
-                            </Text>
-                        </View>
-
-                        <View style={styles.infoRow}>
-                            <Ionicons name="cash-outline" size={16} color={theme.colors.gray} />
-                            <Text style={styles.totalAmount}>₹{item.total.toFixed(2)}</Text>
-                        </View>
-
-                        <View style={styles.infoRow}>
-                            <Ionicons name="card-outline" size={16} color={theme.colors.gray} />
-                            <Text style={[styles.paymentStatus, { color: item.paymentStatus === "paid" ? theme.colors.success : theme.colors.warning }]}>
-                                {item.paymentStatus.charAt(0).toUpperCase() + item.paymentStatus.slice(1)}
-                            </Text>
-                        </View>
+                        <Text style={styles.orderNumber}>Order #{item.orderNumber}</Text>
+                        <Text style={styles.orderDate}>{new Date(item.createdAt).toLocaleDateString()}</Text>
                     </View>
+                    <View style={[styles.statusBadge, { backgroundColor: statusColor }]}>
+                        <Ionicons name={statusIcon} size={16} color={theme.colors.white} />
+                        <Text style={styles.statusText}>{item.status.toUpperCase()}</Text>
+                    </View>
+                </View>
 
-                    <View style={styles.orderFooter}>
-                        <TouchableOpacity style={styles.viewDetailsButton} onPress={() => navigation.navigate("VendorOrderDetails", { orderId: item._id })}>
-                            <Text style={styles.viewDetailsText}>View Details</Text>
-                        </TouchableOpacity>
+                <View style={styles.customerInfo}>
+                    <Text style={styles.customerName}>{item.user?.name || 'Unknown Customer'}</Text>
+                    <Text style={styles.customerContact}>{item.user?.phone || 'No phone'}</Text>
+                </View>
 
+                <View style={styles.itemsContainer}>
+                    {item.items.map((orderItem, index) => (
+                        <View key={index} style={styles.itemRow}>
+                            <Image
+                                source={{ uri: orderItem.product?.image || 'https://via.placeholder.com/50' }}
+                                style={styles.productImage}
+                                defaultSource={require('../../../assets/placeholder.png')}
+                            />
+                            <View style={styles.itemDetails}>
+                                <Text style={styles.itemName}>{orderItem.product?.name || 'Unknown Product'}</Text>
+                                <Text style={styles.itemQuantity}>Qty: {orderItem.quantity || 0}</Text>
+                            </View>
+                            <Text style={styles.itemPrice}>₹{(orderItem.price || 0) * (orderItem.quantity || 0)}</Text>
+                        </View>
+                    ))}
+                </View>
+
+                <View style={styles.orderFooter}>
+                    <View style={styles.totalContainer}>
+                        <Text style={styles.totalLabel}>Total Amount:</Text>
+                        <Text style={styles.totalAmount}>₹{item.total || 0}</Text>
+                    </View>
+                    <View style={styles.paymentInfo}>
+                        <Text style={styles.paymentMethod}>
+                            Payment: {item.paymentMethod?.toUpperCase() || 'UNKNOWN'}
+                        </Text>
+                        <Text style={[
+                            styles.paymentStatus,
+                            { color: item.paymentStatus === 'paid' ? theme.colors.success : theme.colors.error }
+                        ]}>
+                            {item.paymentStatus?.toUpperCase() || 'PENDING'}
+                        </Text>
+                    </View>
+                </View>
+
+                <View style={styles.actionButtons}>
+                    <TouchableOpacity
+                        style={[styles.actionButton, styles.viewButton]}
+                        onPress={() => handleOrderActions(item._id, item.status, item.paymentMethod)}
+                    >
+                        <Text style={styles.actionButtonText}>View Details</Text>
+                    </TouchableOpacity>
+                    {item.status === 'pending' && (
                         <TouchableOpacity
-                            style={[styles.actionButton, (item.status === "delivered" || item.status === "cancelled") && styles.disabledButton]}
-                            onPress={() => handleOrderActions(item._id, item.status, item.paymentMethod)}
-                            disabled={item.status === "delivered" || item.status === "cancelled"}
+                            style={[styles.actionButton, styles.updateButton]}
+                            onPress={() => handleOrderStatusUpdate(item._id, item.status)}
                         >
-                            <Text style={[styles.actionButtonText, (item.status === "delivered" || item.status === "cancelled") && styles.disabledButtonText]}>Update Status</Text>
+                            <Text style={styles.actionButtonText}>Update Status</Text>
                         </TouchableOpacity>
-                    </View>
-                </TouchableOpacity>
+                    )}
+                </View>
             </Card3D>
         );
     };
@@ -647,6 +660,81 @@ const styles = StyleSheet.create({
         padding: theme.spacing.md,
         justifyContent: "center",
         alignItems: "center",
+    },
+    customerInfo: {
+        marginBottom: theme.spacing.md,
+    },
+    customerContact: {
+        fontSize: 14,
+        color: theme.colors.gray,
+    },
+    itemsContainer: {
+        marginBottom: theme.spacing.md,
+    },
+    itemRow: {
+        flexDirection: "row",
+        alignItems: "center",
+        marginBottom: theme.spacing.xs,
+    },
+    productImage: {
+        width: 50,
+        height: 50,
+        borderRadius: theme.borderRadius.small,
+        marginRight: theme.spacing.sm,
+    },
+    itemDetails: {
+        flex: 1,
+    },
+    itemName: {
+        fontSize: 14,
+        fontWeight: "bold",
+        color: theme.colors.dark,
+    },
+    itemQuantity: {
+        fontSize: 14,
+        color: theme.colors.gray,
+    },
+    itemPrice: {
+        fontSize: 14,
+        fontWeight: "bold",
+        color: theme.colors.dark,
+    },
+    totalContainer: {
+        flexDirection: "row",
+        alignItems: "center",
+    },
+    totalLabel: {
+        fontSize: 14,
+        fontWeight: "bold",
+        color: theme.colors.dark,
+        marginRight: theme.spacing.xs,
+    },
+    paymentInfo: {
+        flexDirection: "row",
+        alignItems: "center",
+    },
+    paymentMethod: {
+        fontSize: 14,
+        fontWeight: "bold",
+        color: theme.colors.dark,
+        marginRight: theme.spacing.xs,
+    },
+    actionButtons: {
+        flexDirection: "row",
+        justifyContent: "space-between",
+        paddingTop: theme.spacing.sm,
+    },
+    viewButton: {
+        backgroundColor: theme.colors.primary,
+        paddingVertical: theme.spacing.xs,
+        paddingHorizontal: theme.spacing.sm,
+        borderRadius: theme.borderRadius.small,
+    },
+    updateButton: {
+        backgroundColor: theme.colors.primary,
+        paddingVertical: theme.spacing.xs,
+        paddingHorizontal: theme.spacing.sm,
+        borderRadius: theme.borderRadius.small,
     },
 });
 

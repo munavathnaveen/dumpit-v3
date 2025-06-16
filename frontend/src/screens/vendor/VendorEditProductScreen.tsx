@@ -33,10 +33,12 @@ const VendorEditProductScreen: React.FC = () => {
         discount: 0,
         image: "",
         isActive: true,
+        colors: [],
     });
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [errors, setErrors] = useState<Record<string, string>>({});
 
     // Load product data on component mount
     useEffect(() => {
@@ -57,6 +59,7 @@ const VendorEditProductScreen: React.FC = () => {
                     discount: product.discount || 0,
                     image: product.image || "",
                     isActive: product.isActive,
+                    colors: product.colors || [],
                 });
 
                 setError(null);
@@ -72,39 +75,47 @@ const VendorEditProductScreen: React.FC = () => {
     }, [productId]);
 
     const validateForm = (): boolean => {
+        const newErrors: Record<string, string> = {};
+
         if (!formData.name.trim()) {
-            alert("Error", "Please enter a product name");
-            return false;
+            newErrors.name = "Product name is required";
         }
+
         if (!formData.description.trim()) {
-            alert("Error", "Please enter a product description");
-            return false;
+            newErrors.description = "Description is required";
         }
+
         if (!formData.type || formData.type.trim() === "") {
-            alert("Error", "Please enter a product type");
-            return false;
+            newErrors.type = "Product type is required";
         }
-        if (!formData.category) {
-            alert("Error", "Please select a category");
-            return false;
+
+        if (!formData.category || formData.category.trim() === "") {
+            newErrors.category = "Product category is required";
         }
+
         if (!formData.price || formData.price <= 0) {
-            alert("Error", "Please enter a valid price");
-            return false;
+            newErrors.price = "Price must be greater than 0";
         }
+
         if (!formData.units || formData.units.trim() === "") {
-            alert("Error", "Please enter product units");
-            return false;
+            newErrors.units = "Units are required";
         }
-        if (formData.stockQuantity !== undefined && formData.stockQuantity < 0) {
-            alert("Error", "Stock quantity cannot be negative");
-            return false;
+
+        if (formData.stockQuantity === undefined || formData.stockQuantity < 0) {
+            newErrors.stockQuantity = "Stock quantity cannot be negative";
         }
+
         if (formData.discount !== undefined && (formData.discount < 0 || formData.discount > 100)) {
-            alert("Error", "Discount must be between 0% and 100%");
-            return false;
+            newErrors.discount = "Discount must be between 0 and 100%";
         }
-        return true;
+
+        // Add validation for colors if product type is paint
+        if (formData.type === "paint" && (!formData.colors || formData.colors.length === 0)) {
+            newErrors.colors = "At least one color is required for paint products";
+        }
+
+        setErrors(newErrors);
+        return Object.keys(newErrors).length === 0;
     };
 
     const handleInputChange = (field: keyof ProductFormData, value: any) => {
@@ -145,6 +156,7 @@ const VendorEditProductScreen: React.FC = () => {
                 discount: formData.discount,
                 isActive: formData.isActive,
                 image: formData.image,
+                colors: formData.type === "paint" ? formData.colors : undefined,
             };
 
             const response = await updateProduct(productId, updatedProductData);
@@ -311,6 +323,25 @@ const VendorEditProductScreen: React.FC = () => {
                             </TouchableOpacity>
                         </View>
                     </View>
+
+                    {/* Add this after the Product Type dropdown */}
+                    {formData.type === "paint" && (
+                        <View style={styles.formField}>
+                            <Text style={styles.label}>Colors*</Text>
+                            <TextInput
+                                style={styles.input}
+                                value={formData.colors?.join(", ") || ""}
+                                onChangeText={(text) => {
+                                    const colors = text.split(",").map(color => color.trim()).filter(color => color.length > 0);
+                                    handleInputChange("colors", colors);
+                                }}
+                                placeholder="Enter colors separated by commas (e.g., Red, Blue, Green)"
+                                placeholderTextColor={theme.colors.lightGray}
+                            />
+                            {errors.colors && <Text style={styles.errorText}>{errors.colors}</Text>}
+                            <Text style={styles.helperText}>Enter colors separated by commas</Text>
+                        </View>
+                    )}
                 </Card3D>
 
                 {/* Product Image */}

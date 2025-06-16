@@ -17,6 +17,7 @@ export interface ProductFormData {
     specs?: Record<string, string>;
     isAvailable?: boolean;
     isActive?: boolean;
+    colors?: string[]; // Array of color strings
 }
 
 type ProductsResponse = {

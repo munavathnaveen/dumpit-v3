@@ -47,6 +47,7 @@ export interface Product {
     isActive: boolean;
     createdAt: string;
     updatedAt: string;
+    colors?: string[]; // Array of color strings for paint products
 }
 
 export interface ProductFilters {
