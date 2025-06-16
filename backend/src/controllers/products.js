@@ -232,7 +232,8 @@ exports.updateProduct = async (req, res, next) => {
         if (product.vendor.toString() !== req.user.id) {
             return next(new ErrorResponse(`User ${req.user.id} is not authorized to update this product`, 401));
         }
-
+        console.log("Product ",product);
+        console.log("req.body ",req.body);
         product = await Product.findByIdAndUpdate(req.params.id, req.body, {
             new: true,
             runValidators: true,

@@ -278,7 +278,7 @@ const ProductDetailsScreen: React.FC = () => {
   // Render product info
   const renderProductInfo = () => {
     if (!product) return null;
-
+    console.log("Product ",product);
     const discountedPrice = product.discount > 0 
       ? product.price - (product.price * product.discount / 100)
       : product.price;
@@ -299,7 +299,7 @@ const ProductDetailsScreen: React.FC = () => {
             </>
           )}
         </View>
-        {product.type === "paint" && product.colors && product.colors.length > 0 && (
+        {product.category === "Paints" && product.colors && product.colors.length > 0 && (
                     <View style={styles.detailRow}>
                         <Text style={styles.detailLabel}>Colors:</Text>
                         <View style={styles.colorsContainer}>

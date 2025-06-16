@@ -156,9 +156,9 @@ const VendorEditProductScreen: React.FC = () => {
                 discount: formData.discount,
                 isActive: formData.isActive,
                 image: formData.image,
-                colors: formData.type === "paint" ? formData.colors : undefined,
+                colors: formData.category === "Paints" ? formData.colors : undefined,
             };
-
+            console.log(formData)
             const response = await updateProduct(productId, updatedProductData);
 
             if (response.success) {
@@ -325,7 +325,7 @@ const VendorEditProductScreen: React.FC = () => {
                     </View>
 
                     {/* Add this after the Product Type dropdown */}
-                    {formData.type === "paint" && (
+                    {formData.category === "Paints" && (
                         <View style={styles.formField}>
                             <Text style={styles.label}>Colors*</Text>
                             <TextInput

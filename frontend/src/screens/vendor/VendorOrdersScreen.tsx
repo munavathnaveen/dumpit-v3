@@ -325,9 +325,8 @@ const VendorOrdersScreen: React.FC = () => {
                     {item.items.map((orderItem, index) => (
                         <View key={index} style={styles.itemRow}>
                             <Image
-                                source={{ uri: orderItem.product?.image || 'https://via.placeholder.com/50' }}
+                                source={{ uri: orderItem.product?.image}}
                                 style={styles.productImage}
-                                defaultSource={require('../../../assets/placeholder.png')}
                             />
                             <View style={styles.itemDetails}>
                                 <Text style={styles.itemName}>{orderItem.product?.name || 'Unknown Product'}</Text>

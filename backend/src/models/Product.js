@@ -94,7 +94,7 @@ const ProductSchema = new mongoose.Schema(
             type: [String],
             validate: {
                 validator: function (value) {
-                    if (this.type === "paint") {
+                    if (this.category === "Paints") {
                         return Array.isArray(value) && value.length > 0;
                     } else {
                         return value === undefined || value.length === 0;

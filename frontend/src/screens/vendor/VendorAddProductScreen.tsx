@@ -99,7 +99,7 @@ const VendorAddProductScreen: React.FC = () => {
             newErrors.discount = "Discount must be between 0 and 100%";
         }
 
-        if (formData.type === "paint" && (!formData.colors || formData.colors.length === 0)) {
+        if (formData.category === "Paints" && (!formData.colors || formData.colors.length === 0)) {
             newErrors.colors = "At least one color is required for paint products";
         }
 
@@ -214,7 +214,7 @@ const VendorAddProductScreen: React.FC = () => {
                 discount: formData.discount,
                 isActive: formData.isActive,
                 image: formData.image,
-                colors: formData.type === "paint" ? formData.colors : undefined,
+                colors: formData.category === "Paints" ? formData.colors : undefined,
             });
 
             if (response.success) {
@@ -314,7 +314,7 @@ const VendorAddProductScreen: React.FC = () => {
                     />
 
                     {/* Add this after the Product Type dropdown */}
-                    {formData.type === "paint" && (
+                    {formData.category === "Paints" && (
                         <View style={styles.formGroup}>
                             <Text style={styles.label}>Colors*</Text>
                             <TextInput
