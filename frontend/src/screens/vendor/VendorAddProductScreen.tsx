@@ -214,7 +214,7 @@ const VendorAddProductScreen: React.FC = () => {
                 discount: formData.discount,
                 isActive: formData.isActive,
                 image: formData.image,
-                colors: formData.category === "Paints" ? formData.colors : undefined,
+                colors: formData.colors || [],
             });
 
             if (response.success) {

@@ -46,6 +46,17 @@ const productSchema = Joi.object({
     featured: Joi.boolean().default(false),
 
     isActive: Joi.boolean().default(true),
+
+    colors: Joi.array().items(Joi.string()).when('category', {
+        is: 'Paints',
+        then: Joi.array().min(1).required().messages({
+            'array.min': 'At least one color is required for paint products',
+            'any.required': 'Colors are required for paint products'
+        }),
+        otherwise: Joi.array().default([])
+    }),
+
+    image: Joi.string().allow('').default('')
 });
 
 // Product review validation schema

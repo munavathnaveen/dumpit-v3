@@ -156,9 +156,8 @@ const VendorEditProductScreen: React.FC = () => {
                 discount: formData.discount,
                 isActive: formData.isActive,
                 image: formData.image,
-                colors: formData.category === "Paints" ? formData.colors : undefined,
+                colors: formData.colors || [],
             };
-            console.log(formData)
             const response = await updateProduct(productId, updatedProductData);
 
             if (response.success) {
